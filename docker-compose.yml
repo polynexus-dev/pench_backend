@@ -27,11 +27,11 @@ services:
 
   web:
     build: .
-    command: daphne -b 0.0.0.0 -p 8082 config.asgi:application
+    command: daphne -b 0.0.0.0 -p 8083 config.asgi:application
 #    volumes:
 #      - .:/app
     ports:
-      - "8082:8082"
+      - "8083:8083"
     environment:
       - DEBUG=1
       - DB_NAME=delivery_erp
