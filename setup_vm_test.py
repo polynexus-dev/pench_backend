@@ -51,8 +51,10 @@ with schema_context(schema_name):
         if created:
             user.set_password(password)
             user.save()
+            print(f"Created/Found User: {username}")
         
-        Driver.objects.get_or_create(user=user, defaults={'is_active': True})
+        # Correct field name is is_available
+        Driver.objects.get_or_create(user=user, defaults={'is_available': True})
         
         # 2. Create 10 Customers and Orders for this driver
         order_ids = []
@@ -79,7 +81,7 @@ with schema_context(schema_name):
                 customer=customer,
                 status='pending',
                 scheduled_delivery_date=datetime.date.today(),
-                total_amount=random.randint(100, 500)
+                total=random.randint(100, 500) # field name is total, not total_amount
             )
             order_ids.append(str(order.id))
         
@@ -88,7 +90,7 @@ with schema_context(schema_name):
         route = create_optimized_route(
             name=route_name,
             driver=user,
-            delivery_date=datetime.date.today(),
+            date=datetime.date.today(),
             order_ids=order_ids
         )
         
