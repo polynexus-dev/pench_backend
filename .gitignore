@@ -43,7 +43,8 @@ build/
 *.egg-info/
 
 # Migrations
-**/migrations/
+# Keep migrations in the repo for production consistency
+# **/migrations/
 
 # Cache
 **/__pycache__/

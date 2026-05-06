@@ -12,11 +12,7 @@ echo "PostgreSQL is ready!"
 if [ "$RUN_MIGRATIONS" = "1" ]; then
     echo "--- STARTING MIGRATIONS ---"
     
-    # 1. Force migrate accounts first using standard migrate
-    echo "[*] Force migrating 'accounts' app to public schema..."
-    python manage.py migrate accounts --noinput
-    
-    # 2. Ensure Shared Apps (Public) are migrated
+    # 1. Ensure Shared Apps (Public) are migrated first
     echo "[*] Migrating SHARED apps (Public schema)..."
     python manage.py migrate_schemas --shared --noinput
     
