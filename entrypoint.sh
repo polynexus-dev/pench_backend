@@ -10,11 +10,15 @@ done
 echo "PostgreSQL is ready!"
 
 if [ "$RUN_MIGRATIONS" = "1" ]; then
-    # 1. Create migrations (just in case they are missing)
-    python manage.py makemigrations finance --noinput
+    # 1. Create migrations for all apps to ensure nothing is missed
+    echo "Creating migrations..."
+    python manage.py makemigrations accounts --noinput
+    python manage.py makemigrations tenants --noinput
+    python manage.py makemigrations --noinput
 
     # 2. Run shared migrations
     echo "Running shared migrations..."
+    # Explicitly migrate accounts first if it's a shared app and defines the user model
     python manage.py migrate_schemas --shared --noinput
 
     # 3. Setup Public Tenant and Admin User via a temporary Python script

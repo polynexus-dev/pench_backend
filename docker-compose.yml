@@ -28,8 +28,8 @@ services:
   web:
     build: .
     command: daphne -b 0.0.0.0 -p 8000 config.asgi:application
-    volumes:
-      - .:/app
+#    volumes:
+#      - .:/app
     ports:
       - "8000:8000"
     environment:
@@ -52,8 +52,8 @@ services:
   worker:
     build: .
     command: celery -A config worker -l info
-    volumes:
-      - .:/app
+#    volumes:
+#      - .:/app
     environment:
       - DB_NAME=delivery_erp
       - DB_USER=postgres
@@ -72,8 +72,8 @@ services:
   beat:
     build: .
     command: celery -A config beat -l info
-    volumes:
-      - .:/app
+#    volumes:
+#      - .:/app
     environment:
       - DB_NAME=delivery_erp
       - DB_USER=postgres
