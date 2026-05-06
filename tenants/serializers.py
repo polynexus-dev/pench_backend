@@ -12,12 +12,11 @@ class CitySerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         if not validated_data.get('schema_name'):
-            code = validated_data.get('code', '').lower()
-            if code:
-                validated_data['schema_name'] = f"city_{code}"
+            name = validated_data.get('name', '').lower().replace(' ', '_')
+            if name:
+                validated_data['schema_name'] = name
             else:
-                name = validated_data.get('name', '').lower().replace(' ', '_')
-                validated_data['schema_name'] = f"city_{name}"
+                validated_data['schema_name'] = validated_data.get('code', '').lower()
         return super().create(validated_data)
 
 
