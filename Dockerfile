@@ -32,6 +32,6 @@ COPY . /app/
 COPY entrypoint.sh /app/entrypoint.sh
 RUN sed -i 's/\r$//' /app/entrypoint.sh && chmod +x /app/entrypoint.sh
 
-EXPOSE 8081
+EXPOSE 8082
 
 ENTRYPOINT ["/bin/bash", "/app/entrypoint.sh"]
