@@ -1,0 +1,81 @@
+from rest_framework import viewsets, status
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from core.permissions import IsDriverOrReadOnly, IsERPUser
+from .models import Route, Driver, TrackingEvent, DailyReconciliation
+from .serializers import (
+    RouteSerializer, DriverSerializer, TrackingEventSerializer, 
+    DailyReconciliationSerializer, ReconcileActionSerializer
+)
+from .tasks import optimize_route_task
+
+
+class RouteViewSet(viewsets.ModelViewSet):
+    queryset = Route.objects.select_related('driver__user').prefetch_related('orders')
+    serializer_class = RouteSerializer
+    permission_classes = [IsAuthenticated]
+    filterset_fields = ['status', 'driver']
+    ordering_fields = ['created_at']
+
+    @action(detail=True, methods=['post'], url_path='optimize')
+    def optimize(self, request, pk=None):
+        route = self.get_object()
+        if route.status in ('optimizing', 'in_progress'):
+            return Response({'detail': 'Route is already being processed.'}, status=status.HTTP_409_CONFLICT)
+        optimize_route_task.delay(str(route.id))
+        return Response({'detail': 'Optimization started.', 'route_id': str(route.id)}, status=status.HTTP_202_ACCEPTED)
+
+    @action(detail=True, methods=['get'], url_path='geojson')
+    def geojson(self, request, pk=None):
+        from .serializers import RouteGeoSerializer
+        route = self.get_object()
+        return Response(RouteGeoSerializer(route).data)
+
+    @action(detail=True, methods=['get'], url_path='tracking')
+    def tracking(self, request, pk=None):
+        route = self.get_object()
+        events = route.tracking_events.order_by('timestamp')
+        serializer = TrackingEventSerializer(events, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], url_path='generate-reconciliation')
+    def generate_reconciliation(self, request, pk=None):
+        from .services.reconciliation_service import generate_daily_reconciliation
+        recon = generate_daily_reconciliation(pk)
+        return Response(DailyReconciliationSerializer(recon).data)
+
+
+class DriverViewSet(viewsets.ModelViewSet):
+    queryset = Driver.objects.select_related('user')
+    serializer_class = DriverSerializer
+    permission_classes = [IsAuthenticated]
+    filterset_fields = ['is_available']
+
+
+class TrackingEventViewSet(viewsets.ModelViewSet):
+    queryset = TrackingEvent.objects.select_related('route', 'order')
+    serializer_class = TrackingEventSerializer
+    permission_classes = [IsDriverOrReadOnly]
+    filterset_fields = ['route', 'status']
+    ordering_fields = ['timestamp']
+
+
+class DailyReconciliationViewSet(viewsets.ModelViewSet):
+    queryset = DailyReconciliation.objects.select_related('driver__user', 'route', 'reconciled_by')
+    serializer_class = DailyReconciliationSerializer
+    permission_classes = [IsERPUser]
+    filterset_fields = ['driver', 'status', 'date']
+
+    @action(detail=True, methods=['post'], url_path='reconcile')
+    def reconcile(self, request, pk=None):
+        ser = ReconcileActionSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        from .services.reconciliation_service import reconcile
+        recon = reconcile(
+            reconciliation_id=pk,
+            actual_total=ser.validated_data['actual_total'],
+            user=request.user,
+            notes=ser.validated_data.get('notes', '')
+        )
+        return Response(DailyReconciliationSerializer(recon).data)
