@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.gis.geos import Point
-from .models import Customer
+from .models import Customer, Lead
 
 
 class CustomerSerializer(serializers.ModelSerializer):
@@ -15,9 +15,10 @@ class CustomerSerializer(serializers.ModelSerializer):
         model = Customer
         fields = [
             'id', 'name', 'company', 'email', 'phone', 'address',
-            'latitude', 'longitude', 'lat', 'lng', 'notes', 'is_active', 'created_at'
+            'latitude', 'longitude', 'lat', 'lng', 'notes', 'is_active', 
+            'qr_code_id', 'created_at'
         ]
-        read_only_fields = ['id', 'created_at']
+        read_only_fields = ['id', 'qr_code_id', 'created_at']
 
     def get_latitude(self, obj):
         return obj.location.y if obj.location else None
@@ -42,3 +43,12 @@ class CustomerSerializer(serializers.ModelSerializer):
             instance.location = Point(lng, lat)
             
         return super().update(instance, validated_data)
+
+
+class LeadSerializer(serializers.ModelSerializer):
+    referred_by_name = serializers.CharField(source='referred_by.name', read_only=True)
+
+    class Meta:
+        model = Lead
+        fields = ['id', 'name', 'phone', 'email', 'referred_by', 'referred_by_name', 'notes', 'status', 'created_at']
+        read_only_fields = ['id', 'created_at']

@@ -59,12 +59,12 @@ for app in TENANT_APPS:
     if app not in INSTALLED_APPS:
         INSTALLED_APPS.append(app)
 
-TENANT_MODEL = 'tenants.City'
-TENANT_DOMAIN_MODEL = 'tenants.Domain'
-
 DATABASE_ROUTERS = (
     'django_tenants.routers.TenantSyncRouter',
 )
+
+TENANT_MODEL = 'tenants.City'
+TENANT_DOMAIN_MODEL = 'tenants.Domain'
 
 DATABASES = {
     'default': {
