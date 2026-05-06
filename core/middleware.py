@@ -67,3 +67,47 @@ class TenantMiddleware:
     @database_sync_to_async
     def set_schema(self, schema_name):
         connection.set_schema(schema_name)
+
+
+class LocalDomainAutoRegisterMiddleware:
+    """
+    Middleware for local development that automatically registers the current
+    hostname in the Public Tenant domains if it doesn't exist.
+    Fixes the 'No tenant for hostname' error automatically.
+    """
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        from django.conf import settings
+        from tenants.models import City, Domain
+        
+        # Only run this logic if we are in DEBUG mode (local dev)
+        if settings.DEBUG:
+            from django.db import connection
+            host = request.get_host().split(':')[0]
+            print(f"[Debug] Host: {host}, Current Schema: {connection.schema_name}")
+            if connection.schema_name == 'public' and '.' in host and not host.endswith('.nip.io') and host != 'localhost':
+                 # This might be a city subdomain that failed to switch
+                 pass
+            
+            if connection.schema_name == 'public' and 'nagpur' in host:
+                print(f"[Debug] CRITICAL: Nagpur request but schema is PUBLIC! Check Domain table.")
+            
+            # Base IP/Domain logic: Only auto-register the primary entry points to Public
+            # Don't auto-register subdomains (which belong to cities)
+            is_potential_subdomain = host.count('.') > (4 if 'nip.io' in host else 1)
+            
+            if host and not is_potential_subdomain and not Domain.objects.filter(domain=host).exists():
+                try:
+                    public_tenant = City.objects.get(schema_name='public')
+                    Domain.objects.create(
+                        domain=host,
+                        tenant=public_tenant,
+                        is_primary=False
+                    )
+                    print(f"[Auto-Register] Automatically registered local domain: {host}")
+                except Exception as e:
+                    pass
+
+        return self.get_response(request)

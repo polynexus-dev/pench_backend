@@ -6,10 +6,11 @@ from rest_framework_simplejwt.views import (
 from .views import (
     RegisterView, MeView, RequestOTPView, LoginOTPView, 
     MyTokenObtainPairView, SetPasswordView, 
-    ForgotPasswordView, ResetPasswordView
+    ForgotPasswordView, ResetPasswordView, UserListView
 )
 
 urlpatterns = [
+    path('users/', UserListView.as_view(), name='user_list'),
     path('login/', MyTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('login/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('login-otp/', LoginOTPView.as_view(), name='login_otp'),

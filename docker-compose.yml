@@ -43,8 +43,8 @@ services:
       - GDAL_LIBRARY_PATH=
       - GEOS_LIBRARY_PATH=
       - RUN_MIGRATIONS=1
-      - PUBLIC_DOMAIN=13.235.143.251
-      - ALLOWED_HOSTS=13.235.143.251,localhost,127.0.0.1
+      - PUBLIC_DOMAIN=192.168.1.195.nip.io
+      - ALLOWED_HOSTS=.192.168.1.195.nip.io,.13.235.143.251,localhost,127.0.0.1
     depends_on:
       db:
         condition: service_healthy

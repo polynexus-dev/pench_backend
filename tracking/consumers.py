@@ -36,9 +36,10 @@ class TrackingConsumer(AsyncWebsocketConsumer):
             lng = data.get('lng')
 
             if lat and lng:
-                # Update Database
-                await self.update_driver_location(lat, lng)
-
+                print(f"[WS Receive] Driver {self.user.username}: Lat={lat}, Lng={lng}")
+                # Update Database and get full trail
+                trail_points = await self.update_driver_location(lat, lng)
+                
                 # Broadcast to Admins
                 await self.channel_layer.group_send(
                     "admins",
@@ -47,7 +48,8 @@ class TrackingConsumer(AsyncWebsocketConsumer):
                         "driver_id": str(self.user.id),
                         "driver_name": self.user.get_full_name(),
                         "lat": lat,
-                        "lng": lng
+                        "lng": lng,
+                        "trail": trail_points # Full array of [lng, lat]
                     }
                 )
         except Exception as e:
@@ -77,7 +79,17 @@ class TrackingConsumer(AsyncWebsocketConsumer):
                     user_id=self.user.id,
                     location=point
                 )
+
+                # Fetch full trail for today to send to frontend
+                import datetime
+                today = datetime.date.today()
+                trails = DriverTrail.objects.filter(
+                    user_id=self.user.id,
+                    timestamp__date=today
+                ).order_by('timestamp')
+                
+                return [[t.location.x, t.location.y] for t in trails]
         except Exception as e:
             print(f"[DB Sync Error] {str(e)}")
             traceback.print_exc()
-            raise e
+            return []

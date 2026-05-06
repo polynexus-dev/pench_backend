@@ -81,6 +81,7 @@ DATABASES = {
 
 MIDDLEWARE = [
     'django_tenants.middleware.main.TenantMainMiddleware', # mandatory first
+    'core.middleware.LocalDomainAutoRegisterMiddleware', # for debugging schema switch
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',
@@ -118,7 +119,7 @@ CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
-            "hosts": [config('REDIS_URL', default='redis://redis:6379/0')],
+            "hosts": [config('REDIS_URL', default='redis://127.0.0.1:6379/0')],
         },
     },
 }

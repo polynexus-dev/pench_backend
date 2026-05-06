@@ -5,7 +5,7 @@ from .views import OrderViewSet, RouteViewSet, DriverViewSet
 router = DefaultRouter()
 router.register(r'routes', RouteViewSet, basename='route')
 router.register(r'driver', DriverViewSet, basename='driver-app')
-router.register(r'', OrderViewSet, basename='order')
+router.register(r'list', OrderViewSet, basename='order')
 
 urlpatterns = [
     path('', include(router.urls)),

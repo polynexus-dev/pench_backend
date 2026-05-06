@@ -13,12 +13,14 @@ class CityViewSet(viewsets.ModelViewSet):
         city = serializer.save()
         
         # Automatically create a domain for the city
-        # Defaulting to <schema_name>.localhost for local development
-        domain_name = f"{city.schema_name}.localhost"
-        Domain.objects.create(
+        import os
+        base_domain = os.environ.get('PUBLIC_DOMAIN', 'localhost')
+        domain_name = f"{city.schema_name}.{base_domain}"
+        
+        Domain.objects.get_or_create(
             domain=domain_name,
             tenant=city,
-            is_primary=True
+            defaults={'is_primary': True}
         )
 
 

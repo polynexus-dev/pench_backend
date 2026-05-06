@@ -143,6 +143,9 @@ class DriverViewSet(viewsets.ViewSet):
     """
     permission_classes = [IsAuthenticated]
 
+    def retrieve(self, request, pk=None):
+        return Response({"detail": "Use specific actions like start-trip"})
+
     @action(detail=False, methods=['get'], url_path='my-route')
     def my_route(self, request):
         """
@@ -169,9 +172,16 @@ class DriverViewSet(viewsets.ViewSet):
         pk is the Route ID.
         """
         from django.utils import timezone
-        route = Route.objects.filter(id=pk, driver=request.user).first()
+        # Professional Error Handling: Distinguish between "Not Found" and "Forbidden"
+        route = Route.objects.filter(id=pk).first()
         if not route:
-            return Response({'detail': 'Route not found.'}, status=404)
+            return Response({'error': f'Route with ID {pk} does not exist in this city.'}, status=status.HTTP_404_NOT_FOUND)
+        
+        if route.driver != request.user:
+            return Response({
+                'error': 'Access Denied',
+                'detail': f'This route is assigned to {route.driver.username if route.driver else "nobody"}. You (User {request.user.id}) cannot complete it.'
+            }, status=status.HTTP_403_FORBIDDEN)
         
         route.started_at = timezone.now()
         route.save(update_fields=['started_at'])
@@ -190,9 +200,16 @@ class DriverViewSet(viewsets.ViewSet):
         pk is the Route ID.
         """
         from django.utils import timezone
-        route = Route.objects.filter(id=pk, driver=request.user).first()
+        # Professional Error Handling: Distinguish between "Not Found" and "Forbidden"
+        route = Route.objects.filter(id=pk).first()
         if not route:
-            return Response({'detail': 'Route not found.'}, status=404)
+            return Response({'error': f'Route with ID {pk} does not exist in this city.'}, status=status.HTTP_404_NOT_FOUND)
+        
+        if route.driver != request.user:
+            return Response({
+                'error': 'Access Denied',
+                'detail': f'This route is assigned to {route.driver.username if route.driver else "nobody"}. You (User {request.user.id}) cannot complete it.'
+            }, status=status.HTTP_403_FORBIDDEN)
         
         route.completed_at = timezone.now()
         route.is_completed = True

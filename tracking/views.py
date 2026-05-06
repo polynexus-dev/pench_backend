@@ -12,10 +12,20 @@ class DriverLocationSerializer(serializers.ModelSerializer):
     driver_name = serializers.CharField(source='user.get_full_name', read_only=True)
     lat = serializers.FloatField(source='location.y', read_only=True)
     lng = serializers.FloatField(source='location.x', read_only=True)
+    trail = serializers.SerializerMethodField()
 
     class Meta:
         model = DriverLocation
-        fields = ['id', 'user', 'driver_name', 'lat', 'lng', 'updated_at']
+        fields = ['id', 'user', 'driver_name', 'lat', 'lng', 'trail', 'updated_at']
+
+    def get_trail(self, obj):
+        import datetime
+        today = datetime.date.today()
+        trails = DriverTrail.objects.filter(
+            user=obj.user,
+            timestamp__date=today
+        ).order_by('timestamp')
+        return [[t.location.x, t.location.y] for t in trails]
 
 
 class DriverLocationViewSet(viewsets.ReadOnlyModelViewSet):
