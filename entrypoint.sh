@@ -53,6 +53,16 @@ try:
             defaults={'is_primary': True}
         )
 
+        # Create Public Domain from ENV if provided (Important for VM IP access)
+        public_domain = os.environ.get('PUBLIC_DOMAIN')
+        if public_domain and public_domain != 'localhost':
+            Domain.objects.get_or_create(
+                domain=public_domain,
+                tenant=c,
+                defaults={'is_primary': False}
+            )
+            print(f"Registered Domain: {public_domain}")
+
         # Create Admin User
         if not User.objects.filter(username='admin').exists():
             User.objects.create_superuser('admin', 'admin@dairy.com', 'admin')
