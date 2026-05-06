@@ -34,6 +34,10 @@ class Order(BaseModel):
     delivery_address = models.TextField()
     delivery_notes = models.TextField(blank=True)
     total = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    
+    # Proof of Delivery
+    pod_image = models.ImageField(upload_to='pod_images/', null=True, blank=True)
+    delivered_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ['-created_at']
@@ -83,6 +87,10 @@ class Route(BaseModel):
     )
     delivery_date = models.DateField()
     is_completed = models.BooleanField(default=False)
+    
+    # Tracking Timestamps
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
     
     total_distance_km = models.DecimalField(max_digits=8, decimal_places=2, default=0)
     estimated_time_minutes = models.PositiveIntegerField(default=0)

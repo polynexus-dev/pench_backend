@@ -21,13 +21,23 @@ class User(AbstractUser):
         default=False,
         help_text='Designates this user as a delivery driver.'
     )
+    is_customer = models.BooleanField(
+        default=False,
+        help_text='Designates this user as a CRM customer.'
+    )
+    tenant_schema = models.CharField(
+        max_length=63, 
+        null=True, 
+        blank=True,
+        help_text='The schema name of the tenant this customer belongs to.'
+    )
     portal = models.CharField(
         max_length=10,
         choices=PortalChoice.choices,
         default=PortalChoice.ERP,
         help_text='Primary portal this user accesses.'
     )
-    phone = models.CharField(max_length=20, blank=True)
+    phone = models.CharField(max_length=20, blank=True, unique=True)
     avatar = models.ImageField(upload_to='avatars/', null=True, blank=True)
 
     class Meta:
@@ -39,10 +49,27 @@ class User(AbstractUser):
 
     def save(self, *args, **kwargs):
         # Auto-set portal based on flags
-        if self.is_driver and not self.is_erp_user:
+        if self.is_driver:
             self.portal = PortalChoice.DELIVERY
-        elif self.is_erp_user and not self.is_driver:
+        elif self.is_erp_user:
             self.portal = PortalChoice.ERP
-        elif self.is_driver and self.is_erp_user:
-            self.portal = PortalChoice.BOTH
         super().save(*args, **kwargs)
+
+
+class OTP(models.Model):
+    """
+    Temporary OTP codes for phone-based login.
+    """
+    phone = models.CharField(max_length=20)
+    code = models.CharField(max_length=6)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    is_used = models.BooleanField(default=False)
+
+    class Meta:
+        verbose_name = 'OTP'
+        verbose_name_plural = 'OTPs'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"OTP for {self.phone}: {self.code}"

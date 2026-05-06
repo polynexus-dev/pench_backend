@@ -13,6 +13,10 @@ class City(TenantMixin):
     code = models.CharField(max_length=20, unique=True, help_text='Unique city code, e.g. MUM, DEL.')
     is_active = models.BooleanField(default=True)
     timezone = models.CharField(max_length=50, default='UTC')
+    require_pod = models.BooleanField(
+        default=False, 
+        help_text='If enabled, drivers must upload a photo to mark an order as delivered.'
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     # auto_create_schema=True by default in TenantMixin

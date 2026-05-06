@@ -17,10 +17,11 @@ socket.getaddrinfo = patched_getaddrinfo
 
 # --- CONFIGURATION ---
 TENANT_HOST = "pune.localhost"
-BASE_URL = f"http://{TENANT_HOST}:8000"
-WS_URL = f"ws://{TENANT_HOST}:8000/ws/tracking/"
-USERNAME = "admin"
-PASSWORD = "admin"
+PORT = "8083"
+BASE_URL = f"http://{TENANT_HOST}:{PORT}"
+WS_URL = f"ws://{TENANT_HOST}:{PORT}/ws/tracking/"
+USERNAME = "9823000000"
+PASSWORD = "new_secure_password_123" # Replace with actual password
 
 def get_token():
     print(f"[*] Logging in as {USERNAME} on {BASE_URL}...")

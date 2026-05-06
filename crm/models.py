@@ -7,6 +7,13 @@ class Customer(BaseModel):
     """CRM customer — Scoped to schema."""
 
     name = models.CharField(max_length=200)
+    user = models.OneToOneField(
+        'accounts.User', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True, 
+        related_name='customer_profile'
+    )
     company = models.CharField(max_length=200, blank=True)
     email = models.EmailField(unique=True)
     phone = models.CharField(max_length=20, blank=True)

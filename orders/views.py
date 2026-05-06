@@ -18,11 +18,25 @@ class OrderViewSet(viewsets.ModelViewSet):
     def mark_delivered(self, request, pk=None):
         order = self.get_object()
         bottles_returned = int(request.data.get('bottles_returned', 0))
+        pod_image = request.FILES.get('pod_image')
+        
+        # Check if POD is required for this city
+        from django.db import connection
+        tenant = connection.tenant
+        if getattr(tenant, 'require_pod', False) and not pod_image:
+            return Response(
+                {'detail': 'Proof of Delivery (photo) is required for this city.'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
         
         from django.db import transaction
+        from django.utils import timezone
         with transaction.atomic():
             order.status = OrderStatus.DELIVERED
-            order.save(update_fields=['status'])
+            order.delivered_at = timezone.now()
+            if pod_image:
+                order.pod_image = pod_image
+            order.save(update_fields=['status', 'delivered_at', 'pod_image'])
             
             from inventory.services import record_bottle_transaction
             from inventory.models import BottleTransactionType
@@ -147,6 +161,44 @@ class DriverViewSet(viewsets.ViewSet):
             return Response({'detail': 'No active route found for today.'}, status=404)
             
         return Response(RouteSerializer(route).data)
+
+    @action(detail=True, methods=['post'], url_path='start-trip')
+    def start_trip(self, request, pk=None):
+        """
+        Starts the route and marks all orders as IN_TRANSIT.
+        pk is the Route ID.
+        """
+        from django.utils import timezone
+        route = Route.objects.filter(id=pk, driver=request.user).first()
+        if not route:
+            return Response({'detail': 'Route not found.'}, status=404)
+        
+        route.started_at = timezone.now()
+        route.save(update_fields=['started_at'])
+        
+        # Update all orders in this route to IN_TRANSIT
+        for stop in route.stops.all():
+            stop.order.status = OrderStatus.IN_TRANSIT
+            stop.order.save(update_fields=['status'])
+            
+        return Response({'detail': 'Trip started successfully.', 'started_at': route.started_at})
+
+    @action(detail=True, methods=['post'], url_path='complete-trip')
+    def complete_trip(self, request, pk=None):
+        """
+        Finishes the route.
+        pk is the Route ID.
+        """
+        from django.utils import timezone
+        route = Route.objects.filter(id=pk, driver=request.user).first()
+        if not route:
+            return Response({'detail': 'Route not found.'}, status=404)
+        
+        route.completed_at = timezone.now()
+        route.is_completed = True
+        route.save(update_fields=['completed_at', 'is_completed'])
+            
+        return Response({'detail': 'Trip completed successfully.', 'completed_at': route.completed_at})
 
     @action(detail=True, methods=['post'], url_path='submit-delivery')
     def submit_delivery(self, request, pk=None):
