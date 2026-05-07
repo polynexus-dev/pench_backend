@@ -20,12 +20,12 @@ class OrderViewSet(viewsets.ModelViewSet):
         bottles_returned = int(request.data.get('bottles_returned', 0))
         pod_image = request.FILES.get('pod_image')
         
-        # Check if POD is required for this city
-        from django.db import connection
-        tenant = connection.tenant
-        if getattr(tenant, 'require_pod', False) and not pod_image:
+        # Check if POD is required for this tenant
+        from administration.models import AdminConfiguration
+        config = AdminConfiguration.get_solo()
+        if config.enable_delivery_photo and not pod_image:
             return Response(
-                {'detail': 'Proof of Delivery (photo) is required for this city.'}, 
+                {'detail': 'Proof of Delivery (photo) is required by your administrator.'}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
         

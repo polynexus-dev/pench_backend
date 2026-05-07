@@ -25,11 +25,23 @@ services:
       timeout: 5s
       retries: 5
 
+  migration:
+    build: .
+    environment:
+      - RUN_MIGRATIONS=1
+      - DB_NAME=delivery_erp
+      - DB_USER=postgres
+      - DB_PASSWORD=admin
+      - DB_HOST=db
+      - DB_PORT=5432
+    command: ["echo", "Migrations completed"]
+    depends_on:
+      db:
+        condition: service_healthy
+
   web:
     build: .
     command: daphne -b 0.0.0.0 -p 8083 config.asgi:application
-#    volumes:
-#      - .:/app
     ports:
       - "8083:8083"
     environment:
@@ -40,22 +52,18 @@ services:
       - DB_HOST=db
       - DB_PORT=5432
       - REDIS_URL=redis://redis:6379/0
-      - GDAL_LIBRARY_PATH=
-      - GEOS_LIBRARY_PATH=
-      - RUN_MIGRATIONS=1
+      - RUN_MIGRATIONS=0
       - PUBLIC_DOMAIN=192.168.1.195.nip.io
       - ALLOWED_HOSTS=.192.168.1.195.nip.io,.13.235.143.251,localhost,127.0.0.1
     depends_on:
-      db:
-        condition: service_healthy
+      migration:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
 
   worker:
     build: .
     command: celery -A config worker -l info
-#    volumes:
-#      - .:/app
     environment:
       - DB_NAME=delivery_erp
       - DB_USER=postgres
@@ -63,19 +71,15 @@ services:
       - DB_HOST=db
       - DB_PORT=5432
       - REDIS_URL=redis://redis:6379/0
-      - GDAL_LIBRARY_PATH=
-      - GEOS_LIBRARY_PATH=
     depends_on:
-      db:
-        condition: service_healthy
+      migration:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
 
   beat:
     build: .
     command: celery -A config beat -l info
-#    volumes:
-#      - .:/app
     environment:
       - DB_NAME=delivery_erp
       - DB_USER=postgres
@@ -83,11 +87,9 @@ services:
       - DB_HOST=db
       - DB_PORT=5432
       - REDIS_URL=redis://redis:6379/0
-      - GDAL_LIBRARY_PATH=
-      - GEOS_LIBRARY_PATH=
     depends_on:
-      db:
-        condition: service_healthy
+      migration:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
 

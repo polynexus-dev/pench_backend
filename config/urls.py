@@ -20,6 +20,7 @@ urlpatterns = [
         path('finance/', include('finance.urls')),
         path('hr/', include('hr.urls')),
         path('tracking/', include('tracking.urls')),
+        path('administration/', include('administration.urls')),
     ])),
 
     # Accounts
