@@ -45,11 +45,18 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
         
         # Add tenant info if available (except for admins)
         if not self.user.is_superuser and not self.user.is_staff:
+            from django.db import connection
             schema = self.user.tenant_schema
-            if schema:
+            
+            # Fallback to current connection tenant if user field is empty
+            if not schema and hasattr(connection, 'tenant'):
+                schema = getattr(connection.tenant, 'schema_name', None)
+
+            if schema and schema != 'public':
                 from tenants.models import City, Domain
                 city = City.objects.filter(schema_name=schema).first()
                 if city:
+                    data['sid'] = city.schema_name  # Schema ID
                     data['city_name'] = city.name
                     # Look up the first domain associated with this city
                     domain = Domain.objects.filter(tenant=city).first()
