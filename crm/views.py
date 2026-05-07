@@ -13,6 +13,21 @@ class CustomerViewSet(viewsets.ModelViewSet):
     search_fields = ['name', 'company', 'email', 'phone']
     ordering_fields = ['name', 'created_at']
 
+    def create(self, request, *args, **kwargs):
+        """
+        Supports creating multiple customers in a single POST request.
+        Just send a JSON list instead of a single object.
+        """
+        is_many = isinstance(request.data, list)
+        if not is_many:
+            return super().create(request, *args, **kwargs)
+        
+        serializer = self.get_serializer(data=request.data, many=True)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
     @action(detail=False, methods=['get'], url_path='qr-resolve/(?P<qr_id>[^/.]+)', permission_classes=[AllowAny])
     def qr_resolve(self, request, qr_id=None):
         """
