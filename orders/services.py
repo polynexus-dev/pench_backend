@@ -8,9 +8,25 @@ from .models import Order, Route, RouteStop
 
 logger = logging.getLogger(__name__)
 
+def get_coords(loc):
+    """Helper to extract (x, y) from GIS Point or JSON dict."""
+    if not loc: return None, None
+    if hasattr(loc, 'x') and hasattr(loc, 'y'):
+        return loc.x, loc.y
+    if isinstance(loc, dict):
+        return loc.get('lng') or loc.get('longitude'), loc.get('lat') or loc.get('latitude')
+    return None, None
+
 def get_osrm_distance_matrix(locations):
     """Fetches road distance matrix using BICYCLE profile."""
-    coords = ";".join([f"{loc.x},{loc.y}" for loc in locations])
+    coord_list = []
+    for loc in locations:
+        x, y = get_coords(loc)
+        if x is not None: coord_list.append(f"{x},{y}")
+    
+    if not coord_list: return None
+    
+    coords = ";".join(coord_list)
     url = f"http://router.project-osrm.org/table/v1/bicycle/{coords}?annotations=distance"
     try:
         response = requests.get(url, timeout=10)
@@ -22,7 +38,14 @@ def get_osrm_distance_matrix(locations):
 
 def get_osrm_route_geometry(locations):
     """Fetches the road geometry using BICYCLE profile."""
-    coords = ";".join([f"{loc.x},{loc.y}" for loc in locations])
+    coord_list = []
+    for loc in locations:
+        x, y = get_coords(loc)
+        if x is not None: coord_list.append(f"{x},{y}")
+        
+    if not coord_list: return None
+    
+    coords = ";".join(coord_list)
     url = f"http://router.project-osrm.org/route/v1/bicycle/{coords}?geometries=geojson&overview=full&continue_straight=false"
     try:
         response = requests.get(url, timeout=10)
@@ -39,6 +62,9 @@ def get_osrm_route_geometry(locations):
 def optimize_route_ortools(order_ids, start_point=None):
     orders = list(Order.objects.filter(id__in=order_ids).select_related('customer'))
     valid_orders = [o for o in orders if o.customer.location]
+    
+    print(f"[DEBUG] Found {len(orders)} orders. {len(valid_orders)} have customer locations.")
+    
     if not valid_orders:
         return orders, None
 
@@ -70,7 +96,9 @@ def optimize_route_ortools(order_ids, start_point=None):
         for i in range(size):
             for j in range(size):
                 p1, p2 = locations[i], locations[j]
-                distance_matrix[i][j] = int(math.sqrt((p1.x-p2.x)**2 + (p1.y-p2.y)**2) * 111000)
+                x1, y1 = get_coords(p1)
+                x2, y2 = get_coords(p2)
+                distance_matrix[i][j] = int(math.sqrt((x1-x2)**2 + (y1-y2)**2) * 111000)
 
     # 2. OR-Tools Setup
     manager = pywrapcp.RoutingIndexManager(size, 1, 0)
