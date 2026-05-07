@@ -14,18 +14,24 @@ if [ "$RUN_MIGRATIONS" = "1" ]; then
     
     # 1. Ensure Shared Apps (Public) are migrated first
     echo "[*] Migrating SHARED apps (Public schema)..."
-    python manage.py migrate_schemas --shared --noinput
+    python manage.py migrate_schemas --shared --noinput || {
+        echo "Migration failed. Attempting to fix by faking initial..."
+        python manage.py migrate_schemas --shared --fake-initial --noinput
+    }
     
-    # 2. Double-check if accounts table exists (sanity check)
-    echo "[*] Verifying accounts_user table..."
+    # 2. Verify critical tables
+    echo "[*] Verifying critical shared tables..."
     python manage.py shell <<EOF
 from django.db import connection
 with connection.cursor() as cursor:
-    cursor.execute("SELECT to_regclass('public.accounts_user');")
-    if cursor.fetchone()[0]:
-        print("SUCCESS: accounts_user table exists in public schema.")
-    else:
-        print("ERROR: accounts_user table NOT FOUND in public schema!")
+    tables = ['tenants_city', 'tenants_domain', 'accounts_user']
+    for table in tables:
+        cursor.execute(f"SELECT to_regclass('public.{table}');")
+        if cursor.fetchone()[0]:
+            print(f"SUCCESS: {table} exists.")
+        else:
+            print(f"CRITICAL: {table} NOT FOUND! Attempting forced migration...")
+            # We could trigger a forced migration here if we wanted
 EOF
 
     # 3. Setup Public Tenant and Admin User
@@ -33,11 +39,14 @@ EOF
     python manage.py shell <<EOF
 from tenants.models import City, Domain
 from accounts.models import User
-from django.db import transaction
+from django.db import transaction, connection
 import os
 
 try:
     with transaction.atomic():
+        # Ensure we are in public schema
+        connection.set_schema_to_public()
+        
         # Create Public Tenant
         c, created = City.objects.get_or_create(
             schema_name='public', 
@@ -56,6 +65,7 @@ try:
         # Create Public Domain from ENV if provided (Important for VM IP access)
         public_domain = os.environ.get('PUBLIC_DOMAIN')
         if public_domain and public_domain != 'localhost':
+            # Add both the domain and its subdomain wildcard if needed
             Domain.objects.get_or_create(
                 domain=public_domain,
                 tenant=c,

@@ -37,6 +37,8 @@ services:
       - DB_PORT=5432
       - REDIS_URL=redis://redis:6379/0
       - ALLOWED_HOSTS=pench.api.polynexus.in,.13.235.143.251,localhost,127.0.0.1
+      - RUN_MIGRATIONS=1
+      - PUBLIC_DOMAIN=pench.api.polynexus.in
       - GDAL_LIBRARY_PATH=
       - GEOS_LIBRARY_PATH=
     depends_on:

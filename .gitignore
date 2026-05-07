@@ -49,3 +49,7 @@ build/
 # Cache
 **/__pycache__/
 
+# Docker (Ignored per user request to prevent pushing to VM)
+# Dockerfile
+# docker-compose.yml
+

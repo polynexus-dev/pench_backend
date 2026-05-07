@@ -13,6 +13,14 @@ class Command(BaseCommand):
         TenantModel = get_tenant_model()
         public_schema = get_public_schema_name()
         
+        # 0. Run shared migrations first
+        self.stdout.write(self.style.SUCCESS('Running SHARED migrations...'))
+        try:
+            call_command('migrate_schemas', shared=True, noinput=True)
+            self.stdout.write(self.style.SUCCESS('Shared migrations completed.'))
+        except Exception as e:
+            self.stdout.write(self.style.ERROR(f'Shared migration failed: {e}'))
+        
         # 1. Check for missing schemas
         tenants = TenantModel.objects.exclude(schema_name=public_schema)
         
