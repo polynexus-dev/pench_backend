@@ -27,6 +27,29 @@ class OrderViewSet(viewsets.ModelViewSet):
         self.perform_create(serializer)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
+    @action(detail=False, methods=['patch', 'put'])
+    def bulk_update(self, request):
+        """
+        Updates multiple orders at once. Each must have an 'id'.
+        """
+        data = request.data
+        if not isinstance(data, list):
+            return Response({"detail": "Expected a list."}, status=status.HTTP_400_BAD_REQUEST)
+
+        updated = []
+        for item in data:
+            order_id = item.get('id')
+            if not order_id: continue
+            try:
+                instance = Order.objects.get(id=order_id)
+                serializer = self.get_serializer(instance, data=item, partial=True)
+                serializer.is_valid(raise_exception=True)
+                serializer.save()
+                updated.append(serializer.data)
+            except Order.DoesNotExist:
+                continue
+        return Response(updated, status=status.HTTP_200_OK)
+
     @action(detail=True, methods=['post'], url_path='mark-delivered')
     def mark_delivered(self, request, pk=None):
         order = self.get_object()

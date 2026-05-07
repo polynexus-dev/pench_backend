@@ -19,6 +19,42 @@ class EmployeeViewSet(viewsets.ModelViewSet):
     filterset_fields = ['department']
     search_fields = ['user__first_name', 'user__last_name', 'employee_id']
 
+    def create(self, request, *args, **kwargs):
+        """
+        Supports creating multiple employee profiles in one request.
+        """
+        is_many = isinstance(request.data, list)
+        if not is_many:
+            return super().create(request, *args, **kwargs)
+        
+        serializer = self.get_serializer(data=request.data, many=True)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['patch', 'put'])
+    def bulk_update(self, request):
+        """
+        Updates multiple employee profiles at once.
+        """
+        data = request.data
+        if not isinstance(data, list):
+            return Response({"detail": "Expected a list."}, status=status.HTTP_400_BAD_REQUEST)
+
+        updated = []
+        for item in data:
+            emp_id = item.get('id')
+            if not emp_id: continue
+            try:
+                instance = Employee.objects.get(id=emp_id)
+                serializer = self.get_serializer(instance, data=item, partial=True)
+                serializer.is_valid(raise_exception=True)
+                serializer.save()
+                updated.append(serializer.data)
+            except Employee.DoesNotExist:
+                continue
+        return Response(updated, status=status.HTTP_200_OK)
+
 
 class DepartmentViewSet(viewsets.ModelViewSet):
     queryset = Department.objects.all()

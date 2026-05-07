@@ -52,6 +52,19 @@ class DriverViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     filterset_fields = ['is_available']
 
+    def create(self, request, *args, **kwargs):
+        """
+        Supports creating multiple driver profiles in one request.
+        """
+        is_many = isinstance(request.data, list)
+        if not is_many:
+            return super().create(request, *args, **kwargs)
+        
+        serializer = self.get_serializer(data=request.data, many=True)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
 
 class TrackingEventViewSet(viewsets.ModelViewSet):
     queryset = TrackingEvent.objects.select_related('route', 'order')

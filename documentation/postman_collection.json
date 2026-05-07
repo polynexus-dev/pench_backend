@@ -1,662 +1,201 @@
 {
-	"info": {
-		"_postman_id": "a1b2c3d4-e5f6-4g7h-8i9j-k0l1m2n3o4p5",
-		"name": "Pench Backend API",
-		"description": "API collection for Pench ERP and Logistics platform.",
-		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
-	},
-	"item": [
-		{
-			"name": "Authentication",
-			"item": [
-				{
-					"name": "Login (OTP Request)",
-					"request": {
-						"method": "POST",
-						"header": [],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"phone\": \"9876543210\"\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "{{baseUrl}}/api/accounts/login/",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"accounts",
-								"login",
-								""
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Verify OTP",
-					"request": {
-						"method": "POST",
-						"header": [],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"phone\": \"9876543210\",\n    \"otp\": \"123456\"\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "{{baseUrl}}/api/accounts/verify-otp/",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"accounts",
-								"verify-otp",
-								""
-							]
-						}
-					},
-					"response": []
-				}
-			]
-		},
-		{
-			"name": "Customers & Leads",
-			"item": [
-				{
-					"name": "Leads",
-					"item": [
-						{
-							"name": "List Leads",
-							"request": {
-								"method": "GET",
-								"header": [],
-								"url": {
-									"raw": "{{tenantUrl}}/api/erp/customers/leads/",
-									"host": [
-										"{{tenantUrl}}"
-									],
-									"path": [
-										"api",
-										"erp",
-										"customers",
-										"leads",
-										""
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "Create Lead",
-							"request": {
-								"method": "POST",
-								"header": [],
-								"body": {
-									"mode": "raw",
-									"raw": "{\n    \"name\": \"John Doe\",\n    \"phone\": \"9998887776\",\n    \"source\": \"facebook\",\n    \"status\": \"new\"\n}",
-									"options": {
-										"raw": {
-											"language": "json"
-										}
-									}
-								},
-								"url": {
-									"raw": "{{tenantUrl}}/api/erp/customers/leads/",
-									"host": [
-										"{{tenantUrl}}"
-									],
-									"path": [
-										"api",
-										"erp",
-										"customers",
-										"leads",
-										""
-									]
-								}
-							},
-							"response": []
-						}
-					]
-				},
-				{
-					"name": "Customers",
-					"item": [
-						{
-							"name": "List Customers",
-							"request": {
-								"method": "GET",
-								"header": [],
-								"url": {
-									"raw": "{{tenantUrl}}/api/erp/customers/",
-									"host": [
-										"{{tenantUrl}}"
-									],
-									"path": [
-										"api",
-										"erp",
-										"customers",
-										""
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "Create Customer (Single or Bulk)",
-							"request": {
-								"method": "POST",
-								"header": [],
-								"body": {
-									"mode": "raw",
-									"raw": "[\n    {\n        \"name\": \"Rahul Dravid\",\n        \"email\": \"rahul@example.com\",\n        \"phone\": \"+919811223344\",\n        \"address\": \"Stadium Road, Pune\",\n        \"latitude\": 18.5204,\n        \"longitude\": 73.8567\n    }\n]",
-									"options": {
-										"raw": {
-											"language": "json"
-										}
-									}
-								},
-								"url": {
-									"raw": "{{tenantUrl}}/api/erp/customers/",
-									"host": [
-										"{{tenantUrl}}"
-									],
-									"path": [
-										"api",
-										"erp",
-										"customers",
-										""
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "Bulk Update Customers",
-							"request": {
-								"method": "PATCH",
-								"header": [],
-								"body": {
-									"mode": "raw",
-									"raw": "[\n    {\n        \"id\": \"uuid-here\",\n        \"latitude\": 18.5204,\n        \"longitude\": 73.8567\n    }\n]",
-									"options": {
-										"raw": {
-											"language": "json"
-										}
-									}
-								},
-								"url": {
-									"raw": "{{tenantUrl}}/api/erp/customers/bulk_update/",
-									"host": [
-										"{{tenantUrl}}"
-									],
-									"path": [
-										"api",
-										"erp",
-										"customers",
-										"bulk_update",
-										""
-									]
-								}
-							},
-							"response": []
-						}
-					]
-				}
-			]
-		},
-		{
-			"name": "Subscriptions",
-			"item": [
-				{
-					"name": "List Subscriptions",
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{tenantUrl}}/api/erp/subscriptions/",
-							"host": [
-								"{{tenantUrl}}"
-							],
-							"path": [
-								"api",
-								"erp",
-								"subscriptions",
-								""
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Create Subscription (Single or Bulk)",
-					"request": {
-						"method": "POST",
-						"header": [],
-						"body": {
-							"mode": "raw",
-							"raw": "[\n    {\n        \"customer\": \"customer-uuid\",\n        \"frequency\": \"daily\",\n        \"start_date\": \"2024-06-01\",\n        \"items\": [\n            {\n                \"product\": \"product-uuid\",\n                \"quantity\": 2\n            }\n        ]\n    }\n]",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "{{tenantUrl}}/api/erp/subscriptions/",
-							"host": [
-								"{{tenantUrl}}"
-							],
-							"path": [
-								"api",
-								"erp",
-								"subscriptions",
-								""
-							]
-						}
-					},
-					"response": []
-				}
-			]
-		},
-		{
-			"name": "Inventory",
-			"item": [
-				{
-					"name": "Products",
-					"item": [
-						{
-							"name": "List Products",
-							"request": {
-								"method": "GET",
-								"header": [],
-								"url": {
-									"raw": "{{tenantUrl}}/api/erp/inventory/products/",
-									"host": [
-										"{{tenantUrl}}"
-									],
-									"path": [
-										"api",
-										"erp",
-										"inventory",
-										"products",
-										""
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "Create Product (Single or Bulk)",
-							"request": {
-								"method": "POST",
-								"header": [],
-								"body": {
-									"mode": "raw",
-									"raw": "[\n    {\n        \"name\": \"Full Cream Milk (1L)\",\n        \"sku\": \"MILK-FC-1L\",\n        \"unit_price\": 65.00,\n        \"unit\": \"Litre\",\n        \"is_returnable\": true\n    }\n]",
-									"options": {
-										"raw": {
-											"language": "json"
-										}
-									}
-								},
-								"url": {
-									"raw": "{{tenantUrl}}/api/erp/inventory/products/",
-									"host": [
-										"{{tenantUrl}}"
-									],
-									"path": [
-										"api",
-										"erp",
-										"inventory",
-										"products",
-										""
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "Bulk Update Products",
-							"request": {
-								"method": "PATCH",
-								"header": [],
-								"body": {
-									"mode": "raw",
-									"raw": "[\n    {\n        \"id\": \"uuid-here\",\n        \"unit_price\": 68.00\n    }\n]",
-									"options": {
-										"raw": {
-											"language": "json"
-										}
-									}
-								},
-								"url": {
-									"raw": "{{tenantUrl}}/api/erp/inventory/products/bulk_update/",
-									"host": [
-										"{{tenantUrl}}"
-									],
-									"path": [
-										"api",
-										"erp",
-										"inventory",
-										"products",
-										"bulk_update",
-										""
-									]
-								}
-							},
-							"response": []
-						}
-					]
-				},
-				{
-					"name": "Stock",
-					"item": [
-						{
-							"name": "List Stock",
-							"request": {
-								"method": "GET",
-								"header": [],
-								"url": {
-									"raw": "{{tenantUrl}}/api/erp/inventory/stock/",
-									"host": [
-										"{{tenantUrl}}"
-									],
-									"path": [
-										"api",
-										"erp",
-										"inventory",
-										"stock",
-										""
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "Bulk Update Stock",
-							"request": {
-								"method": "PATCH",
-								"header": [],
-								"body": {
-									"mode": "raw",
-									"raw": "[\n    {\n        \"id\": \"stock-uuid\",\n        \"quantity\": 150\n    }\n]",
-									"options": {
-										"raw": {
-											"language": "json"
-										}
-									}
-								},
-								"url": {
-									"raw": "{{tenantUrl}}/api/erp/inventory/stock/bulk_update/",
-									"host": [
-										"{{tenantUrl}}"
-									],
-									"path": [
-										"api",
-										"erp",
-										"inventory",
-										"stock",
-										"bulk_update",
-										""
-									]
-								}
-							},
-							"response": []
-						}
-					]
-				},
-				{
-					"name": "Bottle Transactions",
-					"item": [
-						{
-							"name": "Log Transactions (Single or Bulk)",
-							"request": {
-								"method": "POST",
-								"header": [],
-								"body": {
-									"mode": "raw",
-									"raw": "[\n    {\n        \"bottle_type\": \"type-uuid\",\n        \"customer\": \"customer-uuid\",\n        \"transaction_type\": \"returned\",\n        \"quantity\": 5\n    }\n]",
-									"options": {
-										"raw": {
-											"language": "json"
-										}
-									}
-								},
-								"url": {
-									"raw": "{{tenantUrl}}/api/erp/inventory/bottle-transactions/",
-									"host": [
-										"{{tenantUrl}}"
-									],
-									"path": [
-										"api",
-										"erp",
-										"inventory",
-										"bottle-transactions",
-										""
-									]
-								}
-							},
-							"response": []
-						}
-					]
-				}
-			]
-		},
-		{
-			"name": "Orders & Routes",
-			"item": [
-				{
-					"name": "Orders",
-					"item": [
-						{
-							"name": "List Orders",
-							"request": {
-								"method": "GET",
-								"header": [],
-								"url": {
-									"raw": "{{tenantUrl}}/api/erp/orders/",
-									"host": [
-										"{{tenantUrl}}"
-									],
-									"path": [
-										"api",
-										"erp",
-										"orders",
-										""
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "Create Orders (Single or Bulk)",
-							"request": {
-								"method": "POST",
-								"header": [],
-								"body": {
-									"mode": "raw",
-									"raw": "[\n    {\n        \"customer\": \"customer-uuid\",\n        \"scheduled_delivery_date\": \"2024-05-15\",\n        \"items\": [\n            {\n                \"product\": \"product-uuid\",\n                \"quantity\": 3,\n                \"unit_price\": 65.00\n            }\n        ]\n    }\n]",
-									"options": {
-										"raw": {
-											"language": "json"
-										}
-									}
-								},
-								"url": {
-									"raw": "{{tenantUrl}}/api/erp/orders/",
-									"host": [
-										"{{tenantUrl}}"
-									],
-									"path": [
-										"api",
-										"erp",
-										"orders",
-										""
-									]
-								}
-							},
-							"response": []
-						}
-					]
-				},
-			"item": [
-				{
-					"name": "List Orders",
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{tenantUrl}}/api/erp/orders/list/?status=pending",
-							"host": [
-								"{{tenantUrl}}"
-							],
-							"path": [
-								"api",
-								"erp",
-								"orders",
-								"list",
-								""
-							],
-							"query": [
-								{
-									"key": "status",
-									"value": "pending"
-								}
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Create Optimized Route",
-					"request": {
-						"method": "POST",
-						"header": [],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"name\": \"North Route - Morning\",\n    \"date\": \"2024-05-10\",\n    \"order_ids\": [\"uuid-1\", \"uuid-2\"],\n    \"driver_id\": \"user-uuid\"\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "{{tenantUrl}}/api/erp/orders/routes/create-optimized/",
-							"host": [
-								"{{tenantUrl}}"
-							],
-							"path": [
-								"api",
-								"erp",
-								"orders",
-								"routes",
-								"create-optimized",
-								""
-							]
-						}
-					},
-					"response": []
-				}
-			]
-		},
-		{
-			"name": "Administration",
-			"item": [
-				{
-					"name": "Get Config",
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{tenantUrl}}/api/erp/administration/config/",
-							"host": [
-								"{{tenantUrl}}"
-							],
-							"path": [
-								"api",
-								"erp",
-								"administration",
-								"config",
-								""
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Update Config",
-					"request": {
-						"method": "PATCH",
-						"header": [],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"enable_delivery_photo\": true,\n    \"auto_assign_orders\": false\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "{{tenantUrl}}/api/erp/administration/config/",
-							"host": [
-								"{{tenantUrl}}"
-							],
-							"path": [
-								"api",
-								"erp",
-								"administration",
-								"config",
-								""
-							]
-						}
-					},
-					"response": []
-				}
-			]
-		}
-	],
-	"event": [
-		{
-			"listen": "prerequest",
-			"script": {
-				"type": "text/javascript",
-				"exec": [
-					""
-				]
-			}
-		},
-		{
-			"listen": "test",
-			"script": {
-				"type": "text/javascript",
-				"exec": [
-					""
-				]
-			}
-		}
-	],
-	"variable": [
-		{
-			"key": "baseUrl",
-			"value": "http://localhost:8000",
-			"type": "string"
-		},
-		{
-			"key": "tenantUrl",
-			"value": "http://mumbai.localhost:8000",
-			"type": "string"
-		}
-	]
+  "info": {
+    "_postman_id": "817a9e3c-d8dd-45d7-8a74-ca1dd13028cc",
+    "name": "Smart Dairy ERP - Complete Developer Suite",
+    "description": "The complete, definitive API collection for the Smart Dairy ERP system. Version 2.0 - Full Bulk Operations.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Authentication & User Profile",
+      "item": [
+        {
+          "name": "Login (Staff/ERP)",
+          "event": [
+            {
+              "listen": "test",
+              "script": { "exec": [ "var jsonData = pm.response.json(); if (jsonData.access) { pm.collectionVariables.set(\"bearer_token\", jsonData.access); }" ], "type": "text/javascript" }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"username\": \"admin\",\n    \"password\": \"admin\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/api/accounts/login/" }
+          }
+        },
+        {
+          "name": "Request OTP",
+          "request": { "method": "POST", "body": { "mode": "raw", "raw": "{\"phone\": \"+919876543210\"}", "options": { "raw": { "language": "json" } } }, "url": { "raw": "{{base_url}}/api/accounts/request-otp/" } }
+        },
+        {
+          "name": "Get My Profile",
+          "request": { "method": "GET", "url": { "raw": "{{base_url}}/api/accounts/me/" } }
+        }
+      ]
+    },
+    {
+      "name": "2. Inventory & Asset Management",
+      "item": [
+        {
+          "name": "Products",
+          "item": [
+            { "name": "List Products", "request": { "method": "GET", "url": { "raw": "{{city_url}}/api/erp/inventory/products/" } } },
+            {
+              "name": "Create Product (Single or Bulk)",
+              "request": {
+                "method": "POST",
+                "body": { "mode": "raw", "raw": "[\n    {\n        \"name\": \"Full Cream Milk (1L)\",\n        \"sku\": \"MILK-FC-1L\",\n        \"unit_price\": 70.00,\n        \"unit\": \"Litre\",\n        \"is_returnable\": true\n    }\n]", "options": { "raw": { "language": "json" } } },
+                "url": { "raw": "{{city_url}}/api/erp/inventory/products/" }
+              }
+            },
+            {
+              "name": "Bulk Update Products",
+              "request": {
+                "method": "PATCH",
+                "body": { "mode": "raw", "raw": "[\n    { \"id\": \"{{product_id}}\", \"unit_price\": 72.00 }\n]", "options": { "raw": { "language": "json" } } },
+                "url": { "raw": "{{city_url}}/api/erp/inventory/products/bulk_update/" }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Bottle Assets",
+          "item": [
+            { "name": "List Bottle Types", "request": { "method": "GET", "url": { "raw": "{{city_url}}/api/erp/inventory/bottle-types/" } } },
+            {
+              "name": "Log Bottle Transactions (Bulk)",
+              "request": {
+                "method": "POST",
+                "body": { "mode": "raw", "raw": "[\n    { \"bottle_type\": \"{{bottle_type_id}}\", \"customer\": \"{{customer_id}}\", \"transaction_type\": \"returned\", \"quantity\": 5 }\n]", "options": { "raw": { "language": "json" } } },
+                "url": { "raw": "{{city_url}}/api/erp/inventory/bottle-transactions/" }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Warehouses & Stock",
+          "item": [
+            { "name": "List Warehouses", "request": { "method": "GET", "url": { "raw": "{{city_url}}/api/erp/inventory/warehouses/" } } },
+            { "name": "Current Stock Levels", "request": { "method": "GET", "url": { "raw": "{{city_url}}/api/erp/inventory/stock/" } } },
+            {
+              "name": "Bulk Update Stock",
+              "request": {
+                "method": "PATCH",
+                "body": { "mode": "raw", "raw": "[\n    { \"id\": \"{{stock_id}}\", \"quantity\": 200 }\n]", "options": { "raw": { "language": "json" } } },
+                "url": { "raw": "{{city_url}}/api/erp/inventory/stock/bulk_update/" }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3. CRM (Customers)",
+      "item": [
+        { "name": "List Customers", "request": { "method": "GET", "url": { "raw": "{{city_url}}/api/erp/customers/" } } },
+        {
+          "name": "Create Customer (Single or Bulk)",
+          "request": {
+            "method": "POST",
+            "body": { "mode": "raw", "raw": "[\n    {\n        \"name\": \"Rahul Dravid\",\n        \"phone\": \"+919811223344\",\n        \"address\": \"Stadium Road, Pune\",\n        \"latitude\": 18.5204,\n        \"longitude\": 73.8567\n    }\n]", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{city_url}}/api/erp/customers/" }
+          }
+        },
+        {
+          "name": "Bulk Update Customers (Locations)",
+          "request": {
+            "method": "PATCH",
+            "body": { "mode": "raw", "raw": "[\n    { \"id\": \"{{customer_id}}\", \"latitude\": 18.5204, \"longitude\": 73.8567 }\n]", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{city_url}}/api/erp/customers/bulk_update/" }
+          }
+        },
+        { "name": "Resolve Smart QR", "request": { "method": "GET", "url": { "raw": "{{city_url}}/api/erp/customers/qr-resolve/{{qr_code_id}}/" } } }
+      ]
+    },
+    {
+      "name": "4. Logistics & Driver App",
+      "item": [
+        {
+          "name": "Drivers Management",
+          "item": [
+            {
+              "name": "Bulk Register Driver Users",
+              "request": { "method": "POST", "body": { "mode": "raw", "raw": "[\n    { \"username\": \"driver1\", \"password\": \"admin123\", \"phone\": \"+919999888701\", \"is_driver\": true }\n]", "options": { "raw": { "language": "json" } } }, "url": { "raw": "{{base_url}}/api/accounts/register/" } }
+            },
+            {
+              "name": "Bulk Create Driver Profiles",
+              "request": { "method": "POST", "body": { "mode": "raw", "raw": "[\n    { \"user\": 5, \"vehicle_plate\": \"MH-31-AA-1001\", \"vehicle_type\": \"mini_van\" }\n]", "options": { "raw": { "language": "json" } } }, "url": { "raw": "{{city_url}}/api/ems/drivers/" } }
+            }
+          ]
+        },
+        {
+          "name": "Orders",
+          "item": [
+            { "name": "List Orders", "request": { "method": "GET", "url": { "raw": "{{city_url}}/api/erp/orders/" } } },
+            {
+              "name": "Create Orders (Single or Bulk)",
+              "request": { "method": "POST", "body": { "mode": "raw", "raw": "[\n    { \"customer\": \"{{customer_id}}\", \"scheduled_delivery_date\": \"2024-05-15\", \"items\": [{ \"product\": \"{{product_id}}\", \"quantity\": 3 }] }\n]", "options": { "raw": { "language": "json" } } }, "url": { "raw": "{{city_url}}/api/erp/orders/" } }
+            },
+            {
+              "name": "Bulk Update Orders",
+              "request": { "method": "PATCH", "body": { "mode": "raw", "raw": "[\n    { \"id\": \"{{order_id}}\", \"status\": \"delivered\" }\n]", "options": { "raw": { "language": "json" } } }, "url": { "raw": "{{city_url}}/api/erp/orders/bulk_update/" } }
+            }
+          ]
+        },
+        {
+          "name": "Routes & Trips",
+          "item": [
+            { "name": "Create Optimized Route", "request": { "method": "POST", "body": { "mode": "raw", "raw": "{\"name\": \"Morning Route\", \"date\": \"2024-05-15\", \"order_ids\": [1, 2]}", "options": { "raw": { "language": "json" } } }, "url": { "raw": "{{city_url}}/api/erp/orders/routes/create-optimized/" } } },
+            { "name": "Start Trip (Driver)", "request": { "method": "POST", "url": { "raw": "{{city_url}}/api/erp/orders/drivers/{{route_id}}/start-trip/" } } }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "5. HR & Employee Management",
+      "item": [
+        { "name": "List Employees", "request": { "method": "GET", "url": { "raw": "{{city_url}}/api/erp/hr/employees/" } } },
+        {
+          "name": "Create Employees (Single or Bulk)",
+          "request": { "method": "POST", "body": { "mode": "raw", "raw": "[\n    { \"user\": 10, \"employee_id\": \"EMP001\", \"designation\": \"Driver\" }\n]", "options": { "raw": { "language": "json" } } }, "url": { "raw": "{{city_url}}/api/erp/hr/employees/" } }
+        },
+        {
+          "name": "Bulk Update Employees",
+          "request": { "method": "PATCH", "body": { "mode": "raw", "raw": "[\n    { \"id\": \"{{employee_id}}\", \"is_active\": true }\n]", "options": { "raw": { "language": "json" } } }, "url": { "raw": "{{city_url}}/api/erp/hr/employees/bulk_update/" } }
+        }
+      ]
+    },
+    {
+      "name": "6. Subscriptions",
+      "item": [
+        { "name": "List All Subscriptions", "request": { "method": "GET", "url": { "raw": "{{city_url}}/api/erp/subscriptions/" } } },
+        {
+          "name": "Create Subscription (Bulk)",
+          "request": { "method": "POST", "body": { "mode": "raw", "raw": "[\n    { \"customer\": \"{{customer_id}}\", \"frequency\": \"daily\", \"start_date\": \"2024-05-01\", \"items\": [{ \"product\": \"{{product_id}}\", \"quantity\": 2 }] }\n]", "options": { "raw": { "language": "json" } } }, "url": { "raw": "{{city_url}}/api/erp/subscriptions/" } }
+        }
+      ]
+    },
+    {
+      "name": "7. Finance & Billing",
+      "item": [
+        { "name": "List Bills", "request": { "method": "GET", "url": { "raw": "{{city_url}}/api/erp/finance/bills/" } } },
+        { "name": "Trigger Monthly Invoicing", "request": { "method": "POST", "body": { "mode": "raw", "raw": "{\"year\": 2024, \"month\": 5}", "options": { "raw": { "language": "json" } } }, "url": { "raw": "{{city_url}}/api/erp/finance/bills/trigger-monthly-invoicing/" } } }
+      ]
+    }
+  ],
+  "auth": { "type": "bearer", "bearer": [ { "key": "token", "value": "{{bearer_token}}", "type": "string" } ] },
+  "variable": [
+    { "key": "base_url", "value": "https://pench.api.polynexus.in" },
+    { "key": "city_url", "value": "https://nagpur.pench.api.polynexus.in" },
+    { "key": "bearer_token", "value": "" },
+    { "key": "product_id", "value": "1" },
+    { "key": "customer_id", "value": "1" },
+    { "key": "order_id", "value": "1" },
+    { "key": "route_id", "value": "1" },
+    { "key": "employee_id", "value": "1" }
+  ]
 }
