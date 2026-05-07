@@ -17,6 +17,17 @@ class DriverSerializer(serializers.ModelSerializer):
         except Exception:
             return "User Profile Error"
 
+    def create(self, validated_data):
+        from django.db import connection
+        driver = super().create(validated_data)
+        
+        # Sync the tenant_schema back to the User model in the public schema
+        user = driver.user
+        if user:
+            user.tenant_schema = connection.schema_name
+            user.save()
+        return driver
+
 
 class TrackingEventSerializer(serializers.ModelSerializer):
     collection_method_display = serializers.CharField(source='get_collection_method_display', read_only=True)
