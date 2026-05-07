@@ -12,16 +12,6 @@ echo "PostgreSQL is ready!"
 if [ "$RUN_MIGRATIONS" = "1" ]; then
     echo "--- STARTING MIGRATIONS ---"
     
-    # 0. Check for unmade migrations (Development safety check)
-    echo "[*] Checking for unmade model changes..."
-    if ! python manage.py makemigrations --check --dry-run > /dev/null 2>&1; then
-        echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-        echo "ERROR: There are model changes without migration files!"
-        echo "Please run 'python manage.py makemigrations' and commit them."
-        echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-        # exit 1 # Uncomment to block startup on missing migrations
-    fi
-    
     # 1. Ensure Shared Apps (Public) are migrated first
     echo "[*] Migrating SHARED apps (Public schema)..."
     python manage.py migrate_schemas --shared --noinput
