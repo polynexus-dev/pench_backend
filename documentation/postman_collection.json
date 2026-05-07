@@ -73,55 +73,144 @@
 			"name": "Customers & Leads",
 			"item": [
 				{
-					"name": "List Leads",
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{tenantUrl}}/api/erp/customers/leads/",
-							"host": [
-								"{{tenantUrl}}"
-							],
-							"path": [
-								"api",
-								"erp",
-								"customers",
-								"leads",
-								""
-							]
+					"name": "Leads",
+					"item": [
+						{
+							"name": "List Leads",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{tenantUrl}}/api/erp/customers/leads/",
+									"host": [
+										"{{tenantUrl}}"
+									],
+									"path": [
+										"api",
+										"erp",
+										"customers",
+										"leads",
+										""
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Create Lead",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"name\": \"John Doe\",\n    \"phone\": \"9998887776\",\n    \"source\": \"facebook\",\n    \"status\": \"new\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{tenantUrl}}/api/erp/customers/leads/",
+									"host": [
+										"{{tenantUrl}}"
+									],
+									"path": [
+										"api",
+										"erp",
+										"customers",
+										"leads",
+										""
+									]
+								}
+							},
+							"response": []
 						}
-					},
-					"response": []
+					]
 				},
 				{
-					"name": "Create Lead",
-					"request": {
-						"method": "POST",
-						"header": [],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"name\": \"John Doe\",\n    \"phone\": \"9998887776\",\n    \"source\": \"facebook\",\n    \"status\": \"new\"\n}",
-							"options": {
-								"raw": {
-									"language": "json"
+					"name": "Customers",
+					"item": [
+						{
+							"name": "List Customers",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{tenantUrl}}/api/erp/customers/",
+									"host": [
+										"{{tenantUrl}}"
+									],
+									"path": [
+										"api",
+										"erp",
+										"customers",
+										""
+									]
 								}
-							}
+							},
+							"response": []
 						},
-						"url": {
-							"raw": "{{tenantUrl}}/api/erp/customers/leads/",
-							"host": [
-								"{{tenantUrl}}"
-							],
-							"path": [
-								"api",
-								"erp",
-								"customers",
-								"leads",
-								""
-							]
+						{
+							"name": "Create Customer (Single or Bulk)",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "[\n    {\n        \"name\": \"Rahul Dravid\",\n        \"email\": \"rahul@example.com\",\n        \"phone\": \"+919811223344\",\n        \"address\": \"Stadium Road, Pune\",\n        \"latitude\": 18.5204,\n        \"longitude\": 73.8567\n    }\n]",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{tenantUrl}}/api/erp/customers/",
+									"host": [
+										"{{tenantUrl}}"
+									],
+									"path": [
+										"api",
+										"erp",
+										"customers",
+										""
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Bulk Update Customers",
+							"request": {
+								"method": "PATCH",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "[\n    {\n        \"id\": \"uuid-here\",\n        \"latitude\": 18.5204,\n        \"longitude\": 73.8567\n    }\n]",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{tenantUrl}}/api/erp/customers/bulk_update/",
+									"host": [
+										"{{tenantUrl}}"
+									],
+									"path": [
+										"api",
+										"erp",
+										"customers",
+										"bulk_update",
+										""
+									]
+								}
+							},
+							"response": []
 						}
-					},
-					"response": []
+					]
 				}
 			]
 		},

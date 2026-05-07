@@ -4,8 +4,8 @@ from .models import Customer, Lead
 
 
 class CustomerSerializer(serializers.ModelSerializer):
-    latitude = serializers.FloatField(required=False)
-    longitude = serializers.FloatField(required=False)
+    latitude = serializers.FloatField(required=False, allow_null=True)
+    longitude = serializers.FloatField(required=False, allow_null=True)
 
     class Meta:
         model = Customer
@@ -17,21 +17,28 @@ class CustomerSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'qr_code_id', 'created_at']
 
     def to_representation(self, instance):
-        """
-        Convert the GIS location back to lat/lng for output.
-        """
         ret = super().to_representation(instance)
-        if instance.location:
-            ret['latitude'] = instance.location.y
-            ret['longitude'] = instance.location.x
+        # Ensure they always exist in the output
+        ret['latitude'] = instance.location.y if instance.location else None
+        ret['longitude'] = instance.location.x if instance.location else None
         return ret
 
     def create(self, validated_data):
+        # Support multiple field name variations for input
         lat = validated_data.pop('latitude', None)
         lng = validated_data.pop('longitude', None)
         
+        # Check request for 'lat'/'lng' aliases if not in validated_data
+        if lat is None:
+            lat = self.context['request'].data.get('lat')
+        if lng is None:
+            lng = self.context['request'].data.get('lng')
+
         if lat is not None and lng is not None:
-            validated_data['location'] = Point(lng, lat)
+            try:
+                validated_data['location'] = Point(float(lng), float(lat))
+            except (ValueError, TypeError):
+                pass
             
         return super().create(validated_data)
 
@@ -39,8 +46,16 @@ class CustomerSerializer(serializers.ModelSerializer):
         lat = validated_data.pop('latitude', None)
         lng = validated_data.pop('longitude', None)
         
+        if lat is None:
+            lat = self.context['request'].data.get('lat')
+        if lng is None:
+            lng = self.context['request'].data.get('lng')
+
         if lat is not None and lng is not None:
-            instance.location = Point(lng, lat)
+            try:
+                instance.location = Point(float(lng), float(lat))
+            except (ValueError, TypeError):
+                pass
             
         return super().update(instance, validated_data)
 

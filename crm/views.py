@@ -28,6 +28,33 @@ class CustomerViewSet(viewsets.ModelViewSet):
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
+    @action(detail=False, methods=['patch', 'put'])
+    def bulk_update(self, request):
+        """
+        Updates multiple customers at once. 
+        Each object in the list MUST have an 'id'.
+        """
+        data = request.data
+        if not isinstance(data, list):
+            return Response({"detail": "Expected a list of objects."}, status=status.HTTP_400_BAD_REQUEST)
+
+        updated_customers = []
+        for item in data:
+            customer_id = item.get('id')
+            if not customer_id:
+                continue
+            
+            try:
+                instance = Customer.objects.get(id=customer_id)
+                serializer = self.get_serializer(instance, data=item, partial=True)
+                serializer.is_valid(raise_exception=True)
+                serializer.save()
+                updated_customers.append(serializer.data)
+            except Customer.DoesNotExist:
+                continue
+
+        return Response(updated_customers, status=status.HTTP_200_OK)
+
     @action(detail=False, methods=['get'], url_path='qr-resolve/(?P<qr_id>[^/.]+)', permission_classes=[AllowAny])
     def qr_resolve(self, request, qr_id=None):
         """
