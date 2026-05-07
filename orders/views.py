@@ -116,12 +116,22 @@ class RouteViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['post'], url_path='create-optimized')
     def create_optimized(self, request):
         name = request.data.get('name')
-        date = request.data.get('date')
+        # Support both 'date' and 'delivery_date'
+        date = request.data.get('date') or request.data.get('delivery_date')
         order_ids = request.data.get('order_ids', [])
         driver_id = request.data.get('driver_id')
         
-        if not all([name, date, order_ids]):
-            return Response({'detail': 'name, date, and order_ids are required.'}, status=400)
+        # Validation with descriptive errors
+        missing_fields = []
+        if not name: missing_fields.append('name')
+        if not date: missing_fields.append('date/delivery_date')
+        if not order_ids: missing_fields.append('order_ids')
+        
+        if missing_fields:
+            return Response({
+                'detail': f"Missing required fields: {', '.join(missing_fields)}",
+                'received_data': request.data
+            }, status=status.HTTP_400_BAD_REQUEST)
             
         from accounts.models import User
         driver = User.objects.filter(id=driver_id).first() if driver_id else None
