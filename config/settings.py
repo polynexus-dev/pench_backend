@@ -205,6 +205,26 @@ RAZORPAY_KEY_SECRET = config('RAZORPAY_KEY_SECRET', default='')
 PAYTM_MERCHANT_ID = config('PAYTM_MERCHANT_ID', default='')
 PAYTM_MERCHANT_KEY = config('PAYTM_MERCHANT_KEY', default='')
 
+# CORS Settings
+CORS_ORIGIN_ALLOW_ALL = config('CORS_ORIGIN_ALLOW_ALL', default=False, cast=bool)
+CORS_ALLOWED_ORIGINS = config('CORS_ALLOWED_ORIGINS', default='').split(',')
+if '' in CORS_ALLOWED_ORIGINS:
+    CORS_ALLOWED_ORIGINS.remove('')
+
+# CSRF Trusted Origins
+CSRF_TRUSTED_ORIGINS = config('CSRF_TRUSTED_ORIGINS', default='').split(',')
+if '' in CSRF_TRUSTED_ORIGINS:
+    CSRF_TRUSTED_ORIGINS.remove('')
+
+# Security Settings
+SECURE_SSL_REDIRECT = config('SECURE_SSL_REDIRECT', default=False, cast=bool)
+SESSION_COOKIE_SECURE = config('SESSION_COOKIE_SECURE', default=False, cast=bool)
+CSRF_COOKIE_SECURE = config('CSRF_COOKIE_SECURE', default=False, cast=bool)
+
+SECURE_PROXY_SSL_HEADER_RAW = config('SECURE_PROXY_SSL_HEADER', default='')
+if SECURE_PROXY_SSL_HEADER_RAW:
+    SECURE_PROXY_SSL_HEADER = tuple(SECURE_PROXY_SSL_HEADER_RAW.split(','))
+
 try:
     from .local_settings import *
 except ImportError:
