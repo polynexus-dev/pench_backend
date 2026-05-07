@@ -52,10 +52,19 @@ class DriverViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     filterset_fields = ['is_available']
 
+    def list(self, request, *args, **kwargs):
+        from django.db import connection
+        print(f"[DEBUG] Listing Drivers for Schema: {connection.schema_name}")
+        queryset = self.filter_queryset(self.get_queryset())
+        print(f"[DEBUG] Found {queryset.count()} drivers in this schema.")
+        return super().list(request, *args, **kwargs)
+
     def create(self, request, *args, **kwargs):
         """
         Supports creating multiple driver profiles in one request.
         """
+        from django.db import connection
+        print(f"[DEBUG] Creating Driver for Schema: {connection.schema_name}")
         is_many = isinstance(request.data, list)
         if not is_many:
             return super().create(request, *args, **kwargs)

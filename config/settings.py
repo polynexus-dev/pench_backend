@@ -13,21 +13,31 @@ ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='').split(',')
 # django-tenants Configuration
 # ──────────────────────────────────────────────
 
-SHARED_APPS = [
-    'daphne',          # Must be at the very top
-    'django_tenants',  # mandatory
-    'tenants',         # where City and Domain models live
-    'core',
-    'accounts',        # Shared users (Superadmin)
+# Import the GDAL check from local_settings
+try:
+    from .local_settings import GDAL_LIBRARY_PATH
+    HAS_GDAL = GDAL_LIBRARY_PATH is not None
+except ImportError:
+    HAS_GDAL = False
 
+SHARED_APPS = [
+    'daphne',
+    'django_tenants',
+    'tenants',
+    'core',
+    'accounts',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'django.contrib.gis',
+]
 
+if HAS_GDAL:
+    SHARED_APPS.append('django.contrib.gis')
+
+SHARED_APPS += [
     'rest_framework',
     'rest_framework.authtoken',
     'rest_framework_simplejwt',
@@ -37,7 +47,7 @@ SHARED_APPS = [
 ]
 
 TENANT_APPS = [
-    'django.contrib.contenttypes', # must be in both
+    'django.contrib.contenttypes',
     'crm',
     'taxation',
     'orders',
@@ -51,7 +61,6 @@ TENANT_APPS = [
     'django_celery_beat',
 ]
 
-# Preserve order by combining lists carefully
 INSTALLED_APPS = []
 for app in SHARED_APPS:
     if app not in INSTALLED_APPS:
@@ -59,6 +68,13 @@ for app in SHARED_APPS:
 for app in TENANT_APPS:
     if app not in INSTALLED_APPS:
         INSTALLED_APPS.append(app)
+
+# Use a standard DB engine if GDAL is missing
+if HAS_GDAL:
+    DB_ENGINE = 'core.db_backend.postgis'
+else:
+    # Fallback to standard postgres engine if GIS is not available
+    DB_ENGINE = 'django_tenants.postgresql_backend'
 
 DATABASE_ROUTERS = (
     'django_tenants.routers.TenantSyncRouter',
@@ -69,7 +85,7 @@ TENANT_DOMAIN_MODEL = 'tenants.Domain'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'core.db_backend.postgis',
+        'ENGINE': DB_ENGINE,
         'NAME': config('DB_NAME'),
         'USER': config('DB_USER'),
         'PASSWORD': config('DB_PASSWORD'),

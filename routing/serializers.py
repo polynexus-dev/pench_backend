@@ -4,12 +4,18 @@ from .models import Route, Driver, TrackingEvent, DailyReconciliation
 
 
 class DriverSerializer(serializers.ModelSerializer):
-    full_name = serializers.CharField(source='user.get_full_name', read_only=True)
+    full_name = serializers.SerializerMethodField()
 
     class Meta:
         model = Driver
         fields = ['id', 'user', 'full_name', 'vehicle_plate', 'vehicle_type',
                   'max_capacity_kg', 'is_available']
+
+    def get_full_name(self, obj):
+        try:
+            return obj.user.get_full_name() if obj.user else "Unknown User"
+        except Exception:
+            return "User Profile Error"
 
 
 class TrackingEventSerializer(serializers.ModelSerializer):
