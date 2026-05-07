@@ -1,6 +1,7 @@
 import uuid
 from django.db import models
 from django.conf import settings
+from core.models import BaseModel
 
 try:
     from django.contrib.gis.db import models as gis_models
