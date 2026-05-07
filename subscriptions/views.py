@@ -10,6 +10,42 @@ class SubscriptionViewSet(viewsets.ModelViewSet):
     serializer_class = SubscriptionSerializer
     filterset_fields = ['status', 'frequency', 'is_paused', 'customer']
 
+    def create(self, request, *args, **kwargs):
+        """
+        Supports creating multiple subscriptions in one request.
+        """
+        is_many = isinstance(request.data, list)
+        if not is_many:
+            return super().create(request, *args, **kwargs)
+        
+        serializer = self.get_serializer(data=request.data, many=True)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['patch', 'put'])
+    def bulk_update(self, request):
+        """
+        Updates multiple subscriptions at once. Each must have an 'id'.
+        """
+        data = request.data
+        if not isinstance(data, list):
+            return Response({"detail": "Expected a list."}, status=status.HTTP_400_BAD_REQUEST)
+
+        updated = []
+        for item in data:
+            sub_id = item.get('id')
+            if not sub_id: continue
+            try:
+                instance = Subscription.objects.get(id=sub_id)
+                serializer = self.get_serializer(instance, data=item, partial=True)
+                serializer.is_valid(raise_exception=True)
+                serializer.save()
+                updated.append(serializer.data)
+            except Subscription.DoesNotExist:
+                continue
+        return Response(updated, status=status.HTTP_200_OK)
+
     @action(detail=True, methods=['post'], url_path='pause')
     def pause(self, request, pk=None):
         subscription = self.get_object()

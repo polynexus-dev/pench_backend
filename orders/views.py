@@ -14,6 +14,19 @@ class OrderViewSet(viewsets.ModelViewSet):
     permission_classes = [IsERPUser]
     filterset_fields = ['status', 'customer', 'scheduled_delivery_date']
 
+    def create(self, request, *args, **kwargs):
+        """
+        Supports creating multiple orders in one request.
+        """
+        is_many = isinstance(request.data, list)
+        if not is_many:
+            return super().create(request, *args, **kwargs)
+        
+        serializer = self.get_serializer(data=request.data, many=True)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
     @action(detail=True, methods=['post'], url_path='mark-delivered')
     def mark_delivered(self, request, pk=None):
         order = self.get_object()

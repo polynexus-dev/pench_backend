@@ -215,7 +215,300 @@
 			]
 		},
 		{
+			"name": "Subscriptions",
+			"item": [
+				{
+					"name": "List Subscriptions",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{tenantUrl}}/api/erp/subscriptions/",
+							"host": [
+								"{{tenantUrl}}"
+							],
+							"path": [
+								"api",
+								"erp",
+								"subscriptions",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Subscription (Single or Bulk)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "[\n    {\n        \"customer\": \"customer-uuid\",\n        \"frequency\": \"daily\",\n        \"start_date\": \"2024-06-01\",\n        \"items\": [\n            {\n                \"product\": \"product-uuid\",\n                \"quantity\": 2\n            }\n        ]\n    }\n]",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{tenantUrl}}/api/erp/subscriptions/",
+							"host": [
+								"{{tenantUrl}}"
+							],
+							"path": [
+								"api",
+								"erp",
+								"subscriptions",
+								""
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Inventory",
+			"item": [
+				{
+					"name": "Products",
+					"item": [
+						{
+							"name": "List Products",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{tenantUrl}}/api/erp/inventory/products/",
+									"host": [
+										"{{tenantUrl}}"
+									],
+									"path": [
+										"api",
+										"erp",
+										"inventory",
+										"products",
+										""
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Create Product (Single or Bulk)",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "[\n    {\n        \"name\": \"Full Cream Milk (1L)\",\n        \"sku\": \"MILK-FC-1L\",\n        \"unit_price\": 65.00,\n        \"unit\": \"Litre\",\n        \"is_returnable\": true\n    }\n]",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{tenantUrl}}/api/erp/inventory/products/",
+									"host": [
+										"{{tenantUrl}}"
+									],
+									"path": [
+										"api",
+										"erp",
+										"inventory",
+										"products",
+										""
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Bulk Update Products",
+							"request": {
+								"method": "PATCH",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "[\n    {\n        \"id\": \"uuid-here\",\n        \"unit_price\": 68.00\n    }\n]",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{tenantUrl}}/api/erp/inventory/products/bulk_update/",
+									"host": [
+										"{{tenantUrl}}"
+									],
+									"path": [
+										"api",
+										"erp",
+										"inventory",
+										"products",
+										"bulk_update",
+										""
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Stock",
+					"item": [
+						{
+							"name": "List Stock",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{tenantUrl}}/api/erp/inventory/stock/",
+									"host": [
+										"{{tenantUrl}}"
+									],
+									"path": [
+										"api",
+										"erp",
+										"inventory",
+										"stock",
+										""
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Bulk Update Stock",
+							"request": {
+								"method": "PATCH",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "[\n    {\n        \"id\": \"stock-uuid\",\n        \"quantity\": 150\n    }\n]",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{tenantUrl}}/api/erp/inventory/stock/bulk_update/",
+									"host": [
+										"{{tenantUrl}}"
+									],
+									"path": [
+										"api",
+										"erp",
+										"inventory",
+										"stock",
+										"bulk_update",
+										""
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Bottle Transactions",
+					"item": [
+						{
+							"name": "Log Transactions (Single or Bulk)",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "[\n    {\n        \"bottle_type\": \"type-uuid\",\n        \"customer\": \"customer-uuid\",\n        \"transaction_type\": \"returned\",\n        \"quantity\": 5\n    }\n]",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{tenantUrl}}/api/erp/inventory/bottle-transactions/",
+									"host": [
+										"{{tenantUrl}}"
+									],
+									"path": [
+										"api",
+										"erp",
+										"inventory",
+										"bottle-transactions",
+										""
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				}
+			]
+		},
+		{
 			"name": "Orders & Routes",
+			"item": [
+				{
+					"name": "Orders",
+					"item": [
+						{
+							"name": "List Orders",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{tenantUrl}}/api/erp/orders/",
+									"host": [
+										"{{tenantUrl}}"
+									],
+									"path": [
+										"api",
+										"erp",
+										"orders",
+										""
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Create Orders (Single or Bulk)",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "[\n    {\n        \"customer\": \"customer-uuid\",\n        \"scheduled_delivery_date\": \"2024-05-15\",\n        \"items\": [\n            {\n                \"product\": \"product-uuid\",\n                \"quantity\": 3,\n                \"unit_price\": 65.00\n            }\n        ]\n    }\n]",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{tenantUrl}}/api/erp/orders/",
+									"host": [
+										"{{tenantUrl}}"
+									],
+									"path": [
+										"api",
+										"erp",
+										"orders",
+										""
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
 			"item": [
 				{
 					"name": "List Orders",

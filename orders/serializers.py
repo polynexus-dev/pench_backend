@@ -12,7 +12,7 @@ class OrderItemSerializer(serializers.ModelSerializer):
 
 class OrderSerializer(serializers.ModelSerializer):
     customer_name = serializers.CharField(source='customer.name', read_only=True)
-    items = OrderItemSerializer(many=True, read_only=True)
+    items = OrderItemSerializer(many=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     latitude = serializers.FloatField(source='customer.location.y', read_only=True)
     longitude = serializers.FloatField(source='customer.location.x', read_only=True)
@@ -24,6 +24,13 @@ class OrderSerializer(serializers.ModelSerializer):
             'scheduled_delivery_date', 'total', 'items', 'delivery_address',
             'latitude', 'longitude'
         ]
+
+    def create(self, validated_data):
+        items_data = validated_data.pop('items')
+        order = Order.objects.create(**validated_data)
+        for item_data in items_data:
+            OrderItem.objects.create(order=order, **item_data)
+        return order
 
 
 class RouteStopSerializer(serializers.ModelSerializer):
