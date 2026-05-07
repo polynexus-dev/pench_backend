@@ -17,8 +17,10 @@ ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='').split(',')
 try:
     from .local_settings import GDAL_LIBRARY_PATH
     HAS_GDAL = GDAL_LIBRARY_PATH is not None
-except ImportError:
-    HAS_GDAL = False
+except (ImportError, AttributeError):
+    # Fallback for Linux/Docker: Assume GDAL is present if not on Windows
+    # or if explicitly configured via environment
+    HAS_GDAL = config('HAS_GDAL', default=(os.name != 'nt'), cast=bool)
 
 SHARED_APPS = [
     'daphne',

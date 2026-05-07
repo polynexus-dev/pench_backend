@@ -43,16 +43,17 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
         data = super().validate(attrs)
         data['user'] = UserSerializer(self.user).data
         
-        # Add tenant info if available
-        if self.user.tenant_schema:
-            from tenants.models import City, Domain
-            city = City.objects.filter(schema_name=self.user.tenant_schema).first()
-            if city:
-                data['tenant_schema'] = city.schema_name
-                data['tenant_name'] = city.name
-                # Look up the first domain associated with this city
-                domain = Domain.objects.filter(tenant=city).first()
-                data['tenant_domain'] = domain.domain if domain else None
+        # Add tenant info if available (except for admins)
+        if not self.user.is_superuser and not self.user.is_staff:
+            schema = self.user.tenant_schema
+            if schema:
+                from tenants.models import City, Domain
+                city = City.objects.filter(schema_name=schema).first()
+                if city:
+                    data['city_name'] = city.name
+                    # Look up the first domain associated with this city
+                    domain = Domain.objects.filter(tenant=city).first()
+                    data['domain_name'] = domain.domain if domain else None
         return data
 
 

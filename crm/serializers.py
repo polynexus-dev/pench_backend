@@ -1,6 +1,11 @@
 from rest_framework import serializers
-from django.contrib.gis.geos import Point
-from .models import Customer, Lead
+from .models import Customer, Lead, HAS_GIS
+
+
+try:
+    from django.contrib.gis.geos import Point
+except ImportError:
+    Point = None
 
 
 class CustomerSerializer(serializers.ModelSerializer):
@@ -18,9 +23,31 @@ class CustomerSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         ret = super().to_representation(instance)
-        # Ensure they always exist in the output
-        ret['latitude'] = instance.location.y if instance.location else None
-        ret['longitude'] = instance.location.x if instance.location else None
+        loc = instance.location
+        
+        # Default to None
+        ret['latitude'] = None
+        ret['longitude'] = None
+        
+        if loc:
+            # Case 1: GEOS Point object
+            if hasattr(loc, 'x') and hasattr(loc, 'y'):
+                ret['latitude'] = loc.y
+                ret['longitude'] = loc.x
+            # Case 2: Dictionary (JSONField fallback)
+            elif isinstance(loc, dict):
+                ret['latitude'] = loc.get('latitude') or loc.get('lat')
+                ret['longitude'] = loc.get('longitude') or loc.get('lng')
+            # Case 3: String (likely WKT or EWKB hex)
+            elif isinstance(loc, str) and Point:
+                try:
+                    # Try to parse WKT string if possible
+                    p = Point.from_ewkt(loc) if 'SRID' in loc else Point(loc)
+                    ret['latitude'] = p.y
+                    ret['longitude'] = p.x
+                except Exception:
+                    pass
+                    
         return ret
 
     def create(self, validated_data):
@@ -35,10 +62,13 @@ class CustomerSerializer(serializers.ModelSerializer):
             lng = self.context['request'].data.get('lng')
 
         if lat is not None and lng is not None:
-            try:
-                validated_data['location'] = Point(float(lng), float(lat))
-            except (ValueError, TypeError):
-                pass
+            if HAS_GIS and Point:
+                try:
+                    validated_data['location'] = Point(float(lng), float(lat))
+                except (ValueError, TypeError):
+                    pass
+            else:
+                validated_data['location'] = {'lat': float(lat), 'lng': float(lng)}
             
         return super().create(validated_data)
 
@@ -52,10 +82,13 @@ class CustomerSerializer(serializers.ModelSerializer):
             lng = self.context['request'].data.get('lng')
 
         if lat is not None and lng is not None:
-            try:
-                instance.location = Point(float(lng), float(lat))
-            except (ValueError, TypeError):
-                pass
+            if HAS_GIS and Point:
+                try:
+                    instance.location = Point(float(lng), float(lat))
+                except (ValueError, TypeError):
+                    pass
+            else:
+                instance.location = {'lat': float(lat), 'lng': float(lng)}
             
         return super().update(instance, validated_data)
 
