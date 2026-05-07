@@ -337,13 +337,46 @@
               }
             },
             {
+              "name": "Get My Route (Driver App)",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{city_url}}/api/erp/orders/driver/my-route/",
+                  "host": ["{{city_url}}"],
+                  "path": ["api", "erp", "orders", "driver", "my-route", ""]
+                }
+              }
+            },
+            {
               "name": "Start Trip",
               "request": {
                 "method": "POST",
                 "url": {
-                  "raw": "{{city_url}}/api/erp/orders/drivers/{{route_id}}/start-trip/",
+                  "raw": "{{city_url}}/api/erp/orders/driver/{{route_id}}/start-trip/",
                   "host": ["{{city_url}}"],
-                  "path": ["api", "erp", "orders", "drivers", "{{route_id}}", "start-trip", ""]
+                  "path": ["api", "erp", "orders", "driver", "{{route_id}}", "start-trip", ""]
+                }
+              }
+            },
+            {
+              "name": "Submit Delivery (One-Tap)",
+              "request": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{city_url}}/api/erp/orders/driver/{{order_id}}/submit-delivery/",
+                  "host": ["{{city_url}}"],
+                  "path": ["api", "erp", "orders", "driver", "{{order_id}}", "submit-delivery", ""]
+                }
+              }
+            },
+            {
+              "name": "Complete Trip",
+              "request": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{city_url}}/api/erp/orders/driver/{{route_id}}/complete-trip/",
+                  "host": ["{{city_url}}"],
+                  "path": ["api", "erp", "orders", "driver", "{{route_id}}", "complete-trip", ""]
                 }
               }
             }
