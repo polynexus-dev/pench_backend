@@ -137,7 +137,15 @@ class RouteViewSet(viewsets.ModelViewSet):
         driver = User.objects.filter(id=driver_id).first() if driver_id else None
         
         route = create_optimized_route(name, driver, date, order_ids)
-        return Response(RouteSerializer(route).data, status=status.HTTP_201_CREATED)
+        
+        # Return the route with extra debug info to help troubleshoot empty stops
+        response_data = RouteSerializer(route).data
+        response_data['debug'] = {
+            'requested_order_ids_count': len(order_ids),
+            'orders_found_in_db': Order.objects.filter(id__in=order_ids).count(),
+            'valid_orders_with_locations': Order.objects.filter(id__in=order_ids).exclude(customer__location__isnull=True).count(),
+        }
+        return Response(response_data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['get'], url_path='geojson')
     def geojson(self, request, pk=None):
