@@ -1,9 +1,11 @@
 from django.db import models
 from core.models import BaseModel
 
+from django.conf import settings
+
 try:
     from django.contrib.gis.db import models as gis_models
-    HAS_GIS = True
+    HAS_GIS = getattr(settings, 'HAS_GDAL', False)
 except Exception:
     HAS_GIS = False
 
