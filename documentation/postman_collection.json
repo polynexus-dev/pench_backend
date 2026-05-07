@@ -262,7 +262,7 @@
               "name": "Bulk Create Orders",
               "request": {
                 "method": "POST",
-                "body": { "mode": "raw", "raw": "[{\"customer\": 1, \"items\": [{\"product\": 1, \"quantity\": 2}]}]", "options": { "raw": { "language": "json" } } },
+                "body": { "mode": "raw", "raw": "[\n  {\n    \"customer\": \"{{customer_id}}\",\n    \"scheduled_delivery_date\": \"2026-05-08\",\n    \"items\": [\n      {\n        \"product\": \"{{product_id}}\",\n        \"quantity\": 2\n      }\n    ]\n  }\n]", "options": { "raw": { "language": "json" } } },
                 "url": {
                   "raw": "{{city_url}}/api/erp/orders/",
                   "host": ["{{city_url}}"],
@@ -291,11 +291,48 @@
               "name": "Create Optimized Route",
               "request": {
                 "method": "POST",
-                "body": { "mode": "raw", "raw": "{\"name\": \"Route 1\", \"order_ids\": [1,2]}", "options": { "raw": { "language": "json" } } },
+                "body": { "mode": "raw", "raw": "{\n  \"name\": \"Route A\",\n  \"delivery_date\": \"2026-05-08\",\n  \"order_ids\": [\"{{order_id_1}}\", \"{{order_id_2}}\"]\n}", "options": { "raw": { "language": "json" } } },
                 "url": {
                   "raw": "{{city_url}}/api/erp/orders/routes/create-optimized/",
                   "host": ["{{city_url}}"],
                   "path": ["api", "erp", "orders", "routes", "create-optimized", ""]
+                }
+              }
+            },
+            {
+              "name": "List Routes (Filter by Date)",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{city_url}}/api/erp/orders/routes/?delivery_date=2026-05-08",
+                  "host": ["{{city_url}}"],
+                  "path": ["api", "erp", "orders", "routes", ""],
+                  "query": [
+                    { "key": "delivery_date", "value": "2026-05-08" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "List All Routes",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{city_url}}/api/erp/orders/routes/",
+                  "host": ["{{city_url}}"],
+                  "path": ["api", "erp", "orders", "routes", ""]
+                }
+              }
+            },
+            {
+              "name": "Update Route (Assign Driver)",
+              "request": {
+                "method": "PATCH",
+                "body": { "mode": "raw", "raw": "{\n  \"driver\": \"{{driver_id}}\"\n}", "options": { "raw": { "language": "json" } } },
+                "url": {
+                  "raw": "{{city_url}}/api/erp/orders/routes/{{route_id}}/",
+                  "host": ["{{city_url}}"],
+                  "path": ["api", "erp", "orders", "routes", "{{route_id}}", ""]
                 }
               }
             },

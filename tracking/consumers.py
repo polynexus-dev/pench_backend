@@ -2,9 +2,12 @@ import json
 import traceback
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
-from django.contrib.gis.geos import Point
+try:
+    from django.contrib.gis.geos import Point
+except ImportError:
+    Point = None
 from django_tenants.utils import schema_context
-from .models import DriverLocation, DriverTrail
+from .models import DriverLocation, DriverTrail, HAS_GIS
 
 
 class TrackingConsumer(AsyncWebsocketConsumer):
@@ -63,21 +66,25 @@ class TrackingConsumer(AsyncWebsocketConsumer):
     def update_driver_location(self, lat, lng):
         try:
             with schema_context(self.tenant.schema_name):
-                # Ensure float conversion and correct order (lng, lat)
+                # Ensure float conversion
                 p_lng = float(lng)
                 p_lat = float(lat)
-                point = Point(p_lng, p_lat, srid=4326)
+                
+                if HAS_GIS and Point:
+                    location_data = Point(p_lng, p_lat, srid=4326)
+                else:
+                    location_data = {'lat': p_lat, 'lng': p_lng}
                 
                 # Update current live position
                 DriverLocation.objects.update_or_create(
-                    user_id=self.user.id, # Use ID directly to avoid object issues
-                    defaults={'location': point}
+                    user_id=self.user.id,
+                    defaults={'location': location_data}
                 )
                 
                 # Log trail breadcrumb
                 DriverTrail.objects.create(
                     user_id=self.user.id,
-                    location=point
+                    location=location_data
                 )
 
                 # Fetch full trail for today to send to frontend
@@ -88,7 +95,12 @@ class TrackingConsumer(AsyncWebsocketConsumer):
                     timestamp__date=today
                 ).order_by('timestamp')
                 
-                return [[t.location.x, t.location.y] for t in trails]
+                def get_coords(loc):
+                    if hasattr(loc, 'x'): return [loc.x, loc.y]
+                    if isinstance(loc, dict): return [loc.get('lng'), loc.get('lat')]
+                    return [0, 0]
+
+                return [get_coords(t.location) for t in trails]
         except Exception as e:
             print(f"[DB Sync Error] {str(e)}")
             traceback.print_exc()
