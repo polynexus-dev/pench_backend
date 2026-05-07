@@ -206,14 +206,12 @@ class DriverViewSet(viewsets.ViewSet):
         """
         Returns the active route for the logged-in driver for today.
         """
-        import datetime
-        today = datetime.date.today()
-        
+        # Look for the nearest upcoming active route (today or future)
         route = Route.objects.filter(
             driver=request.user,
-            delivery_date=today,
+            delivery_date__gte=datetime.date.today(),
             is_completed=False
-        ).prefetch_related('stops__order__customer').first()
+        ).prefetch_related('stops__order__customer').order_by('delivery_date').first()
         
         if not route:
             return Response({'detail': 'No active route found for today.'}, status=404)
