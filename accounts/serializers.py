@@ -75,11 +75,12 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
                         import datetime
                         with schema_context(schema):
                             from orders.models import Route
+                            # Look for the nearest upcoming active route (today or future)
                             route = Route.objects.filter(
                                 driver=self.user,
-                                delivery_date=datetime.date.today(),
+                                delivery_date__gte=datetime.date.today(),
                                 is_completed=False
-                            ).first()
+                            ).order_by('delivery_date').first()
                             if route:
                                 data['route_id'] = str(route.id)
         return data
