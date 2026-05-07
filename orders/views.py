@@ -112,6 +112,7 @@ class RouteViewSet(viewsets.ModelViewSet):
     queryset = Route.objects.all().prefetch_related('stops__order__customer')
     serializer_class = RouteSerializer
     permission_classes = [IsERPUser]
+    filterset_fields = ['delivery_date', 'driver', 'is_completed']
 
     @action(detail=False, methods=['post'], url_path='create-optimized')
     def create_optimized(self, request):
