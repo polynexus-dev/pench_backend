@@ -100,10 +100,8 @@ DATABASES = {
 
 MIDDLEWARE = [
     'django_tenants.middleware.main.TenantMainMiddleware', # mandatory first
-    'core.middleware.LocalDomainAutoRegisterMiddleware', # for debugging schema switch
-    'django.middleware.security.SecurityMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
+    'corsheaders.middleware.CorsMiddleware', # Move this up for CORS to work
+    'core.middleware.LocalDomainAutoRegisterMiddleware', 
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -226,7 +224,8 @@ PAYTM_MERCHANT_ID = config('PAYTM_MERCHANT_ID', default='')
 PAYTM_MERCHANT_KEY = config('PAYTM_MERCHANT_KEY', default='')
 
 # CORS Settings
-CORS_ORIGIN_ALLOW_ALL = config('CORS_ORIGIN_ALLOW_ALL', default=False, cast=bool)
+# CORS Settings
+CORS_ALLOW_ALL_ORIGINS = config('CORS_ALLOW_ALL_ORIGINS', default=config('CORS_ORIGIN_ALLOW_ALL', default=False, cast=bool), cast=bool)
 # CORS and CSRF Origins (Robust parsing of comma/space separated lists)
 CORS_ALLOWED_ORIGINS = [o.strip() for o in config('CORS_ALLOWED_ORIGINS', default='').replace(' ', ',').split(',') if o.strip()]
 CSRF_TRUSTED_ORIGINS = [o.strip() for o in config('CSRF_TRUSTED_ORIGINS', default='').replace(' ', ',').split(',') if o.strip()]
