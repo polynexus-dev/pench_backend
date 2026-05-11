@@ -1,8 +1,40 @@
 {
     "info": {
-        "name": "Pench ERP - PERMANENT MASTER v4.1.0",
+        "name": "Pench ERP - PERMANENT MASTER v4.2.1",
         "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
     },
+    "variable": [
+        {
+            "key": "base_url",
+            "value": "https://pench.api.polynexus.in",
+            "type": "string"
+        },
+        {
+            "key": "city_url",
+            "value": "https://nagpur.pench.api.polynexus.in",
+            "type": "string"
+        },
+        {
+            "key": "access_token",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "route_id",
+            "value": "1",
+            "type": "string"
+        },
+        {
+            "key": "order_id",
+            "value": "1",
+            "type": "string"
+        },
+        {
+            "key": "last_id",
+            "value": "1",
+            "type": "string"
+        }
+    ],
     "item": [
         {
             "name": "00. SPECIAL: Driver Mobile App",
@@ -20,14 +52,19 @@
                         "url": {
                             "raw": "{{city_url}}/api/ems/drivers/check-in/",
                             "host": [
-                                "nagpur.pench.api.polynexus.in"
+                                "{{city_url}}"
                             ],
                             "path": [
                                 "api",
                                 "ems",
                                 "drivers",
-                                "check-in"
+                                "check-in",
+                                ""
                             ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{}"
                         }
                     }
                 },
@@ -44,14 +81,15 @@
                         "url": {
                             "raw": "{{city_url}}/api/erp/orders/driver/my-route/",
                             "host": [
-                                "nagpur.pench.api.polynexus.in"
+                                "{{city_url}}"
                             ],
                             "path": [
                                 "api",
                                 "erp",
                                 "orders",
                                 "driver",
-                                "my-route"
+                                "my-route",
+                                ""
                             ]
                         }
                     }
@@ -69,7 +107,7 @@
                         "url": {
                             "raw": "{{city_url}}/api/erp/orders/driver/{{route_id}}/start-trip/",
                             "host": [
-                                "nagpur.pench.api.polynexus.in"
+                                "{{city_url}}"
                             ],
                             "path": [
                                 "api",
@@ -77,8 +115,13 @@
                                 "orders",
                                 "driver",
                                 "{{route_id}}",
-                                "start-trip"
+                                "start-trip",
+                                ""
                             ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{}"
                         }
                     }
                 },
@@ -99,7 +142,7 @@
                         "url": {
                             "raw": "{{city_url}}/api/erp/orders/driver/{{order_id}}/submit-delivery/",
                             "host": [
-                                "nagpur.pench.api.polynexus.in"
+                                "{{city_url}}"
                             ],
                             "path": [
                                 "api",
@@ -107,7 +150,8 @@
                                 "orders",
                                 "driver",
                                 "{{order_id}}",
-                                "submit-delivery"
+                                "submit-delivery",
+                                ""
                             ]
                         }
                     }
@@ -125,7 +169,7 @@
                         "url": {
                             "raw": "{{city_url}}/api/erp/orders/driver/{{route_id}}/complete-trip/",
                             "host": [
-                                "nagpur.pench.api.polynexus.in"
+                                "{{city_url}}"
                             ],
                             "path": [
                                 "api",
@@ -133,15 +177,20 @@
                                 "orders",
                                 "driver",
                                 "{{route_id}}",
-                                "complete-trip"
+                                "complete-trip",
+                                ""
                             ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{}"
                         }
                     }
                 }
             ]
         },
         {
-            "name": "01. Auth & Accounts",
+            "name": "01. Auth & Registration",
             "item": [
                 {
                     "name": "POST Standard Login",
@@ -155,17 +204,42 @@
                         ],
                         "body": {
                             "mode": "raw",
-                            "raw": "{\"username\": \"admin\", \"password\": \"password123\"}"
+                            "raw": "{\n    \"username\": \"admin\",\n    \"password\": \"password123\"\n}"
                         },
                         "url": {
                             "raw": "{{base_url}}/api/accounts/login/",
                             "host": [
-                                "pench.api.polynexus.in"
+                                "{{base_url}}"
                             ],
                             "path": [
                                 "api",
                                 "accounts",
-                                "login"
+                                "login",
+                                ""
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "GET Me (Profile)",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/accounts/me/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "accounts",
+                                "me",
+                                ""
                             ]
                         }
                     }
@@ -182,17 +256,18 @@
                         ],
                         "body": {
                             "mode": "raw",
-                            "raw": "{\"phone\": \"918000000101\"}"
+                            "raw": "{\n    \"phone\": \"918000000101\"\n}"
                         },
                         "url": {
                             "raw": "{{base_url}}/api/accounts/request-otp/",
                             "host": [
-                                "pench.api.polynexus.in"
+                                "{{base_url}}"
                             ],
                             "path": [
                                 "api",
                                 "accounts",
-                                "request-otp"
+                                "request-otp",
+                                ""
                             ]
                         }
                     }
@@ -209,20 +284,166 @@
                         ],
                         "body": {
                             "mode": "raw",
-                            "raw": "{\"phone\": \"918000000101\", \"code\": \"123456\"}"
+                            "raw": "{\n    \"phone\": \"918000000101\",\n    \"code\": \"123456\"\n}"
                         },
                         "url": {
                             "raw": "{{base_url}}/api/accounts/login-otp/",
                             "host": [
-                                "pench.api.polynexus.in"
+                                "{{base_url}}"
                             ],
                             "path": [
                                 "api",
                                 "accounts",
-                                "login-otp"
+                                "login-otp",
+                                ""
                             ]
                         }
                     }
+                },
+                {
+                    "name": "User Registration (Templates)",
+                    "item": [
+                        {
+                            "name": "Register: SuperAdmin",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"username\": \"superadmin\",\n    \"password\": \"password123\",\n    \"email\": \"super@example.com\",\n    \"phone\": \"9100000001\",\n    \"first_name\": \"Super\",\n    \"last_name\": \"Admin\",\n    \"role\": \"SuperAdmin\",\n    \"is_erp_user\": true\n}"
+                                },
+                                "url": {
+                                    "raw": "{{base_url}}/api/accounts/register/",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "accounts",
+                                        "register",
+                                        ""
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "name": "Register: Staff",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"username\": \"staffuser\",\n    \"password\": \"password123\",\n    \"email\": \"staff@example.com\",\n    \"phone\": \"9100000002\",\n    \"first_name\": \"Staff\",\n    \"last_name\": \"User\",\n    \"role\": \"Staff\",\n    \"is_erp_user\": true\n}"
+                                },
+                                "url": {
+                                    "raw": "{{base_url}}/api/accounts/register/",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "accounts",
+                                        "register",
+                                        ""
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "name": "Register: Manager",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"username\": \"manageruser\",\n    \"password\": \"password123\",\n    \"email\": \"manager@example.com\",\n    \"phone\": \"9100000003\",\n    \"first_name\": \"Manager\",\n    \"last_name\": \"User\",\n    \"role\": \"Managers\",\n    \"is_erp_user\": true\n}"
+                                },
+                                "url": {
+                                    "raw": "{{base_url}}/api/accounts/register/",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "accounts",
+                                        "register",
+                                        ""
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "name": "Register: Driver",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"username\": \"driveruser\",\n    \"password\": \"password123\",\n    \"email\": \"driver@example.com\",\n    \"phone\": \"9100000004\",\n    \"first_name\": \"Driver\",\n    \"last_name\": \"User\",\n    \"role\": \"Drivers\",\n    \"is_driver\": true,\n    \"tenant_schema\": \"nagpur\"\n}"
+                                },
+                                "url": {
+                                    "raw": "{{base_url}}/api/accounts/register/",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "accounts",
+                                        "register",
+                                        ""
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "name": "Register: Customer (Mandatory Fields)",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"username\": \"customeruser\",\n    \"password\": \"password123\",\n    \"email\": \"customer@example.com\",\n    \"phone\": \"9100000005\",\n    \"role\": \"Customers\",\n    \"is_customer\": true,\n    \"tenant_schema\": \"nagpur\"\n}"
+                                },
+                                "url": {
+                                    "raw": "{{base_url}}/api/accounts/register/",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "accounts",
+                                        "register",
+                                        ""
+                                    ]
+                                }
+                            }
+                        }
+                    ]
                 },
                 {
                     "name": "Global Users (User)",
@@ -240,12 +461,13 @@
                                 "url": {
                                     "raw": "{{base_url}}/api/accounts/users/",
                                     "host": [
-                                        "pench.api.polynexus.in"
+                                        "{{base_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "accounts",
-                                        "users"
+                                        "users",
+                                        ""
                                     ]
                                 }
                             }
@@ -271,12 +493,13 @@
                                 "url": {
                                     "raw": "{{base_url}}/api/accounts/users/",
                                     "host": [
-                                        "pench.api.polynexus.in"
+                                        "{{base_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "accounts",
-                                        "users"
+                                        "users",
+                                        ""
                                     ]
                                 }
                             }
@@ -294,13 +517,14 @@
                                 "url": {
                                     "raw": "{{base_url}}/api/accounts/users/{{last_id}}/",
                                     "host": [
-                                        "pench.api.polynexus.in"
+                                        "{{base_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "accounts",
                                         "users",
-                                        "{{last_id}}"
+                                        "{{last_id}}",
+                                        ""
                                     ]
                                 }
                             }
@@ -326,13 +550,14 @@
                                 "url": {
                                     "raw": "{{base_url}}/api/accounts/users/{{last_id}}/",
                                     "host": [
-                                        "pench.api.polynexus.in"
+                                        "{{base_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "accounts",
                                         "users",
-                                        "{{last_id}}"
+                                        "{{last_id}}",
+                                        ""
                                     ]
                                 }
                             }
@@ -350,13 +575,14 @@
                                 "url": {
                                     "raw": "{{base_url}}/api/accounts/users/{{last_id}}/",
                                     "host": [
-                                        "pench.api.polynexus.in"
+                                        "{{base_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "accounts",
                                         "users",
-                                        "{{last_id}}"
+                                        "{{last_id}}",
+                                        ""
                                     ]
                                 }
                             }
@@ -384,13 +610,14 @@
                                 "url": {
                                     "raw": "{{base_url}}/api/erp/tenants/cities/",
                                     "host": [
-                                        "pench.api.polynexus.in"
+                                        "{{base_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "tenants",
-                                        "cities"
+                                        "cities",
+                                        ""
                                     ]
                                 }
                             }
@@ -416,13 +643,14 @@
                                 "url": {
                                     "raw": "{{base_url}}/api/erp/tenants/cities/",
                                     "host": [
-                                        "pench.api.polynexus.in"
+                                        "{{base_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "tenants",
-                                        "cities"
+                                        "cities",
+                                        ""
                                     ]
                                 }
                             }
@@ -440,14 +668,15 @@
                                 "url": {
                                     "raw": "{{base_url}}/api/erp/tenants/cities/{{last_id}}/",
                                     "host": [
-                                        "pench.api.polynexus.in"
+                                        "{{base_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "tenants",
                                         "cities",
-                                        "{{last_id}}"
+                                        "{{last_id}}",
+                                        ""
                                     ]
                                 }
                             }
@@ -473,14 +702,15 @@
                                 "url": {
                                     "raw": "{{base_url}}/api/erp/tenants/cities/{{last_id}}/",
                                     "host": [
-                                        "pench.api.polynexus.in"
+                                        "{{base_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "tenants",
                                         "cities",
-                                        "{{last_id}}"
+                                        "{{last_id}}",
+                                        ""
                                     ]
                                 }
                             }
@@ -498,14 +728,15 @@
                                 "url": {
                                     "raw": "{{base_url}}/api/erp/tenants/cities/{{last_id}}/",
                                     "host": [
-                                        "pench.api.polynexus.in"
+                                        "{{base_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "tenants",
                                         "cities",
-                                        "{{last_id}}"
+                                        "{{last_id}}",
+                                        ""
                                     ]
                                 }
                             }
@@ -528,13 +759,14 @@
                                 "url": {
                                     "raw": "{{base_url}}/api/erp/tenants/domains/",
                                     "host": [
-                                        "pench.api.polynexus.in"
+                                        "{{base_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "tenants",
-                                        "domains"
+                                        "domains",
+                                        ""
                                     ]
                                 }
                             }
@@ -560,13 +792,14 @@
                                 "url": {
                                     "raw": "{{base_url}}/api/erp/tenants/domains/",
                                     "host": [
-                                        "pench.api.polynexus.in"
+                                        "{{base_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "tenants",
-                                        "domains"
+                                        "domains",
+                                        ""
                                     ]
                                 }
                             }
@@ -584,14 +817,15 @@
                                 "url": {
                                     "raw": "{{base_url}}/api/erp/tenants/domains/{{last_id}}/",
                                     "host": [
-                                        "pench.api.polynexus.in"
+                                        "{{base_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "tenants",
                                         "domains",
-                                        "{{last_id}}"
+                                        "{{last_id}}",
+                                        ""
                                     ]
                                 }
                             }
@@ -617,14 +851,15 @@
                                 "url": {
                                     "raw": "{{base_url}}/api/erp/tenants/domains/{{last_id}}/",
                                     "host": [
-                                        "pench.api.polynexus.in"
+                                        "{{base_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "tenants",
                                         "domains",
-                                        "{{last_id}}"
+                                        "{{last_id}}",
+                                        ""
                                     ]
                                 }
                             }
@@ -642,14 +877,15 @@
                                 "url": {
                                     "raw": "{{base_url}}/api/erp/tenants/domains/{{last_id}}/",
                                     "host": [
-                                        "pench.api.polynexus.in"
+                                        "{{base_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "tenants",
                                         "domains",
-                                        "{{last_id}}"
+                                        "{{last_id}}",
+                                        ""
                                     ]
                                 }
                             }
@@ -677,12 +913,13 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/customers/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
-                                        "customers"
+                                        "customers",
+                                        ""
                                     ]
                                 }
                             }
@@ -708,12 +945,13 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/customers/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
-                                        "customers"
+                                        "customers",
+                                        ""
                                     ]
                                 }
                             }
@@ -731,13 +969,14 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/customers/{{last_id}}/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "customers",
-                                        "{{last_id}}"
+                                        "{{last_id}}",
+                                        ""
                                     ]
                                 }
                             }
@@ -763,13 +1002,14 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/customers/{{last_id}}/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "customers",
-                                        "{{last_id}}"
+                                        "{{last_id}}",
+                                        ""
                                     ]
                                 }
                             }
@@ -787,13 +1027,14 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/customers/{{last_id}}/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "customers",
-                                        "{{last_id}}"
+                                        "{{last_id}}",
+                                        ""
                                     ]
                                 }
                             }
@@ -807,14 +1048,15 @@
                         "url": {
                             "raw": "{{city_url}}/api/erp/customers/{{last_id}}/qr/",
                             "host": [
-                                "nagpur.pench.api.polynexus.in"
+                                "{{city_url}}"
                             ],
                             "path": [
                                 "api",
                                 "erp",
                                 "customers",
                                 "{{last_id}}",
-                                "qr"
+                                "qr",
+                                ""
                             ]
                         }
                     }
@@ -840,13 +1082,14 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/inventory/products/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "inventory",
-                                        "products"
+                                        "products",
+                                        ""
                                     ]
                                 }
                             }
@@ -872,13 +1115,14 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/inventory/products/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "inventory",
-                                        "products"
+                                        "products",
+                                        ""
                                     ]
                                 }
                             }
@@ -896,14 +1140,15 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/inventory/products/{{last_id}}/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "inventory",
                                         "products",
-                                        "{{last_id}}"
+                                        "{{last_id}}",
+                                        ""
                                     ]
                                 }
                             }
@@ -929,14 +1174,15 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/inventory/products/{{last_id}}/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "inventory",
                                         "products",
-                                        "{{last_id}}"
+                                        "{{last_id}}",
+                                        ""
                                     ]
                                 }
                             }
@@ -954,14 +1200,15 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/inventory/products/{{last_id}}/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "inventory",
                                         "products",
-                                        "{{last_id}}"
+                                        "{{last_id}}",
+                                        ""
                                     ]
                                 }
                             }
@@ -984,13 +1231,14 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/inventory/warehouses/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "inventory",
-                                        "warehouses"
+                                        "warehouses",
+                                        ""
                                     ]
                                 }
                             }
@@ -1016,13 +1264,14 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/inventory/warehouses/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "inventory",
-                                        "warehouses"
+                                        "warehouses",
+                                        ""
                                     ]
                                 }
                             }
@@ -1040,14 +1289,15 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/inventory/warehouses/{{last_id}}/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "inventory",
                                         "warehouses",
-                                        "{{last_id}}"
+                                        "{{last_id}}",
+                                        ""
                                     ]
                                 }
                             }
@@ -1073,14 +1323,15 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/inventory/warehouses/{{last_id}}/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "inventory",
                                         "warehouses",
-                                        "{{last_id}}"
+                                        "{{last_id}}",
+                                        ""
                                     ]
                                 }
                             }
@@ -1098,14 +1349,15 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/inventory/warehouses/{{last_id}}/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "inventory",
                                         "warehouses",
-                                        "{{last_id}}"
+                                        "{{last_id}}",
+                                        ""
                                     ]
                                 }
                             }
@@ -1119,13 +1371,14 @@
                         "url": {
                             "raw": "{{city_url}}/api/erp/inventory/stocks/",
                             "host": [
-                                "nagpur.pench.api.polynexus.in"
+                                "{{city_url}}"
                             ],
                             "path": [
                                 "api",
                                 "erp",
                                 "inventory",
-                                "stocks"
+                                "stocks",
+                                ""
                             ]
                         }
                     }
@@ -1151,12 +1404,13 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/orders/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
-                                        "orders"
+                                        "orders",
+                                        ""
                                     ]
                                 }
                             }
@@ -1182,12 +1436,13 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/orders/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
-                                        "orders"
+                                        "orders",
+                                        ""
                                     ]
                                 }
                             }
@@ -1205,13 +1460,14 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/orders/{{last_id}}/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "orders",
-                                        "{{last_id}}"
+                                        "{{last_id}}",
+                                        ""
                                     ]
                                 }
                             }
@@ -1237,13 +1493,14 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/orders/{{last_id}}/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "orders",
-                                        "{{last_id}}"
+                                        "{{last_id}}",
+                                        ""
                                     ]
                                 }
                             }
@@ -1261,13 +1518,14 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/orders/{{last_id}}/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "orders",
-                                        "{{last_id}}"
+                                        "{{last_id}}",
+                                        ""
                                     ]
                                 }
                             }
@@ -1290,13 +1548,14 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/orders/routes/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "orders",
-                                        "routes"
+                                        "routes",
+                                        ""
                                     ]
                                 }
                             }
@@ -1322,13 +1581,14 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/orders/routes/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "orders",
-                                        "routes"
+                                        "routes",
+                                        ""
                                     ]
                                 }
                             }
@@ -1346,14 +1606,15 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/orders/routes/{{last_id}}/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "orders",
                                         "routes",
-                                        "{{last_id}}"
+                                        "{{last_id}}",
+                                        ""
                                     ]
                                 }
                             }
@@ -1379,14 +1640,15 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/orders/routes/{{last_id}}/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "orders",
                                         "routes",
-                                        "{{last_id}}"
+                                        "{{last_id}}",
+                                        ""
                                     ]
                                 }
                             }
@@ -1404,14 +1666,15 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/orders/routes/{{last_id}}/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "orders",
                                         "routes",
-                                        "{{last_id}}"
+                                        "{{last_id}}",
+                                        ""
                                     ]
                                 }
                             }
@@ -1425,15 +1688,20 @@
                         "url": {
                             "raw": "{{city_url}}/api/erp/orders/routes/create-optimized/",
                             "host": [
-                                "nagpur.pench.api.polynexus.in"
+                                "{{city_url}}"
                             ],
                             "path": [
                                 "api",
                                 "erp",
                                 "orders",
                                 "routes",
-                                "create-optimized"
+                                "create-optimized",
+                                ""
                             ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{}"
                         }
                     }
                 }
@@ -1458,12 +1726,13 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/ems/drivers/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "ems",
-                                        "drivers"
+                                        "drivers",
+                                        ""
                                     ]
                                 }
                             }
@@ -1489,12 +1758,13 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/ems/drivers/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "ems",
-                                        "drivers"
+                                        "drivers",
+                                        ""
                                     ]
                                 }
                             }
@@ -1512,13 +1782,14 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/ems/drivers/{{last_id}}/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "ems",
                                         "drivers",
-                                        "{{last_id}}"
+                                        "{{last_id}}",
+                                        ""
                                     ]
                                 }
                             }
@@ -1544,13 +1815,14 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/ems/drivers/{{last_id}}/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "ems",
                                         "drivers",
-                                        "{{last_id}}"
+                                        "{{last_id}}",
+                                        ""
                                     ]
                                 }
                             }
@@ -1568,13 +1840,14 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/ems/drivers/{{last_id}}/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "ems",
                                         "drivers",
-                                        "{{last_id}}"
+                                        "{{last_id}}",
+                                        ""
                                     ]
                                 }
                             }
@@ -1588,12 +1861,13 @@
                         "url": {
                             "raw": "{{city_url}}/api/ems/tracking/",
                             "host": [
-                                "nagpur.pench.api.polynexus.in"
+                                "{{city_url}}"
                             ],
                             "path": [
                                 "api",
                                 "ems",
-                                "tracking"
+                                "tracking",
+                                ""
                             ]
                         }
                     }
@@ -1619,13 +1893,14 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/hr/employees/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "hr",
-                                        "employees"
+                                        "employees",
+                                        ""
                                     ]
                                 }
                             }
@@ -1651,13 +1926,14 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/hr/employees/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "hr",
-                                        "employees"
+                                        "employees",
+                                        ""
                                     ]
                                 }
                             }
@@ -1675,14 +1951,15 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/hr/employees/{{last_id}}/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "hr",
                                         "employees",
-                                        "{{last_id}}"
+                                        "{{last_id}}",
+                                        ""
                                     ]
                                 }
                             }
@@ -1708,14 +1985,15 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/hr/employees/{{last_id}}/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "hr",
                                         "employees",
-                                        "{{last_id}}"
+                                        "{{last_id}}",
+                                        ""
                                     ]
                                 }
                             }
@@ -1733,14 +2011,15 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/hr/employees/{{last_id}}/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "hr",
                                         "employees",
-                                        "{{last_id}}"
+                                        "{{last_id}}",
+                                        ""
                                     ]
                                 }
                             }
@@ -1763,13 +2042,14 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/hr/attendance/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "hr",
-                                        "attendance"
+                                        "attendance",
+                                        ""
                                     ]
                                 }
                             }
@@ -1795,13 +2075,14 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/hr/attendance/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "hr",
-                                        "attendance"
+                                        "attendance",
+                                        ""
                                     ]
                                 }
                             }
@@ -1819,14 +2100,15 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/hr/attendance/{{last_id}}/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "hr",
                                         "attendance",
-                                        "{{last_id}}"
+                                        "{{last_id}}",
+                                        ""
                                     ]
                                 }
                             }
@@ -1852,14 +2134,15 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/hr/attendance/{{last_id}}/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "hr",
                                         "attendance",
-                                        "{{last_id}}"
+                                        "{{last_id}}",
+                                        ""
                                     ]
                                 }
                             }
@@ -1877,14 +2160,15 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/hr/attendance/{{last_id}}/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "hr",
                                         "attendance",
-                                        "{{last_id}}"
+                                        "{{last_id}}",
+                                        ""
                                     ]
                                 }
                             }
@@ -1912,13 +2196,14 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/finance/invoices/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "finance",
-                                        "invoices"
+                                        "invoices",
+                                        ""
                                     ]
                                 }
                             }
@@ -1944,13 +2229,14 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/finance/invoices/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "finance",
-                                        "invoices"
+                                        "invoices",
+                                        ""
                                     ]
                                 }
                             }
@@ -1968,14 +2254,15 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/finance/invoices/{{last_id}}/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "finance",
                                         "invoices",
-                                        "{{last_id}}"
+                                        "{{last_id}}",
+                                        ""
                                     ]
                                 }
                             }
@@ -2001,14 +2288,15 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/finance/invoices/{{last_id}}/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "finance",
                                         "invoices",
-                                        "{{last_id}}"
+                                        "{{last_id}}",
+                                        ""
                                     ]
                                 }
                             }
@@ -2026,14 +2314,15 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/finance/invoices/{{last_id}}/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "finance",
                                         "invoices",
-                                        "{{last_id}}"
+                                        "{{last_id}}",
+                                        ""
                                     ]
                                 }
                             }
@@ -2056,13 +2345,14 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/finance/payments/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "finance",
-                                        "payments"
+                                        "payments",
+                                        ""
                                     ]
                                 }
                             }
@@ -2088,13 +2378,14 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/finance/payments/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "finance",
-                                        "payments"
+                                        "payments",
+                                        ""
                                     ]
                                 }
                             }
@@ -2112,14 +2403,15 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/finance/payments/{{last_id}}/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "finance",
                                         "payments",
-                                        "{{last_id}}"
+                                        "{{last_id}}",
+                                        ""
                                     ]
                                 }
                             }
@@ -2145,14 +2437,15 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/finance/payments/{{last_id}}/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "finance",
                                         "payments",
-                                        "{{last_id}}"
+                                        "{{last_id}}",
+                                        ""
                                     ]
                                 }
                             }
@@ -2170,14 +2463,15 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/finance/payments/{{last_id}}/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "finance",
                                         "payments",
-                                        "{{last_id}}"
+                                        "{{last_id}}",
+                                        ""
                                     ]
                                 }
                             }
@@ -2205,12 +2499,13 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/subs/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
-                                        "subs"
+                                        "subs",
+                                        ""
                                     ]
                                 }
                             }
@@ -2236,12 +2531,13 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/subs/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
-                                        "subs"
+                                        "subs",
+                                        ""
                                     ]
                                 }
                             }
@@ -2259,13 +2555,14 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/subs/{{last_id}}/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "subs",
-                                        "{{last_id}}"
+                                        "{{last_id}}",
+                                        ""
                                     ]
                                 }
                             }
@@ -2291,13 +2588,14 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/subs/{{last_id}}/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "subs",
-                                        "{{last_id}}"
+                                        "{{last_id}}",
+                                        ""
                                     ]
                                 }
                             }
@@ -2315,13 +2613,14 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/subs/{{last_id}}/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "subs",
-                                        "{{last_id}}"
+                                        "{{last_id}}",
+                                        ""
                                     ]
                                 }
                             }
@@ -2335,15 +2634,20 @@
                         "url": {
                             "raw": "{{city_url}}/api/erp/subs/{{last_id}}/vacation/",
                             "host": [
-                                "nagpur.pench.api.polynexus.in"
+                                "{{city_url}}"
                             ],
                             "path": [
                                 "api",
                                 "erp",
                                 "subs",
                                 "{{last_id}}",
-                                "vacation"
+                                "vacation",
+                                ""
                             ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{}"
                         }
                     }
                 },
@@ -2354,15 +2658,20 @@
                         "url": {
                             "raw": "{{city_url}}/api/erp/subs/{{last_id}}/update-quantity/",
                             "host": [
-                                "nagpur.pench.api.polynexus.in"
+                                "{{city_url}}"
                             ],
                             "path": [
                                 "api",
                                 "erp",
                                 "subs",
                                 "{{last_id}}",
-                                "update-quantity"
+                                "update-quantity",
+                                ""
                             ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\"quantity\": 2}"
                         }
                     }
                 }
@@ -2387,13 +2696,14 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/taxation/taxes/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "taxation",
-                                        "taxes"
+                                        "taxes",
+                                        ""
                                     ]
                                 }
                             }
@@ -2419,13 +2729,14 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/taxation/taxes/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "taxation",
-                                        "taxes"
+                                        "taxes",
+                                        ""
                                     ]
                                 }
                             }
@@ -2443,14 +2754,15 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/taxation/taxes/{{last_id}}/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "taxation",
                                         "taxes",
-                                        "{{last_id}}"
+                                        "{{last_id}}",
+                                        ""
                                     ]
                                 }
                             }
@@ -2476,14 +2788,15 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/taxation/taxes/{{last_id}}/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "taxation",
                                         "taxes",
-                                        "{{last_id}}"
+                                        "{{last_id}}",
+                                        ""
                                     ]
                                 }
                             }
@@ -2501,14 +2814,15 @@
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/taxation/taxes/{{last_id}}/",
                                     "host": [
-                                        "nagpur.pench.api.polynexus.in"
+                                        "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
                                         "taxation",
                                         "taxes",
-                                        "{{last_id}}"
+                                        "{{last_id}}",
+                                        ""
                                     ]
                                 }
                             }
@@ -2527,32 +2841,6 @@
                     "var jsonData = pm.response.json(); if (jsonData.access) { pm.environment.set('access_token', jsonData.access); } if (jsonData.id) { pm.environment.set('last_id', jsonData.id); }"
                 ]
             }
-        }
-    ],
-    "variable": [
-        {
-            "key": "base_url",
-            "value": "https://pench.api.polynexus.in"
-        },
-        {
-            "key": "city_url",
-            "value": "https://nagpur.pench.api.polynexus.in"
-        },
-        {
-            "key": "access_token",
-            "value": ""
-        },
-        {
-            "key": "route_id",
-            "value": "1"
-        },
-        {
-            "key": "order_id",
-            "value": "1"
-        },
-        {
-            "key": "last_id",
-            "value": "1"
         }
     ]
 }

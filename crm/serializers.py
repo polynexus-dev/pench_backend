@@ -11,15 +11,44 @@ except ImportError:
 class CustomerSerializer(serializers.ModelSerializer):
     latitude = serializers.FloatField(required=False, allow_null=True)
     longitude = serializers.FloatField(required=False, allow_null=True)
+    dashboard = serializers.SerializerMethodField()
 
     class Meta:
         model = Customer
         fields = [
             'id', 'name', 'company', 'email', 'phone', 'address',
             'latitude', 'longitude', 'notes', 'is_active', 
-            'qr_code_id', 'created_at'
+            'qr_code_id', 'created_at', 'dashboard'
         ]
         read_only_fields = ['id', 'qr_code_id', 'created_at']
+
+    def get_dashboard(self, obj):
+        """Aggregates metrics for the customer within the current schema."""
+        from subscriptions.models import Subscription, SubscriptionStatus
+        from finance.models import MonthlyBill, BillStatus
+        from orders.models import Order
+        
+        # 1. Active Subscriptions
+        active_subs = Subscription.objects.filter(
+            customer=obj, 
+            status=SubscriptionStatus.ACTIVE
+        ).count()
+        
+        # 2. Pending Balance
+        bills = MonthlyBill.objects.filter(
+            customer=obj
+        ).exclude(status=BillStatus.CANCELLED)
+        
+        total_pending = sum((bill.total_amount - bill.amount_paid) for bill in bills)
+        
+        # 3. Total Orders
+        total_orders = Order.objects.filter(customer=obj).count()
+        
+        return {
+            "active_subscriptions": active_subs,
+            "pending_balance": float(total_pending),
+            "total_orders": total_orders
+        }
 
     def to_representation(self, instance):
         ret = super().to_representation(instance)

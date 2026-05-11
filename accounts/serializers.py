@@ -5,6 +5,7 @@ from .models import User
 
 
 class UserSerializer(serializers.ModelSerializer):
+    customer_dashboard = serializers.SerializerMethodField()
     groups = serializers.SerializerMethodField()
     role = serializers.SerializerMethodField()
 
@@ -13,9 +14,54 @@ class UserSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'username', 'email', 'first_name', 'last_name',
             'is_erp_user', 'is_driver', 'is_customer', 'portal', 'phone',
-            'tenant_schema', 'groups', 'role',
+            'tenant_schema', 'groups', 'role', 'customer_dashboard',
         ]
         read_only_fields = ['id', 'is_erp_user', 'is_driver', 'is_customer', 'portal', 'tenant_schema']
+
+    def get_customer_dashboard(self, obj):
+        """
+        Aggregates dashboard data for customers by switching to their tenant schema.
+        Visible to the customer themselves and Admins.
+        """
+        if not obj.is_customer or not obj.tenant_schema:
+            return None
+            
+        from django_tenants.utils import schema_context
+        from django.db.models import Sum, F
+        
+        try:
+            with schema_context(obj.tenant_schema):
+                from subscriptions.models import Subscription, SubscriptionStatus
+                from finance.models import MonthlyBill, BillStatus
+                from orders.models import Order
+                
+                # 1. Active Subscriptions
+                active_subs = Subscription.objects.filter(
+                    customer__user=obj, 
+                    status=SubscriptionStatus.ACTIVE
+                ).count()
+                
+                # 2. Pending Balance (Sum of total - paid for all non-cancelled bills)
+                bills = MonthlyBill.objects.filter(
+                    customer__user=obj
+                ).exclude(status=BillStatus.CANCELLED)
+                
+                total_pending = 0
+                for bill in bills:
+                    total_pending += (bill.total_amount - bill.amount_paid)
+                
+                # 3. Total Orders
+                total_orders = Order.objects.filter(customer__user=obj).count()
+                
+                return {
+                    "active_subscriptions": active_subs,
+                    "pending_balance": float(total_pending),
+                    "total_orders": total_orders,
+                    "schema": obj.tenant_schema
+                }
+        except Exception as e:
+            # Silently fail if schema or models are not accessible to prevent crashing the User API
+            return {"error": "Dashboard data temporarily unavailable"}
 
     def get_groups(self, obj):
         return [group.name for group in obj.groups.all()]
@@ -35,6 +81,8 @@ class UserSerializer(serializers.ModelSerializer):
 
 class UserCreateSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)
+    phone = serializers.CharField(required=True)
+    email = serializers.EmailField(required=True)
     role = serializers.CharField(write_only=True, required=False) # New Role field
     groups = serializers.SlugRelatedField(
         many=True,
