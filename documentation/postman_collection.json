@@ -1,288 +1,1157 @@
 {
-	"info": {
-		"_postman_id": "c1d2e3f4-a5b6-4c7d-8e9f-0123456789ab",
-		"name": "Smart Dairy ERP - DEFINITIVE MASTER",
-		"description": "100% API coverage with full URL structures and body examples. Includes Auth, CRM, Inventory, Logistics, Finance, HR, and Tracking.",
-		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
-	},
-	"item": [
-		{
-			"name": "01. Authentication & Security",
-			"item": [
-				{
-					"name": "POST Login (Password)",
-					"request": {
-						"method": "POST",
-						"header": [],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"username\": \"admin\",\n    \"password\": \"admin\"\n}",
-							"options": { "raw": { "language": "json" } }
-						},
-						"url": {
-							"raw": "{{base_url}}/api/accounts/login/",
-							"host": ["{{base_url}}"],
-							"path": ["api", "accounts", "login", ""]
-						}
-					}
-				},
-				{
-					"name": "POST Request OTP",
-					"request": {
-						"method": "POST",
-						"header": [],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"phone\": \"919876543210\"\n}",
-							"options": { "raw": { "language": "json" } }
-						},
-						"url": {
-							"raw": "{{base_url}}/api/accounts/request-otp/",
-							"host": ["{{base_url}}"],
-							"path": ["api", "accounts", "request-otp", ""]
-						}
-					}
-				},
-				{
-					"name": "POST Login via OTP",
-					"request": {
-						"method": "POST",
-						"header": [],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"phone\": \"919876543210\",\n    \"code\": \"123456\"\n}",
-							"options": { "raw": { "language": "json" } }
-						},
-						"url": {
-							"raw": "{{base_url}}/api/accounts/login-otp/",
-							"host": ["{{base_url}}"],
-							"path": ["api", "accounts", "login-otp", ""]
-						}
-					}
-				},
-				{
-					"name": "POST Register CUSTOMER",
-					"request": {
-						"method": "POST",
-						"header": [],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"username\": \"cust_pune_1\",\n    \"password\": \"pass1234\",\n    \"phone\": \"910000000001\",\n    \"role\": \"Customers\",\n    \"tenant_schema\": \"pune\"\n}",
-							"options": { "raw": { "language": "json" } }
-						},
-						"url": {
-							"raw": "{{base_url}}/api/accounts/register/",
-							"host": ["{{base_url}}"],
-							"path": ["api", "accounts", "register", ""]
-						}
-					}
-				},
-				{
-					"name": "POST Register DRIVER",
-					"request": {
-						"method": "POST",
-						"header": [],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"username\": \"driver_pune_1\",\n    \"password\": \"pass1234\",\n    \"phone\": \"910000000002\",\n    \"role\": \"Drivers\",\n    \"tenant_schema\": \"pune\"\n}",
-							"options": { "raw": { "language": "json" } }
-						},
-						"url": {
-							"raw": "{{base_url}}/api/accounts/register/",
-							"host": ["{{base_url}}"],
-							"path": ["api", "accounts", "register", ""]
-						}
-					}
-				}
-			]
-		},
-		{
-			"name": "02. Platform & Tenants",
-			"item": [
-				{
-					"name": "GET List Cities",
-					"request": {
-						"method": "GET",
-						"url": {
-							"raw": "{{base_url}}/api/erp/tenants/cities/",
-							"host": ["{{base_url}}"],
-							"path": ["api", "erp", "tenants", "cities", ""]
-						}
-					}
-				},
-				{
-					"name": "POST Create City",
-					"request": {
-						"method": "POST",
-						"header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"name\": \"Nagpur\",\n    \"schema_name\": \"nagpur\",\n    \"domain\": \"nagpur.localhost\"\n}",
-							"options": { "raw": { "language": "json" } }
-						},
-						"url": {
-							"raw": "{{base_url}}/api/erp/tenants/cities/",
-							"host": ["{{base_url}}"],
-							"path": ["api", "erp", "tenants", "cities", ""]
-						}
-					}
-				}
-			]
-		},
-		{
-			"name": "03. CRM (Customers)",
-			"item": [
-				{
-					"name": "GET List Customers",
-					"request": {
-						"method": "GET",
-						"header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
-						"url": {
-							"raw": "{{city_url}}/api/erp/customers/",
-							"host": ["{{city_url}}"],
-							"path": ["api", "erp", "customers", ""]
-						}
-					}
-				},
-				{
-					"name": "GET Download QR",
-					"request": {
-						"method": "GET",
-						"url": {
-							"raw": "{{city_url}}/api/erp/customers/{{customer_id}}/download-qr/",
-							"host": ["{{city_url}}"],
-							"path": ["api", "erp", "customers", "{{customer_id}}", "download-qr", ""]
-						}
-					}
-				},
-				{
-					"name": "GET Resolve QR",
-					"request": {
-						"method": "GET",
-						"header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
-						"url": {
-							"raw": "{{city_url}}/api/erp/customers/qr-resolve/{{qr_uuid}}/",
-							"host": ["{{city_url}}"],
-							"path": ["api", "erp", "customers", "qr-resolve", "{{qr_uuid}}", ""]
-						}
-					}
-				}
-			]
-		},
-		{
-			"name": "04. Inventory & Stock",
-			"item": [
-				{
-					"name": "GET List Products",
-					"request": {
-						"method": "GET",
-						"url": {
-							"raw": "{{city_url}}/api/erp/inventory/products/",
-							"host": ["{{city_url}}"],
-							"path": ["api", "erp", "inventory", "products", ""]
-						}
-					}
-				},
-				{
-					"name": "GET Current Stock",
-					"request": {
-						"method": "GET",
-						"header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
-						"url": {
-							"raw": "{{city_url}}/api/erp/inventory/stock/",
-							"host": ["{{city_url}}"],
-							"path": ["api", "erp", "inventory", "stock", ""]
-						}
-					}
-				}
-			]
-		},
-		{
-			"name": "05. Logistics & Routing",
-			"item": [
-				{
-					"name": "GET List Tenant Drivers",
-					"request": {
-						"method": "GET",
-						"header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
-						"url": {
-							"raw": "{{city_url}}/api/ems/drivers/",
-							"host": ["{{city_url}}"],
-							"path": ["api", "ems", "drivers", ""]
-						}
-					}
-				},
-				{
-					"name": "POST Assign Route to Driver",
-					"request": {
-						"method": "POST",
-						"header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"driver\": 1,\n    \"delivery_date\": \"2024-05-20\",\n    \"orders\": [1, 2, 3]\n}",
-							"options": { "raw": { "language": "json" } }
-						},
-						"url": {
-							"raw": "{{city_url}}/api/ems/routes/",
-							"host": ["{{city_url}}"],
-							"path": ["api", "ems", "routes", ""]
-						}
-					}
-				},
-				{
-					"name": "GET Active Routes",
-					"request": {
-						"method": "GET",
-						"header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
-						"url": {
-							"raw": "{{city_url}}/api/ems/routes/",
-							"host": ["{{city_url}}"],
-							"path": ["api", "ems", "routes", ""]
-						}
-					}
-				}
-			]
-		},
-		{
-			"name": "06. Finance & Billing",
-			"item": [
-				{
-					"name": "GET List Bills",
-					"request": {
-						"method": "GET",
-						"header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
-						"url": {
-							"raw": "{{city_url}}/api/erp/finance/bills/",
-							"host": ["{{city_url}}"],
-							"path": ["api", "erp", "finance", "bills", ""]
-						}
-					}
-				}
-			]
-		},
-		{
-			"name": "07. HR & Payroll",
-			"item": [
-				{
-					"name": "GET List Employees",
-					"request": {
-						"method": "GET",
-						"header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
-						"url": {
-							"raw": "{{city_url}}/api/erp/hr/",
-							"host": ["{{city_url}}"],
-							"path": ["api", "erp", "hr", ""]
-						}
-					}
-				}
-			]
-		}
-	],
-	"variable": [
-		{ "key": "base_url", "value": "http://localhost:8000", "type": "string" },
-		{ "key": "city_url", "value": "http://pune.localhost:8000", "type": "string" },
-		{ "key": "access_token", "value": "", "type": "string" },
-		{ "key": "customer_id", "value": "1", "type": "string" },
-		{ "key": "qr_uuid", "value": "", "type": "string" }
-	]
+    "info": {
+        "_postman_id": "c1d2e3f4-a5b6-4c7d-8e9f-0123456789ab",
+        "name": "Smart Dairy ERP - PERFECT MASTER",
+        "description": "100% compliant Postman collection. Fully expanded URLs, headers, and formatted JSON bodies for all 10 modules.",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "item": [
+        {
+            "name": "01. Auth & Security",
+            "item": [
+                {
+                    "name": "POST Register CUSTOMER",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"username\": \"rahul_pune\",\n    \"password\": \"pass123\",\n    \"phone\": \"919876543210\",\n    \"first_name\": \"Rahul\",\n    \"last_name\": \"Sharma\",\n    \"role\": \"Customers\",\n    \"tenant_schema\": \"pune\",\n    \"latitude\": 18.5204,\n    \"longitude\": 73.8567,\n    \"address\": \"Flat 402, Pune\",\n    \"company\": \"Sharma Dairy\",\n    \"notes\": \"Deliver at 6 AM\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/accounts/register/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "accounts",
+                                "register",
+                                ""
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "POST Register DRIVER",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"username\": \"driver_1\",\n    \"password\": \"pass123\",\n    \"phone\": \"911234567890\",\n    \"role\": \"Drivers\",\n    \"tenant_schema\": \"pune\",\n    \"first_name\": \"Rajesh\",\n    \"last_name\": \"Kumar\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/accounts/register/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "accounts",
+                                "register",
+                                ""
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "POST Register STAFF",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"username\": \"staff_1\",\n    \"password\": \"pass123\",\n    \"role\": \"Staff\",\n    \"tenant_schema\": \"pune\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/accounts/register/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "accounts",
+                                "register",
+                                ""
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "POST Login",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"username\": \"admin\",\n    \"password\": \"admin\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/accounts/login/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "accounts",
+                                "login",
+                                ""
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "POST Request OTP",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"phone\": \"919876543210\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/accounts/request-otp/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "accounts",
+                                "request-otp",
+                                ""
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "POST Login OTP",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"phone\": \"919876543210\",\n    \"code\": \"123456\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/accounts/login-otp/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "accounts",
+                                "login-otp",
+                                ""
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "GET My Profile",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/accounts/me/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "accounts",
+                                "me",
+                                ""
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "02. Platform & Tenants",
+            "item": [
+                {
+                    "name": "GET Cities",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/erp/tenants/cities/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "erp",
+                                "tenants",
+                                "cities",
+                                ""
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "POST Create City",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name\": \"Nagpur\",\n    \"schema_name\": \"nagpur\",\n    \"domain\": \"nagpur.localhost\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/erp/tenants/cities/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "erp",
+                                "tenants",
+                                "cities",
+                                ""
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "GET Domains",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/erp/tenants/domains/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "erp",
+                                "tenants",
+                                "domains",
+                                ""
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "GET Zones",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{city_url}}/api/erp/tenants/zones/",
+                            "host": [
+                                "{{city_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "erp",
+                                "tenants",
+                                "zones",
+                                ""
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "03. CRM (Customers)",
+            "item": [
+                {
+                    "name": "GET List Customers",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{city_url}}/api/erp/customers/",
+                            "host": [
+                                "{{city_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "erp",
+                                "customers",
+                                ""
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "POST Create Customer",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name\": \"Rahul\",\n    \"phone\": \"919876543210\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{city_url}}/api/erp/customers/",
+                            "host": [
+                                "{{city_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "erp",
+                                "customers",
+                                ""
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "GET Download QR",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{city_url}}/api/erp/customers/{{customer_id}}/download-qr/",
+                            "host": [
+                                "{{city_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "erp",
+                                "customers",
+                                "{{customer_id}}",
+                                "download-qr",
+                                ""
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "GET Resolve QR",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{city_url}}/api/erp/customers/qr-resolve/{{qr_uuid}}/",
+                            "host": [
+                                "{{city_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "erp",
+                                "customers",
+                                "qr-resolve",
+                                "{{qr_uuid}}",
+                                ""
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "GET List Leads",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{city_url}}/api/erp/customers/leads/",
+                            "host": [
+                                "{{city_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "erp",
+                                "customers",
+                                "leads",
+                                ""
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "04. Inventory & Assets",
+            "item": [
+                {
+                    "name": "GET Products",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{city_url}}/api/erp/inventory/products/",
+                            "host": [
+                                "{{city_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "erp",
+                                "inventory",
+                                "products",
+                                ""
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "POST Create Product",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name\": \"Milk\",\n    \"price\": 50.0\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{city_url}}/api/erp/inventory/products/",
+                            "host": [
+                                "{{city_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "erp",
+                                "inventory",
+                                "products",
+                                ""
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "GET Current Stock",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{city_url}}/api/erp/inventory/stock/",
+                            "host": [
+                                "{{city_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "erp",
+                                "inventory",
+                                "stock",
+                                ""
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "GET Bottle Balances",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{city_url}}/api/erp/inventory/bottle-balances/",
+                            "host": [
+                                "{{city_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "erp",
+                                "inventory",
+                                "bottle-balances",
+                                ""
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "05. Logistics (Orders)",
+            "item": [
+                {
+                    "name": "GET List Orders",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{city_url}}/api/erp/orders/",
+                            "host": [
+                                "{{city_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "erp",
+                                "orders",
+                                ""
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "POST Create Order",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"customer\": 1,\n    \"product\": 1,\n    \"quantity\": 2,\n    \"scheduled_delivery_date\": \"2024-05-20\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{city_url}}/api/erp/orders/",
+                            "host": [
+                                "{{city_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "erp",
+                                "orders",
+                                ""
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "GET Single Order",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{city_url}}/api/erp/orders/{{order_id}}/",
+                            "host": [
+                                "{{city_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "erp",
+                                "orders",
+                                "{{order_id}}",
+                                ""
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "PATCH Update Order",
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"quantity\": 5\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{city_url}}/api/erp/orders/{{order_id}}/",
+                            "host": [
+                                "{{city_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "erp",
+                                "orders",
+                                "{{order_id}}",
+                                ""
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "DELETE Cancel Order",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{city_url}}/api/erp/orders/{{order_id}}/",
+                            "host": [
+                                "{{city_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "erp",
+                                "orders",
+                                "{{order_id}}",
+                                ""
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "POST Bulk Create Orders",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"orders\": [\n        {\n            \"customer\": 1,\n            \"product\": 1,\n            \"quantity\": 1\n        },\n        {\n            \"customer\": 2,\n            \"product\": 1,\n            \"quantity\": 1\n        }\n    ]\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{city_url}}/api/erp/orders/bulk-create/",
+                            "host": [
+                                "{{city_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "erp",
+                                "orders",
+                                "bulk-create",
+                                ""
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "06. Routing & Drivers",
+            "item": [
+                {
+                    "name": "GET List Drivers",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{city_url}}/api/ems/drivers/",
+                            "host": [
+                                "{{city_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "ems",
+                                "drivers",
+                                ""
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "POST Assign Route",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"driver\": 1,\n    \"delivery_date\": \"2024-05-20\",\n    \"orders\": [\n        1,\n        2\n    ]\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{city_url}}/api/ems/routes/",
+                            "host": [
+                                "{{city_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "ems",
+                                "routes",
+                                ""
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "GET Active Routes",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{city_url}}/api/ems/routes/",
+                            "host": [
+                                "{{city_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "ems",
+                                "routes",
+                                ""
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "POST Create Optimized Route",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name\": \"Nagpur Morning Route\",\n    \"delivery_date\": \"2026-05-12\",\n    \"driver_id\": \"DRIVER_ID_HERE\",\n    \"order_ids\": [\n        \"ORDER_ID_1\",\n        \"ORDER_ID_2\"\n    ]\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{city_url}}/api/ems/routes/create-optimized/",
+                            "host": [
+                                "{{city_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "ems",
+                                "routes",
+                                "create-optimized",
+                                ""
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "07. Finance & Billing",
+            "item": [
+                {
+                    "name": "GET Bills",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{city_url}}/api/erp/finance/bills/",
+                            "host": [
+                                "{{city_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "erp",
+                                "finance",
+                                "bills",
+                                ""
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "POST Record Payment",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"bill\": 1,\n    \"amount\": 500,\n    \"method\": \"Cash\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{city_url}}/api/erp/finance/payments/",
+                            "host": [
+                                "{{city_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "erp",
+                                "finance",
+                                "payments",
+                                ""
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "08. HR & Payroll",
+            "item": [
+                {
+                    "name": "GET Employees",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{city_url}}/api/erp/hr/",
+                            "host": [
+                                "{{city_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "erp",
+                                "hr",
+                                ""
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "GET Payrolls",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{city_url}}/api/erp/hr/payroll/",
+                            "host": [
+                                "{{city_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "erp",
+                                "hr",
+                                "payroll",
+                                ""
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "09. Subscriptions",
+            "item": [
+                {
+                    "name": "GET Plans",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{city_url}}/api/erp/subscriptions/plans/",
+                            "host": [
+                                "{{city_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "erp",
+                                "subscriptions",
+                                "plans",
+                                ""
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "10. System Admin",
+            "item": [
+                {
+                    "name": "GET Config",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{city_url}}/api/erp/administration/",
+                            "host": [
+                                "{{city_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "erp",
+                                "administration",
+                                ""
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "PATCH Update Config",
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"company_name\": \"Pench Foods\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{city_url}}/api/erp/administration/1/",
+                            "host": [
+                                "{{city_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "erp",
+                                "administration",
+                                "1",
+                                ""
+                            ]
+                        }
+                    }
+                }
+            ]
+        }
+    ],
+    "variable": [
+        {
+            "key": "base_url",
+            "value": "http://localhost:8000",
+            "type": "string"
+        },
+        {
+            "key": "city_url",
+            "value": "http://pune.localhost:8000",
+            "type": "string"
+        },
+        {
+            "key": "access_token",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "customer_id",
+            "value": "1",
+            "type": "string"
+        },
+        {
+            "key": "order_id",
+            "value": "1",
+            "type": "string"
+        },
+        {
+            "key": "qr_uuid",
+            "value": "",
+            "type": "string"
+        }
+    ]
 }

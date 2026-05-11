@@ -21,6 +21,11 @@ urlpatterns = [
         path('administration/', include('administration.urls')),
     ])),
 
+    # City Logistics & Employee Management
+    path('api/ems/', include([
+        path('', include('routing.urls')),
+    ])),
+
     # Common Auth
     path('api/accounts/', include('accounts.urls')),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
