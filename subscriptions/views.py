@@ -14,6 +14,11 @@ class SubscriptionViewSet(viewsets.ModelViewSet):
         """
         Supports creating multiple subscriptions in one request.
         """
+        from django.db import connection
+        print(f"[DEBUG] Create Subscriptions hit. Schema: {connection.schema_name}")
+        print(f"[DEBUG] Payload Type: {type(request.data)}")
+        print(f"[DEBUG] Payload Data: {request.data}")
+
         is_many = isinstance(request.data, list)
         if not is_many:
             return super().create(request, *args, **kwargs)
@@ -21,6 +26,8 @@ class SubscriptionViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(data=request.data, many=True)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
+        
+        print(f"[DEBUG] Created {len(serializer.data)} subscriptions.")
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     @action(detail=False, methods=['patch', 'put'])

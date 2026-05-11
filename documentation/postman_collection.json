@@ -1,12 +1,36 @@
 {
     "info": {
-        "name": "Pench ERP - ULTIMATE MASTER v3.3.0",
+        "name": "Pench ERP - PERMANENT MASTER v4.0.0",
         "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
     },
     "item": [
         {
             "name": "00. SPECIAL: Driver Mobile App",
             "item": [
+                {
+                    "name": "POST Driver Check-in",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{city_url}}/api/ems/drivers/check-in/",
+                            "host": [
+                                "nagpur.pench.api.polynexus.in"
+                            ],
+                            "path": [
+                                "api",
+                                "ems",
+                                "drivers",
+                                "check-in"
+                            ]
+                        }
+                    }
+                },
                 {
                     "name": "GET My Active Route",
                     "request": {
@@ -59,7 +83,7 @@
                     }
                 },
                 {
-                    "name": "POST Submit Delivery (Single Stop)",
+                    "name": "POST Submit Delivery",
                     "request": {
                         "method": "POST",
                         "header": [
@@ -70,7 +94,7 @@
                         ],
                         "body": {
                             "mode": "raw",
-                            "raw": "{\n    \"bottles_returned\": 2\n}"
+                            "raw": "{\"bottles_returned\": 2}"
                         },
                         "url": {
                             "raw": "{{city_url}}/api/erp/orders/driver/{{order_id}}/submit-delivery/",
@@ -120,7 +144,7 @@
             "name": "01. Auth & Accounts",
             "item": [
                 {
-                    "name": "POST Standard Login (Username/Password)",
+                    "name": "POST Standard Login",
                     "request": {
                         "method": "POST",
                         "header": [
@@ -131,7 +155,7 @@
                         ],
                         "body": {
                             "mode": "raw",
-                            "raw": "{\n    \"username\": \"admin\",\n    \"password\": \"password123\"\n}"
+                            "raw": "{\"username\": \"admin\", \"password\": \"password123\"}"
                         },
                         "url": {
                             "raw": "{{base_url}}/api/accounts/login/",
@@ -150,16 +174,6 @@
                     "name": "POST Request OTP",
                     "request": {
                         "method": "POST",
-                        "header": [
-                            {
-                                "key": "Content-Type",
-                                "value": "application/json"
-                            }
-                        ],
-                        "body": {
-                            "mode": "raw",
-                            "raw": "{\n    \"phone\": \"918000000101\"\n}"
-                        },
                         "url": {
                             "raw": "{{base_url}}/api/accounts/request-otp/",
                             "host": [
@@ -177,16 +191,6 @@
                     "name": "POST Login OTP",
                     "request": {
                         "method": "POST",
-                        "header": [
-                            {
-                                "key": "Content-Type",
-                                "value": "application/json"
-                            }
-                        ],
-                        "body": {
-                            "mode": "raw",
-                            "raw": "{\n    \"phone\": \"918000000101\",\n    \"code\": \"123456\"\n}"
-                        },
                         "url": {
                             "raw": "{{base_url}}/api/accounts/login-otp/",
                             "host": [
@@ -387,7 +391,7 @@
                                 ],
                                 "body": {
                                     "mode": "raw",
-                                    "raw": "{\n    \"name\": \"Nagpur\",\n    \"schema_name\": \"nagpur\",\n    \"state\": \"Maharashtra\",\n    \"code\": \"NGP\"\n}"
+                                    "raw": "{\n    \"name\": \"Nagpur\",\n    \"schema_name\": \"nagpur\"\n}"
                                 },
                                 "url": {
                                     "raw": "{{base_url}}/api/erp/tenants/cities/",
@@ -444,7 +448,7 @@
                                 ],
                                 "body": {
                                     "mode": "raw",
-                                    "raw": "{\n    \"name\": \"Nagpur\",\n    \"schema_name\": \"nagpur\",\n    \"state\": \"Maharashtra\",\n    \"code\": \"NGP\"\n}"
+                                    "raw": "{\n    \"name\": \"Nagpur\",\n    \"schema_name\": \"nagpur\"\n}"
                                 },
                                 "url": {
                                     "raw": "{{base_url}}/api/erp/tenants/cities/{{last_id}}/",
@@ -635,7 +639,7 @@
             ]
         },
         {
-            "name": "03. CRM (Customers)",
+            "name": "03. CRM & Customers",
             "item": [
                 {
                     "name": "Customers (Customer)",
@@ -798,7 +802,7 @@
             ]
         },
         {
-            "name": "04. Inventory & Assets",
+            "name": "04. Inventory & Warehousing",
             "item": [
                 {
                     "name": "Products (Product)",
@@ -1109,7 +1113,7 @@
             ]
         },
         {
-            "name": "05. Logistics & Routing",
+            "name": "05. Logistics & Route Optimization",
             "item": [
                 {
                     "name": "Orders (Order)",
@@ -1153,7 +1157,7 @@
                                 ],
                                 "body": {
                                     "mode": "raw",
-                                    "raw": "{\n    \"customer\": \"UUID\",\n    \"items\": [\n        {\n            \"product\": \"UUID\",\n            \"quantity\": 1\n        }\n    ]\n}"
+                                    "raw": "{}"
                                 },
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/orders/",
@@ -1208,7 +1212,7 @@
                                 ],
                                 "body": {
                                     "mode": "raw",
-                                    "raw": "{\n    \"customer\": \"UUID\",\n    \"items\": [\n        {\n            \"product\": \"UUID\",\n            \"quantity\": 1\n        }\n    ]\n}"
+                                    "raw": "{}"
                                 },
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/orders/{{last_id}}/",
@@ -1398,10 +1402,6 @@
                     "name": "POST Create Optimized Route",
                     "request": {
                         "method": "POST",
-                        "body": {
-                            "mode": "raw",
-                            "raw": "{\n    \"name\": \"Route 1\",\n    \"delivery_date\": \"2026-05-12\",\n    \"driver_id\": 1,\n    \"order_ids\": []\n}"
-                        },
                         "url": {
                             "raw": "{{city_url}}/api/erp/orders/routes/create-optimized/",
                             "host": [
@@ -1566,15 +1566,14 @@
                     "request": {
                         "method": "GET",
                         "url": {
-                            "raw": "{{city_url}}/api/ems/tracking/?route={{route_id}}",
+                            "raw": "{{city_url}}/api/ems/tracking/",
                             "host": [
                                 "nagpur.pench.api.polynexus.in"
                             ],
                             "path": [
                                 "api",
                                 "ems",
-                                "tracking",
-                                "?route={{route_id}}"
+                                "tracking"
                             ]
                         }
                     }
@@ -1582,7 +1581,7 @@
             ]
         },
         {
-            "name": "07. HR & Payroll",
+            "name": "07. HR & Attendance",
             "item": [
                 {
                     "name": "Employees (Employee)",
@@ -2184,14 +2183,14 @@
                                     }
                                 ],
                                 "url": {
-                                    "raw": "{{city_url}}/api/erp/subscriptions/",
+                                    "raw": "{{city_url}}/api/erp/subs/",
                                     "host": [
                                         "nagpur.pench.api.polynexus.in"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
-                                        "subscriptions"
+                                        "subs"
                                     ]
                                 }
                             }
@@ -2212,17 +2211,17 @@
                                 ],
                                 "body": {
                                     "mode": "raw",
-                                    "raw": "{}"
+                                    "raw": "{\n    \"customer\": \"CUSTOMER_UUID\",\n    \"frequency\": \"daily\"\n}"
                                 },
                                 "url": {
-                                    "raw": "{{city_url}}/api/erp/subscriptions/",
+                                    "raw": "{{city_url}}/api/erp/subs/",
                                     "host": [
                                         "nagpur.pench.api.polynexus.in"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
-                                        "subscriptions"
+                                        "subs"
                                     ]
                                 }
                             }
@@ -2238,14 +2237,14 @@
                                     }
                                 ],
                                 "url": {
-                                    "raw": "{{city_url}}/api/erp/subscriptions/{{last_id}}/",
+                                    "raw": "{{city_url}}/api/erp/subs/{{last_id}}/",
                                     "host": [
                                         "nagpur.pench.api.polynexus.in"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
-                                        "subscriptions",
+                                        "subs",
                                         "{{last_id}}"
                                     ]
                                 }
@@ -2267,17 +2266,17 @@
                                 ],
                                 "body": {
                                     "mode": "raw",
-                                    "raw": "{}"
+                                    "raw": "{\n    \"customer\": \"CUSTOMER_UUID\",\n    \"frequency\": \"daily\"\n}"
                                 },
                                 "url": {
-                                    "raw": "{{city_url}}/api/erp/subscriptions/{{last_id}}/",
+                                    "raw": "{{city_url}}/api/erp/subs/{{last_id}}/",
                                     "host": [
                                         "nagpur.pench.api.polynexus.in"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
-                                        "subscriptions",
+                                        "subs",
                                         "{{last_id}}"
                                     ]
                                 }
@@ -2294,14 +2293,14 @@
                                     }
                                 ],
                                 "url": {
-                                    "raw": "{{city_url}}/api/erp/subscriptions/{{last_id}}/",
+                                    "raw": "{{city_url}}/api/erp/subs/{{last_id}}/",
                                     "host": [
                                         "nagpur.pench.api.polynexus.in"
                                     ],
                                     "path": [
                                         "api",
                                         "erp",
-                                        "subscriptions",
+                                        "subs",
                                         "{{last_id}}"
                                     ]
                                 }
@@ -2310,28 +2309,18 @@
                     ]
                 },
                 {
-                    "name": "POST Vacation Mode (Pause)",
+                    "name": "POST Vacation Mode",
                     "request": {
                         "method": "POST",
-                        "header": [
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{access_token}}"
-                            }
-                        ],
-                        "body": {
-                            "mode": "raw",
-                            "raw": "{\n    \"pause_start\": \"2026-06-01\",\n    \"pause_end\": \"2026-06-10\"\n}"
-                        },
                         "url": {
-                            "raw": "{{city_url}}/api/erp/subscriptions/{{last_id}}/vacation/",
+                            "raw": "{{city_url}}/api/erp/subs/{{last_id}}/vacation/",
                             "host": [
                                 "nagpur.pench.api.polynexus.in"
                             ],
                             "path": [
                                 "api",
                                 "erp",
-                                "subscriptions",
+                                "subs",
                                 "{{last_id}}",
                                 "vacation"
                             ]
@@ -2339,58 +2328,172 @@
                     }
                 },
                 {
-                    "name": "POST Resume Subscription",
+                    "name": "POST Update Quantity",
                     "request": {
                         "method": "POST",
-                        "header": [
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{access_token}}"
-                            }
-                        ],
                         "url": {
-                            "raw": "{{city_url}}/api/erp/subscriptions/{{last_id}}/resume/",
+                            "raw": "{{city_url}}/api/erp/subs/{{last_id}}/update-quantity/",
                             "host": [
                                 "nagpur.pench.api.polynexus.in"
                             ],
                             "path": [
                                 "api",
                                 "erp",
-                                "subscriptions",
-                                "{{last_id}}",
-                                "resume"
-                            ]
-                        }
-                    }
-                },
-                {
-                    "name": "POST Update Item Quantity",
-                    "request": {
-                        "method": "POST",
-                        "header": [
-                            {
-                                "key": "Authorization",
-                                "value": "Bearer {{access_token}}"
-                            }
-                        ],
-                        "body": {
-                            "mode": "raw",
-                            "raw": "{\n    \"product_id\": \"UUID\",\n    \"quantity\": 2\n}"
-                        },
-                        "url": {
-                            "raw": "{{city_url}}/api/erp/subscriptions/{{last_id}}/update-quantity/",
-                            "host": [
-                                "nagpur.pench.api.polynexus.in"
-                            ],
-                            "path": [
-                                "api",
-                                "erp",
-                                "subscriptions",
+                                "subs",
                                 "{{last_id}}",
                                 "update-quantity"
                             ]
                         }
                     }
+                }
+            ]
+        },
+        {
+            "name": "10. Taxation",
+            "item": [
+                {
+                    "name": "Tax Rules (Tax)",
+                    "item": [
+                        {
+                            "name": "GET List Taxs",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{city_url}}/api/erp/taxation/taxes/",
+                                    "host": [
+                                        "nagpur.pench.api.polynexus.in"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "erp",
+                                        "taxation",
+                                        "taxes"
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "name": "POST Create Tax",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    },
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{}"
+                                },
+                                "url": {
+                                    "raw": "{{city_url}}/api/erp/taxation/taxes/",
+                                    "host": [
+                                        "nagpur.pench.api.polynexus.in"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "erp",
+                                        "taxation",
+                                        "taxes"
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "name": "GET Single Tax",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{city_url}}/api/erp/taxation/taxes/{{last_id}}/",
+                                    "host": [
+                                        "nagpur.pench.api.polynexus.in"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "erp",
+                                        "taxation",
+                                        "taxes",
+                                        "{{last_id}}"
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "name": "PATCH Update Tax",
+                            "request": {
+                                "method": "PATCH",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    },
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{}"
+                                },
+                                "url": {
+                                    "raw": "{{city_url}}/api/erp/taxation/taxes/{{last_id}}/",
+                                    "host": [
+                                        "nagpur.pench.api.polynexus.in"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "erp",
+                                        "taxation",
+                                        "taxes",
+                                        "{{last_id}}"
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "name": "DELETE Tax",
+                            "request": {
+                                "method": "DELETE",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{city_url}}/api/erp/taxation/taxes/{{last_id}}/",
+                                    "host": [
+                                        "nagpur.pench.api.polynexus.in"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "erp",
+                                        "taxation",
+                                        "taxes",
+                                        "{{last_id}}"
+                                    ]
+                                }
+                            }
+                        }
+                    ]
                 }
             ]
         }
@@ -2401,9 +2504,7 @@
             "script": {
                 "type": "text/javascript",
                 "exec": [
-                    "var jsonData = pm.response.json();",
-                    "if (jsonData.access) { pm.environment.set('access_token', jsonData.access); }",
-                    "if (jsonData.id) { pm.environment.set('last_id', jsonData.id); }"
+                    "var jsonData = pm.response.json(); if (jsonData.access) { pm.environment.set('access_token', jsonData.access); } if (jsonData.id) { pm.environment.set('last_id', jsonData.id); }"
                 ]
             }
         }
