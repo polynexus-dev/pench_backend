@@ -49,9 +49,13 @@ build/
 # Cache
 **/__pycache__/
 
-# Docker (Ignored per user request to prevent pushing to VM)
-# Dockerfile
-# docker-compose.yml
+# Docker Build (Already on VM)
+Dockerfile
+docker-compose.yml
+
+# Maintenance Scripts
+fix_admin.py
+check_table.py
 
 # Documents
 documentation/

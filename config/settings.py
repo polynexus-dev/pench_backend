@@ -227,14 +227,9 @@ PAYTM_MERCHANT_KEY = config('PAYTM_MERCHANT_KEY', default='')
 
 # CORS Settings
 CORS_ORIGIN_ALLOW_ALL = config('CORS_ORIGIN_ALLOW_ALL', default=False, cast=bool)
-CORS_ALLOWED_ORIGINS = config('CORS_ALLOWED_ORIGINS', default='').split(',')
-if '' in CORS_ALLOWED_ORIGINS:
-    CORS_ALLOWED_ORIGINS.remove('')
-
-# CSRF Trusted Origins
-CSRF_TRUSTED_ORIGINS = config('CSRF_TRUSTED_ORIGINS', default='').split(',')
-if '' in CSRF_TRUSTED_ORIGINS:
-    CSRF_TRUSTED_ORIGINS.remove('')
+# CORS and CSRF Origins (Robust parsing of comma/space separated lists)
+CORS_ALLOWED_ORIGINS = [o.strip() for o in config('CORS_ALLOWED_ORIGINS', default='').replace(' ', ',').split(',') if o.strip()]
+CSRF_TRUSTED_ORIGINS = [o.strip() for o in config('CSRF_TRUSTED_ORIGINS', default='').replace(' ', ',').split(',') if o.strip()]
 
 # Security Settings
 SECURE_SSL_REDIRECT = config('SECURE_SSL_REDIRECT', default=False, cast=bool)
