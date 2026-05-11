@@ -101,9 +101,13 @@ class RequestOTPView(APIView):
                 )
         
         # 3. Generate and "send" OTP
-        generate_otp(phone)
+        otp_obj = generate_otp(phone)
         
-        return Response({"message": "OTP sent successfully."})
+        response_data = {"message": "OTP sent successfully."}
+        
+        response_data["otp"] = otp_obj.code
+            
+        return Response(response_data)
 
 
 class LoginOTPView(APIView):

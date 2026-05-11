@@ -109,8 +109,6 @@ class LocalDomainAutoRegisterMiddleware:
                     print(f"[Auto-Register] Automatically registered local domain: {host}")
                 except Exception as e:
                     pass
-        
-        return self.get_response(request)
 
 import json
 from rest_framework_simplejwt.tokens import AccessToken
