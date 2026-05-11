@@ -101,9 +101,11 @@ DATABASES = {
 MIDDLEWARE = [
     'django_tenants.middleware.main.TenantMainMiddleware', # mandatory first
     'corsheaders.middleware.CorsMiddleware', # Move this up for CORS to work
+    'django.middleware.security.SecurityMiddleware',
     'core.middleware.LocalDomainAutoRegisterMiddleware', 
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
