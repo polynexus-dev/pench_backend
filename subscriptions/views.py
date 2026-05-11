@@ -62,6 +62,11 @@ class SubscriptionViewSet(viewsets.ModelViewSet):
         
         return Response(SubscriptionSerializer(subscription).data)
 
+    @action(detail=True, methods=['post'], url_path='vacation')
+    def vacation(self, request, pk=None):
+        """ Alias for pause with a more user-friendly name. """
+        return self.pause(request, pk)
+
     @action(detail=True, methods=['post'], url_path='resume')
     def resume(self, request, pk=None):
         subscription = self.get_object()
@@ -69,6 +74,26 @@ class SubscriptionViewSet(viewsets.ModelViewSet):
         subscription.pause_start = None
         subscription.pause_end = None
         subscription.save()
+        return Response(SubscriptionSerializer(subscription).data)
+
+    @action(detail=True, methods=['post'], url_path='update-quantity')
+    def update_quantity(self, request, pk=None):
+        """ Update the quantity for a specific product in the subscription. """
+        subscription = self.get_object()
+        product_id = request.data.get('product_id')
+        new_quantity = request.data.get('quantity')
+
+        if product_id is None or new_quantity is None:
+            return Response({'detail': 'product_id and quantity are required.'}, status=400)
+
+        from .models import SubscriptionItem
+        item = SubscriptionItem.objects.filter(subscription=subscription, product_id=product_id).first()
+        if not item:
+            return Response({'detail': 'Product not found in this subscription.'}, status=404)
+
+        item.quantity = int(new_quantity)
+        item.save()
+        
         return Response(SubscriptionSerializer(subscription).data)
 
     @action(detail=True, methods=['post'], url_path='add-skip-date')

@@ -2,7 +2,7 @@ import json
 import os
 
 def generate_collection():
-    collection_name = "Pench ERP - PRODUCTION v3.2.0"
+    collection_name = "Pench ERP - ULTIMATE MASTER v3.3.0"
     
     def make_url(url_str):
         parts = url_str.replace("{{base_url}}", "https://pench.api.polynexus.in").replace("{{city_url}}", "https://nagpur.pench.api.polynexus.in").split("/")
@@ -217,7 +217,33 @@ def generate_collection():
             {
                 "name": "09. Subscriptions",
                 "item": [
-                    crud_folder("Subscriptions", "city_url", "api/erp/subscriptions", "Subscription")
+                    crud_folder("Subscriptions", "city_url", "api/erp/subscriptions", "Subscription"),
+                    {
+                        "name": "POST Vacation Mode (Pause)",
+                        "request": {
+                            "method": "POST",
+                            "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+                            "body": {"mode": "raw", "raw": json.dumps({"pause_start": "2026-06-01", "pause_end": "2026-06-10"}, indent=4)},
+                            "url": make_url("{{city_url}}/api/erp/subscriptions/{{last_id}}/vacation/")
+                        }
+                    },
+                    {
+                        "name": "POST Resume Subscription",
+                        "request": {
+                            "method": "POST",
+                            "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+                            "url": make_url("{{city_url}}/api/erp/subscriptions/{{last_id}}/resume/")
+                        }
+                    },
+                    {
+                        "name": "POST Update Item Quantity",
+                        "request": {
+                            "method": "POST",
+                            "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+                            "body": {"mode": "raw", "raw": json.dumps({"product_id": "UUID", "quantity": 2}, indent=4)},
+                            "url": make_url("{{city_url}}/api/erp/subscriptions/{{last_id}}/update-quantity/")
+                        }
+                    }
                 ]
             }
         ],
@@ -246,7 +272,7 @@ def generate_collection():
     
     with open("documentation/postman_collection.json", "w") as f:
         json.dump(collection, f, indent=4)
-    print("Production Collection v3.2.0 generated successfully.")
+    print("Collection v3.3.0 generated successfully.")
 
 if __name__ == "__main__":
     generate_collection()

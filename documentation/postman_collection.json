@@ -1,6 +1,6 @@
 {
     "info": {
-        "name": "Pench ERP - PRODUCTION v3.2.0",
+        "name": "Pench ERP - ULTIMATE MASTER v3.3.0",
         "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
     },
     "item": [
@@ -2308,6 +2308,89 @@
                             }
                         }
                     ]
+                },
+                {
+                    "name": "POST Vacation Mode (Pause)",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"pause_start\": \"2026-06-01\",\n    \"pause_end\": \"2026-06-10\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{city_url}}/api/erp/subscriptions/{{last_id}}/vacation/",
+                            "host": [
+                                "nagpur.pench.api.polynexus.in"
+                            ],
+                            "path": [
+                                "api",
+                                "erp",
+                                "subscriptions",
+                                "{{last_id}}",
+                                "vacation"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "POST Resume Subscription",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{city_url}}/api/erp/subscriptions/{{last_id}}/resume/",
+                            "host": [
+                                "nagpur.pench.api.polynexus.in"
+                            ],
+                            "path": [
+                                "api",
+                                "erp",
+                                "subscriptions",
+                                "{{last_id}}",
+                                "resume"
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "POST Update Item Quantity",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"product_id\": \"UUID\",\n    \"quantity\": 2\n}"
+                        },
+                        "url": {
+                            "raw": "{{city_url}}/api/erp/subscriptions/{{last_id}}/update-quantity/",
+                            "host": [
+                                "nagpur.pench.api.polynexus.in"
+                            ],
+                            "path": [
+                                "api",
+                                "erp",
+                                "subscriptions",
+                                "{{last_id}}",
+                                "update-quantity"
+                            ]
+                        }
+                    }
                 }
             ]
         }
