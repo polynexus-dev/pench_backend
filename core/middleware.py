@@ -109,6 +109,8 @@ class LocalDomainAutoRegisterMiddleware:
                     print(f"[Auto-Register] Automatically registered local domain: {host}")
                 except Exception as e:
                     pass
+        
+        return self.get_response(request)
 
 import json
 from rest_framework_simplejwt.tokens import AccessToken
@@ -121,6 +123,9 @@ class TokenExpiryMiddleware(MiddlewareMixin):
     if a valid JWT token is used.
     """
     def process_response(self, request, response):
+        if response is None:
+            return response
+            
         # Only process if user is authenticated via JWT
         auth_header = request.headers.get('Authorization')
         if auth_header and auth_header.startswith('Bearer '):
