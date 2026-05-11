@@ -43,6 +43,10 @@ class TrackingConsumer(AsyncWebsocketConsumer):
                 # Update Database and get full trail
                 trail_points = await self.update_driver_location(lat, lng)
                 
+                # If safeguard triggered (ghost simulator), abort broadcast
+                if trail_points is None:
+                    return
+
                 # Broadcast to Admins
                 await self.channel_layer.group_send(
                     "admins",
@@ -65,6 +69,10 @@ class TrackingConsumer(AsyncWebsocketConsumer):
     @database_sync_to_async
     def update_driver_location(self, lat, lng):
         try:
+            if not self.tenant or self.tenant.schema_name == 'public':
+                print("[WS Error] Cannot save driver location in the public schema. Simulator is using wrong Host.")
+                return None
+
             with schema_context(self.tenant.schema_name):
                 # Ensure float conversion
                 p_lng = float(lng)
@@ -87,12 +95,14 @@ class TrackingConsumer(AsyncWebsocketConsumer):
                     location=location_data
                 )
 
-                # Fetch full trail for today to send to frontend
-                import datetime
-                today = datetime.date.today()
+                # Fetch recent trails (last 12 hours) to send to frontend
+                from django.utils import timezone
+                from datetime import timedelta
+                
+                time_threshold = timezone.now() - timedelta(hours=12)
                 trails = DriverTrail.objects.filter(
                     user_id=self.user.id,
-                    timestamp__date=today
+                    timestamp__gte=time_threshold
                 ).order_by('timestamp')
                 
                 def get_coords(loc):

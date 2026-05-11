@@ -44,8 +44,17 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
         data = super().validate(attrs)
         data['user'] = UserSerializer(self.user).data
         
-        # Add tenant info if available (except for superusers)
-        if not self.user.is_superuser:
+        # Route Admin/ERP users to the Public Domain
+        if self.user.is_superuser or self.user.is_erp_user:
+            from tenants.models import Domain
+            public_domain = Domain.objects.filter(tenant__schema_name='public').first()
+            if public_domain:
+                data['domain_name'] = public_domain.domain
+            else:
+                data['domain_name'] = 'localhost' # Fallback for local testing
+                
+        # Route Drivers/Customers to their specific Tenant Domain
+        else:
             from django.db import connection
             schema = self.user.tenant_schema
             
