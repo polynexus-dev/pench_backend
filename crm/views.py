@@ -57,6 +57,94 @@ class CustomerViewSet(viewsets.ModelViewSet):
 
         return Response(updated_customers, status=status.HTTP_200_OK)
 
+    @action(detail=True, methods=['get'], url_path='download-qr')
+    def download_qr(self, request, pk=None):
+        """
+        Generates and returns a Balanced, High-Impact Branded QR Label.
+        """
+        customer = self.get_object()
+        import qrcode
+        import os
+        from io import BytesIO
+        from django.http import HttpResponse
+        from django.conf import settings
+        from PIL import Image, ImageDraw, ImageFont
+
+        # --- COLORS & CONFIG ---
+        pench_green = (0, 150, 70) 
+        dark_bg = (20, 30, 40)     
+        text_color = (255, 255, 255)
+        
+        # 1. Generate QR Code
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_H,
+            box_size=12,
+            border=2,
+        )
+        qr.add_data(str(customer.qr_code_id))
+        qr.make(fit=True)
+        
+        qr_img = qr.make_image(fill_color=pench_green, back_color="white").convert('RGB')
+        
+        # 2. Canvas Setup (Increased Height for Spacing)
+        width, height = qr_img.size
+        canvas_width = 600
+        canvas_height = 900
+        
+        canvas = Image.new('RGB', (canvas_width, canvas_height), pench_green)
+        draw = ImageDraw.Draw(canvas)
+        
+        # 3. Draw Stylized Background
+        draw.polygon([(0, 0), (canvas_width, 0), (canvas_width, 350), (0, 500)], fill=dark_bg)
+        
+        # 4. Embed Logo in QR
+        logo_path = os.path.join(settings.BASE_DIR, 'Untitled design-8 (2).png')
+        if os.path.exists(logo_path):
+            logo = Image.open(logo_path).convert("RGBA")
+            logo_max_size = int(width * 0.25)
+            logo.thumbnail((logo_max_size, logo_max_size), Image.Resampling.LANCZOS)
+            
+            qr_w, qr_h = qr_img.size
+            logo_pos = ((qr_w - logo.size[0]) // 2, (qr_h - logo.size[1]) // 2)
+            
+            logo_bg = Image.new('RGBA', (logo.size[0] + 12, logo.size[1] + 12), (255, 255, 255, 255))
+            qr_img.paste(logo_bg, (logo_pos[0]-6, logo_pos[1]-6), logo_bg)
+            qr_img.paste(logo, logo_pos, logo)
+
+        # 5. Paste QR onto Canvas (Higher Position)
+        qr_x = (canvas_width - width) // 2
+        qr_y = 180
+        canvas.paste(qr_img, (qr_x, qr_y))
+        
+        # 6. Load Professional Font
+        try:
+            font_bold = ImageFont.truetype("C:\\Windows\\Fonts\\arialbd.ttf", 60)
+            font_small = ImageFont.truetype("C:\\Windows\\Fonts\\arial.ttf", 18) # Smaller Footer
+            font_title = ImageFont.truetype("C:\\Windows\\Fonts\\arialbd.ttf", 45)
+        except Exception:
+            font_bold = ImageFont.load_default()
+            font_small = ImageFont.load_default()
+            font_title = ImageFont.load_default()
+
+        # 7. Add Text with Impact
+        # Title
+        draw.text((canvas_width/2, 100), "PENCH FOODS", fill=text_color, anchor="mm", font=font_title)
+        
+        # Big Bold "SCAN HERE" (Moved Down)
+        draw.text((canvas_width/2, 730), "SCAN HERE", fill=dark_bg, anchor="mm", font=font_bold)
+        
+        # Small Footer
+        footer_text = "Powered by Polynexus Technologies"
+        draw.text((canvas_width/2, 850), footer_text, fill=(255, 255, 255, 200), anchor="mm", font=font_small)
+        
+        # Save to buffer
+        buffer = BytesIO()
+        canvas.save(buffer, format="PNG")
+        buffer.seek(0)
+
+        return HttpResponse(buffer, content_type="image/png")
+
     @action(detail=False, methods=['get'], url_path='qr-resolve/(?P<qr_id>[^/.]+)', permission_classes=[AllowAny])
     def qr_resolve(self, request, qr_id=None):
         """
@@ -92,16 +180,9 @@ class CustomerViewSet(viewsets.ModelViewSet):
             })
 
         # Scenario 3: Guest / Stranger
-        return Response({
-            'role': 'guest',
-            'company_info': {
-                'name': 'Smart Dairy ERP',
-                'description': 'Premium milk delivery services.',
-                'referred_by_customer_id': customer.id,
-                'referred_by_customer_name': customer.name
-            },
-            'message': 'Scan this QR to join our milk delivery network!'
-        })
+        from django.http import HttpResponseRedirect
+        # Redirect guests directly to the website for marketing
+        return HttpResponseRedirect("https://penchfoods.com")
 
 
 class LeadViewSet(viewsets.ModelViewSet):

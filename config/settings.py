@@ -113,7 +113,8 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = 'config.urls'
-PUBLIC_SCHEMA_URLCONF = 'config.urls' # For public admin
+PUBLIC_SCHEMA_URLCONF = 'config.urls'
+TENANT_URLCONF = 'config.urls_tenants'
 
 TEMPLATES = [
     {
