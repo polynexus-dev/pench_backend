@@ -27,6 +27,7 @@ class Driver(BaseModel):
     vehicle_type = models.CharField(max_length=50, default='van')
     max_capacity_kg = models.DecimalField(max_digits=8, decimal_places=2, default=500)
     is_available = models.BooleanField(default=True)
+    on_trip = models.BooleanField(default=False)
 
     def __str__(self):
         return f'Driver: {self.user.get_full_name()} ({self.vehicle_plate})'

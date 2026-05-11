@@ -243,6 +243,15 @@ class DriverViewSet(viewsets.ViewSet):
         route.started_at = timezone.now()
         route.save(update_fields=['started_at'])
         
+        # Mark Driver Profile as Unavailable (Busy on trip)
+        if route.driver:
+            from routing.models import Driver
+            driver_profile = Driver.objects.filter(user=route.driver).first()
+            if driver_profile:
+                driver_profile.is_available = False
+                driver_profile.on_trip = True
+                driver_profile.save(update_fields=['is_available', 'on_trip'])
+        
         # Update all orders in this route to IN_TRANSIT
         for stop in route.stops.all():
             stop.order.status = OrderStatus.IN_TRANSIT
@@ -271,6 +280,15 @@ class DriverViewSet(viewsets.ViewSet):
         route.completed_at = timezone.now()
         route.is_completed = True
         route.save(update_fields=['completed_at', 'is_completed'])
+
+        # Mark Driver Profile as Available again
+        if route.driver:
+            from routing.models import Driver
+            driver_profile = Driver.objects.filter(user=route.driver).first()
+            if driver_profile:
+                driver_profile.is_available = True
+                driver_profile.on_trip = False
+                driver_profile.save(update_fields=['is_available', 'on_trip'])
             
         return Response({'detail': 'Trip completed successfully.', 'completed_at': route.completed_at})
 
