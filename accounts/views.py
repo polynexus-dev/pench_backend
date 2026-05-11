@@ -167,6 +167,20 @@ class LoginOTPView(APIView):
                 # Look up the domain
                 domain = Domain.objects.filter(tenant=city).first()
                 response_data['tenant_domain'] = domain.domain if domain else None
+                
+                # If driver, find their active (incomplete) route
+                if user.is_driver:
+                    from django_tenants.utils import schema_context
+                    import datetime
+                    with schema_context(user.tenant_schema):
+                        from orders.models import Route
+                        route = Route.objects.filter(
+                            driver=user,
+                            delivery_date__gte=datetime.date.today(),
+                            is_completed=False
+                        ).order_by('delivery_date').first()
+                        if route:
+                            response_data['active_route_id'] = str(route.id)
         
         return Response(response_data)
 
