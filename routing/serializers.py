@@ -9,7 +9,7 @@ class DriverSerializer(serializers.ModelSerializer):
     class Meta:
         model = Driver
         fields = ['id', 'user', 'full_name', 'vehicle_plate', 'vehicle_type',
-                  'max_capacity_kg', 'is_available']
+                  'max_capacity_kg', 'is_available', 'on_trip']
 
     def get_full_name(self, obj):
         try:
