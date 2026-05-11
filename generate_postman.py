@@ -2,7 +2,7 @@ import json
 import os
 
 def generate_collection():
-    collection_name = "Pench ERP - PERMANENT MASTER v4.0.0"
+    collection_name = "Pench ERP - PERMANENT MASTER v4.1.0"
     
     def make_url(url_str):
         parts = url_str.replace("{{base_url}}", "https://pench.api.polynexus.in").replace("{{city_url}}", "https://nagpur.pench.api.polynexus.in").split("/")
@@ -41,8 +41,8 @@ def generate_collection():
                 "name": "01. Auth & Accounts",
                 "item": [
                     {"name": "POST Standard Login", "request": {"method": "POST", "header": [{"key": "Content-Type", "value": "application/json"}], "body": {"mode": "raw", "raw": "{\"username\": \"admin\", \"password\": \"password123\"}"}, "url": make_url("{{base_url}}/api/accounts/login/")}},
-                    {"name": "POST Request OTP", "request": {"method": "POST", "url": make_url("{{base_url}}/api/accounts/request-otp/")}},
-                    {"name": "POST Login OTP", "request": {"method": "POST", "url": make_url("{{base_url}}/api/accounts/login-otp/")}},
+                    {"name": "POST Request OTP", "request": {"method": "POST", "header": [{"key": "Content-Type", "value": "application/json"}], "body": {"mode": "raw", "raw": "{\"phone\": \"918000000101\"}"}, "url": make_url("{{base_url}}/api/accounts/request-otp/")}},
+                    {"name": "POST Login OTP", "request": {"method": "POST", "header": [{"key": "Content-Type", "value": "application/json"}], "body": {"mode": "raw", "raw": "{\"phone\": \"918000000101\", \"code\": \"123456\"}"}, "url": make_url("{{base_url}}/api/accounts/login-otp/")}},
                     crud_folder("Global Users", "base_url", "api/accounts/users", "User")
                 ]
             },
@@ -125,7 +125,7 @@ def generate_collection():
     
     with open("documentation/postman_collection.json", "w") as f:
         json.dump(collection, f, indent=4)
-    print("Permanent Master Collection v4.0.0 generated.")
+    print("Permanent Master Collection v4.1.0 generated.")
 
 if __name__ == "__main__":
     generate_collection()
