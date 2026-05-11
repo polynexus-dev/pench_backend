@@ -13,14 +13,24 @@ Pench Backend is a multi-tenant ERP and Logistics platform built using Django. I
 - **Shared Apps**: `accounts`, `tenants`, `core` (Public Schema).
 - **Tenant Apps**: `crm`, `orders`, `inventory`, `finance`, `hr`, `routing`, `tracking`, `administration` (Tenant Schema).
 
+### Identity & Access Control (RBAC)
+- **Centralized Identity**: All users are stored in the `public` schema (`accounts.User`).
+- **Roles**: 
+    - **SuperAdmin**: Unrestricted global access (Public & Tenants).
+    - **Managers**: Granular access to specific modules (Inventory, Logistics, HR, etc.) via Django Groups.
+    - **Drivers**: Mobile-app access for trip management and tracking.
+    - **Customers**: Limited access to their own orders and subscription portal.
+- **Permission Classes**: `HasGroupPermission` ensures API security based on group membership and user flags.
+
+### Authentication & Security
+- **JWT**: `rest_framework_simplejwt` for API authentication.
+- **Token Lifetime**: Access tokens are strictly valid for **1 day (24 hours)**.
+- **Lifecycle Tracking**: Every API response includes `expires_in_seconds`, allowing frontends to manage session expiration gracefully.
+- **OTP**: Custom OTP model for secure phone-based logins for drivers and customers.
+
 ### Database
 - **Engine**: PostgreSQL with PostGIS extension.
 - **Spatial Data**: Uses `GeoDjango` and `PolygonField` for geographic zone management.
-
-### Authentication
-- **System**: Custom User model extending `AbstractUser`.
-- **JWT**: `rest_framework_simplejwt` for API authentication.
-- **OTP**: Custom OTP model for phone-based logins.
 
 ### Logistics Engine
 - **Optimization**: Google OR-Tools for solving the Traveling Salesman Problem (TSP) and Vehicle Routing Problem (VRP).
@@ -33,7 +43,7 @@ Pench Backend is a multi-tenant ERP and Logistics platform built using Django. I
 ## App Descriptions
 
 ### `accounts`
-Handles user registration, authentication, and portal-specific permissions.
+Handles user registration, authentication, and global RBAC permissions.
 
 ### `tenants`
 Defines cities (tenants) and domains. Also manages geographic zones within each city.
@@ -48,7 +58,7 @@ Tracks products, categories, and returnable assets (bottles).
 Handles specific logistics logic and distance calculations.
 
 ### `administration`
-New module for tenant-specific feature toggles and configuration.
+Tenant-specific feature toggles and configuration (Theme colors, support contacts).
 
 ## Deployment
 - **Containerization**: Docker and Docker Compose (see `Dockerfile` and `docker-compose.yml`).

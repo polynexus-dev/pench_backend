@@ -1,6 +1,7 @@
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.contrib.auth.models import Group
+from django_tenants.utils import schema_context
 from .models import User
 
 @receiver(post_save, sender=User)
@@ -8,6 +9,20 @@ def sync_user_groups(sender, instance, created, **kwargs):
     """
     Automatically assigns users to groups based on their role flags.
     """
+    if created:
+        # 2. Handle Customer Profile Auto-Creation in Tenant Schema
+        if instance.is_customer and hasattr(instance, 'tenant_schema') and instance.tenant_schema and instance.tenant_schema != 'public':
+            from crm.models import Customer
+            with schema_context(instance.tenant_schema):
+                # Ensure we don't create duplicates
+                if not Customer.objects.filter(user=instance).exists():
+                    Customer.objects.create(
+                        user=instance,
+                        name=f"{instance.first_name} {instance.last_name}".strip() or instance.username,
+                        email=instance.email or f"{instance.username}@placeholder.com",
+                        phone=getattr(instance, 'phone', "") or ""
+                    )
+
     # 0. SuperAdmin Group
     if instance.is_superuser:
         group, _ = Group.objects.get_or_create(name='SuperAdmin')

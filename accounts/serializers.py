@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from django.contrib.auth.models import Group
 from .models import User
 
 
@@ -34,27 +35,30 @@ class UserSerializer(serializers.ModelSerializer):
 
 class UserCreateSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)
-    groups = serializers.ListField(child=serializers.CharField(), required=False)
+    groups = serializers.SlugRelatedField(
+        many=True,
+        slug_field='name',
+        queryset=Group.objects.all(),
+        required=False
+    )
 
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'password', 'phone', 'is_driver', 'is_erp_user', 'groups']
+        fields = [
+            'id', 'username', 'email', 'first_name', 'last_name', 'password', 
+            'phone', 'is_driver', 'is_erp_user', 'is_customer', 'groups', 'tenant_schema'
+        ]
         read_only_fields = ['id']
 
     def create(self, validated_data):
-        groups_data = validated_data.pop('groups', [])
+        groups = validated_data.pop('groups', [])
         password = validated_data.pop('password')
         user = User(**validated_data)
         user.set_password(password)
         user.save()
         
-        from django.contrib.auth.models import Group
-        for group_name in groups_data:
-            try:
-                group = Group.objects.get(name=group_name)
-                user.groups.add(group)
-            except Group.DoesNotExist:
-                pass
+        if groups:
+            user.groups.set(groups)
         
         return user
 

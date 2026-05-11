@@ -109,22 +109,20 @@ class LocalDomainAutoRegisterMiddleware:
                     print(f"[Auto-Register] Automatically registered local domain: {host}")
                 except Exception as e:
                     pass
+        
+        return self.get_response(request)
 
 import json
 from rest_framework_simplejwt.tokens import AccessToken
 from django.utils import timezone
+from django.utils.deprecation import MiddlewareMixin
 
-class TokenExpiryMiddleware:
+class TokenExpiryMiddleware(MiddlewareMixin):
     """
     Middleware that adds 'expires_in_seconds' to every JSON response
     if a valid JWT token is used.
     """
-    def __init__(self, get_response):
-        self.get_response = get_response
-
-    def __call__(self, request):
-        response = self.get_response(request)
-        
+    def process_response(self, request, response):
         # Only process if user is authenticated via JWT
         auth_header = request.headers.get('Authorization')
         if auth_header and auth_header.startswith('Bearer '):
@@ -132,23 +130,28 @@ class TokenExpiryMiddleware:
                 token_str = auth_header.split(' ')[1]
                 token = AccessToken(token_str)
                 
-                # Calculate remaining seconds
                 exp_timestamp = token.get('exp')
                 if exp_timestamp:
                     remaining = exp_timestamp - timezone.now().timestamp()
                     
-                    # If it's a JSON response, inject the field
-                    if response.has_header('Content-Type') and 'application/json' in response['Content-Type']:
+                    # Add to header
+                    response['X-Token-Expires-In'] = str(int(max(0, remaining)))
+                    
+                    # If it's a JSON response, inject the field into body
+                    content_type = response.get('Content-Type', '')
+                    if 'application/json' in content_type:
                         try:
-                            data = json.loads(response.content)
-                            if isinstance(data, dict):
-                                data['expires_in_seconds'] = int(max(0, remaining))
-                                response.content = json.dumps(data)
+                            # Only try to parse if there is content
+                            if response.content:
+                                data = json.loads(response.content)
+                                if isinstance(data, dict):
+                                    data['expires_in_seconds'] = int(max(0, remaining))
+                                    response.content = json.dumps(data)
+                                    # Reset content-length if modified
+                                    if response.has_header('Content-Length'):
+                                        response['Content-Length'] = str(len(response.content))
                         except Exception:
                             pass
-                    
-                    # Also add as a header for convenience
-                    response['X-Token-Expires-In'] = str(int(max(0, remaining)))
             except Exception:
                 pass
                 

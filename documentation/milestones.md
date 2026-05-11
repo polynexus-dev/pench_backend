@@ -11,15 +11,17 @@ This document tracks the major milestones completed in the Pench Backend project
 - [x] Setup PostgreSQL with PostGIS for spatial data support.
 
 ### 2. Authentication & Identity Management
-- [x] Custom User model with portal-specific flags (`is_erp_user`, `is_driver`).
+- [x] **[ENHANCED]** Global Identity Model: All users (Admins, Drivers, Customers) managed centrally in the Public schema.
 - [x] Phone-based OTP authentication system.
-- [x] JWT integration for secure API access.
-- [x] Role-Based Access Control (RBAC) via custom permissions.
+- [x] JWT integration with 1-day token validity.
+- [x] **[NEW]** Token Lifecycle Tracking: API-level `expires_in_seconds` injection in all responses.
+- [x] **[NEW]** Granular RBAC: Automated group synchronization (SuperAdmin, Managers, Drivers, Customers).
 
 ### 3. CRM & Customer Management
 - [x] Lead management system.
 - [x] Customer profiling with geographic location (GIS).
 - [x] Subscription plans and customer assignment.
+- [x] Automated role linking: CRM customers automatically assigned the `Customers` role globally.
 
 ### 4. Logistics & Order Management
 - [x] Order lifecycle (Pending -> Confirmed -> In Transit -> Delivered).
@@ -33,11 +35,12 @@ This document tracks the major milestones completed in the Pench Backend project
 - [x] Reusable bottle tracking (Issued vs. Returned).
 - [x] Stock adjustment and transaction logs.
 
-### 6. Administration & Governance
-- [x] **[LATEST]** Centralized Admin Configuration module.
+### 6. Administration & Security
+- [x] Centralized Admin Configuration module.
 - [x] Singleton settings for feature toggles (POD, Auto-assignment, etc.).
-- [x] Simplified user permission management via administration proxy.
+- [x] **[NEW]** SuperAdmin Privilege: Unrestricted access across all city tenants and services.
+- [x] **[NEW]** Automated Role Setup: Server-startup group initialization for zero-config deployments.
 
 ## Current Focus
-- [ ] Completing technical documentation and user manuals.
-- [ ] Enhancing Postman collection with detailed examples.
+- [ ] Mobile App integration for Drivers and Customers.
+- [ ] Advanced Finance & Billing reconciliation.

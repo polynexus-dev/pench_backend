@@ -21,7 +21,8 @@
             "method": "POST",
             "header": [],
             "body": { "mode": "raw", "raw": "{\"username\": \"admin\", \"password\": \"admin\"}", "options": { "raw": { "language": "json" } } },
-            "url": { "raw": "{{base_url}}/api/accounts/login/", "host": ["{{base_url}}"], "path": ["api", "accounts", "login", ""] }
+            "url": { "raw": "{{base_url}}/api/accounts/login/", "host": ["{{base_url}}"], "path": ["api", "accounts", "login", ""] },
+            "description": "Login for staff and ERP users. Returns user details, assigned roles, and token expiry tracking."
           }
         },
         {
@@ -58,7 +59,7 @@
           "item": [
             {
               "name": "List All Users (Global)",
-              "request": { "method": "GET", "url": { "raw": "{{base_url}}/api/accounts/users/", "host": ["{{base_url}}"], "path": ["api", "accounts", "users", ""] } }
+              "request": { "method": "GET", "url": { "raw": "{{base_url}}/api/accounts/users/", "host": ["{{base_url}}"], "path": ["api", "accounts", "users", ""] }, "description": "Returns a full list of users. Every response includes `role` and `expires_in_seconds`." }
             },
             {
               "name": "List Users by Tenant",
@@ -355,8 +356,8 @@
   ],
   "auth": { "type": "bearer", "bearer": [ { "key": "token", "value": "{{bearer_token}}", "type": "string" } ] },
   "variable": [
-    { "key": "base_url", "value": "https://pench.api.polynexus.in" },
-    { "key": "city_url", "value": "https://nagpur.pench.api.polynexus.in" },
+    { "key": "base_url", "value": "http://localhost:8000" },
+    { "key": "city_url", "value": "http://nagpur.localhost:8000" },
     { "key": "bearer_token", "value": "" },
     { "key": "city_id", "value": "1" },
     { "key": "zone_id", "value": "1" },
