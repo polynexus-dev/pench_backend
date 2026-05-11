@@ -74,6 +74,43 @@ class DriverViewSet(viewsets.ModelViewSet):
         self.perform_create(serializer)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
+    @action(detail=False, methods=['post'], url_path='check-in')
+    def check_in(self, request):
+        from hr.models import Employee, Attendance
+        from django.utils import timezone
+        
+        driver_profile = Driver.objects.filter(user=request.user).first()
+        if not driver_profile:
+            return Response({'detail': 'Driver profile not found.'}, status=404)
+            
+        employee = Employee.objects.filter(user=request.user).first()
+        if not employee:
+            # Fallback: create employee profile if missing
+            from hr.models import Department
+            dept, _ = Department.objects.get_or_create(name='Logistics')
+            employee = Employee.objects.create(
+                user=request.user, 
+                department=dept, 
+                job_title='Driver',
+                employee_id=f"DRV-{request.user.id}",
+                date_joined=timezone.now().date()
+            )
+
+        attendance, created = Attendance.objects.get_or_create(
+            employee=employee,
+            date=timezone.now().date(),
+            defaults={'is_driver_ready': True}
+        )
+        
+        driver_profile.is_available = True
+        driver_profile.save()
+        
+        return Response({
+            'detail': 'Check-in successful.',
+            'checked_in_at': attendance.check_in,
+            'is_available': driver_profile.is_available
+        })
+
 
 class TrackingEventViewSet(viewsets.ModelViewSet):
     queryset = TrackingEvent.objects.select_related('route', 'order')
