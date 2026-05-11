@@ -4,29 +4,45 @@ from .models import User
 
 
 class UserSerializer(serializers.ModelSerializer):
+    groups = serializers.SerializerMethodField()
+
     class Meta:
         model = User
         fields = [
             'id', 'username', 'email', 'first_name', 'last_name',
             'is_erp_user', 'is_driver', 'is_customer', 'portal', 'phone',
-            'tenant_schema',
+            'tenant_schema', 'groups',
         ]
         read_only_fields = ['id', 'is_erp_user', 'is_driver', 'is_customer', 'portal', 'tenant_schema']
+
+    def get_groups(self, obj):
+        return [group.name for group in obj.groups.all()]
 
 
 class UserCreateSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)
+    groups = serializers.ListField(child=serializers.CharField(), required=False)
 
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'password', 'phone', 'is_driver', 'is_erp_user']
+        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'password', 'phone', 'is_driver', 'is_erp_user', 'groups']
         read_only_fields = ['id']
 
     def create(self, validated_data):
+        groups_data = validated_data.pop('groups', [])
         password = validated_data.pop('password')
         user = User(**validated_data)
         user.set_password(password)
         user.save()
+        
+        from django.contrib.auth.models import Group
+        for group_name in groups_data:
+            try:
+                group = Group.objects.get(name=group_name)
+                user.groups.add(group)
+            except Group.DoesNotExist:
+                pass
+        
         return user
 
 
@@ -45,7 +61,7 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
         data['user'] = UserSerializer(self.user).data
         
         # Route Admin/ERP users to the Public Domain
-        if self.user.is_superuser or self.user.is_erp_user:
+        if self.user.is_superuser or self.user.is_erp_user or self.user.groups.filter(name='SuperAdmin').exists():
             from tenants.models import Domain
             public_domain = Domain.objects.filter(tenant__schema_name='public').first()
             if public_domain:

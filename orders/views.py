@@ -2,7 +2,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from core.permissions import IsERPUser
+from core.permissions import IsERPUser, HasGroupPermission
 from .models import Order, OrderStatus, Route
 from .serializers import OrderSerializer, RouteSerializer
 from .services import create_optimized_route
@@ -12,7 +12,8 @@ import datetime
 class OrderViewSet(viewsets.ModelViewSet):
     queryset = Order.objects.select_related('customer').prefetch_related('items')
     serializer_class = OrderSerializer
-    permission_classes = [IsERPUser]
+    permission_classes = [IsERPUser, HasGroupPermission]
+    required_groups = ['Logistics_Managers', 'ERP_Admins']
     filterset_fields = ['status', 'customer', 'scheduled_delivery_date']
 
     def create(self, request, *args, **kwargs):
@@ -112,7 +113,8 @@ class OrderViewSet(viewsets.ModelViewSet):
 class RouteViewSet(viewsets.ModelViewSet):
     queryset = Route.objects.all().prefetch_related('stops__order__customer')
     serializer_class = RouteSerializer
-    permission_classes = [IsERPUser]
+    permission_classes = [IsERPUser, HasGroupPermission]
+    required_groups = ['Logistics_Managers', 'ERP_Admins']
     filterset_fields = ['delivery_date', 'driver', 'is_completed']
 
     @action(detail=False, methods=['post'], url_path='create-optimized')
@@ -197,7 +199,8 @@ class DriverViewSet(viewsets.ViewSet):
     """
     Dedicated endpoints for the Driver Mobile App.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasGroupPermission]
+    required_groups = ['Drivers', 'Logistics_Managers']
 
     def retrieve(self, request, pk=None):
         return Response({"detail": "Use specific actions like start-trip"})

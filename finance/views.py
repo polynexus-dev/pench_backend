@@ -1,7 +1,7 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from core.permissions import IsERPUser
+from core.permissions import IsERPUser, HasGroupPermission
 from .models import MonthlyBill
 from .serializers import MonthlyBillSerializer
 from .services import bulk_generate_monthly_bills
@@ -10,7 +10,8 @@ from .services import bulk_generate_monthly_bills
 class MonthlyBillViewSet(viewsets.ModelViewSet):
     queryset = MonthlyBill.objects.all().select_related('customer').prefetch_related('transactions')
     serializer_class = MonthlyBillSerializer
-    permission_classes = [IsERPUser]
+    permission_classes = [IsERPUser, HasGroupPermission]
+    required_groups = ['Accountants', 'ERP_Admins']
     filterset_fields = ['status', 'customer']
 
     @action(detail=False, methods=['post'], url_path='trigger-generation')

@@ -81,6 +81,9 @@ except Exception as e:
     print(f"Bootstrapping failed: {e}")
 EOF
 
+    echo "[*] Setting up System Groups..."
+    python manage.py setup_groups
+
     # 4. Run tenant migrations (for existing cities)
     echo "[*] Migrating TENANT apps (City schemas)..."
     python manage.py migrate_schemas --tenant --noinput

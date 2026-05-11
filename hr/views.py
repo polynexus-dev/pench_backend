@@ -1,7 +1,7 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from core.permissions import IsERPUser
+from core.permissions import IsERPUser, HasGroupPermission
 from .models import (
     Employee, Department, SalaryStructure, 
     MonthlyPayroll, EmployeeDocument, DeliveryIncentiveRule
@@ -15,7 +15,8 @@ from .serializers import (
 class EmployeeViewSet(viewsets.ModelViewSet):
     queryset = Employee.objects.select_related('user', 'department').filter(is_active=True)
     serializer_class = EmployeeSerializer
-    permission_classes = [IsERPUser]
+    permission_classes = [IsERPUser, HasGroupPermission]
+    required_groups = ['HR_Managers', 'ERP_Admins']
     filterset_fields = ['department']
     search_fields = ['user__first_name', 'user__last_name', 'employee_id']
 
@@ -59,19 +60,22 @@ class EmployeeViewSet(viewsets.ModelViewSet):
 class DepartmentViewSet(viewsets.ModelViewSet):
     queryset = Department.objects.all()
     serializer_class = DepartmentSerializer
-    permission_classes = [IsERPUser]
+    permission_classes = [IsERPUser, HasGroupPermission]
+    required_groups = ['HR_Managers', 'ERP_Admins']
 
 
 class SalaryStructureViewSet(viewsets.ModelViewSet):
     queryset = SalaryStructure.objects.all()
     serializer_class = SalaryStructureSerializer
-    permission_classes = [IsERPUser]
+    permission_classes = [IsERPUser, HasGroupPermission]
+    required_groups = ['HR_Managers', 'ERP_Admins']
 
 
 class MonthlyPayrollViewSet(viewsets.ModelViewSet):
     queryset = MonthlyPayroll.objects.select_related('employee__user')
     serializer_class = MonthlyPayrollSerializer
-    permission_classes = [IsERPUser]
+    permission_classes = [IsERPUser, HasGroupPermission]
+    required_groups = ['HR_Managers', 'ERP_Admins']
     filterset_fields = ['employee', 'month', 'year', 'status']
 
     @action(detail=False, methods=['post'], url_path='generate')
@@ -91,7 +95,8 @@ class MonthlyPayrollViewSet(viewsets.ModelViewSet):
 class EmployeeDocumentViewSet(viewsets.ModelViewSet):
     queryset = EmployeeDocument.objects.select_related('employee', 'verified_by')
     serializer_class = EmployeeDocumentSerializer
-    permission_classes = [IsERPUser]
+    permission_classes = [IsERPUser, HasGroupPermission]
+    required_groups = ['HR_Managers', 'ERP_Admins']
     filterset_fields = ['employee', 'document_type', 'is_verified']
 
     @action(detail=True, methods=['post'], url_path='verify')
@@ -108,4 +113,5 @@ class EmployeeDocumentViewSet(viewsets.ModelViewSet):
 class DeliveryIncentiveRuleViewSet(viewsets.ModelViewSet):
     queryset = DeliveryIncentiveRule.objects.all()
     serializer_class = DeliveryIncentiveRuleSerializer
-    permission_classes = [IsERPUser]
+    permission_classes = [IsERPUser, HasGroupPermission]
+    required_groups = ['HR_Managers', 'ERP_Admins']

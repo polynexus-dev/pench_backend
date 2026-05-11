@@ -68,3 +68,15 @@ class Lead(BaseModel):
 
     def __str__(self):
         return f'Lead: {self.name} (Ref: {self.referred_by.name if self.referred_by else "None"})'
+
+# --- SIGNALS ---
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+
+@receiver(post_save, sender=Customer)
+def sync_customer_user_role(sender, instance, created, **kwargs):
+    if instance.user and not instance.user.is_customer:
+        instance.user.is_customer = True
+        from django.db import connection
+        instance.user.tenant_schema = connection.schema_name
+        instance.user.save()

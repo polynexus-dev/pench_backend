@@ -2,6 +2,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
+from core.permissions import HasGroupPermission
 from .models import Customer, Lead
 from .serializers import CustomerSerializer, LeadSerializer
 
@@ -9,7 +10,8 @@ from .serializers import CustomerSerializer, LeadSerializer
 class CustomerViewSet(viewsets.ModelViewSet):
     queryset = Customer.objects.all().filter(is_active=True)
     serializer_class = CustomerSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasGroupPermission]
+    required_groups = ['CRM_Managers', 'ERP_Admins']
     search_fields = ['name', 'company', 'email', 'phone']
     ordering_fields = ['name', 'created_at']
 
@@ -105,6 +107,8 @@ class CustomerViewSet(viewsets.ModelViewSet):
 class LeadViewSet(viewsets.ModelViewSet):
     queryset = Lead.objects.all()
     serializer_class = LeadSerializer
+    permission_classes = [HasGroupPermission]
+    required_groups = ['CRM_Managers', 'ERP_Admins']
     
     def get_permissions(self):
         if self.action == 'create':

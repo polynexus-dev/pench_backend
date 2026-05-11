@@ -1,7 +1,7 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from core.permissions import IsERPUser
+from core.permissions import IsERPUser, HasGroupPermission
 from .models import Product, Stock, Warehouse, BottleType, CustomerBottleBalance, BottleTransaction
 from .serializers import (
     ProductSerializer, StockSerializer, WarehouseSerializer,
@@ -12,7 +12,8 @@ from .serializers import (
 class ProductViewSet(viewsets.ModelViewSet):
     queryset = Product.objects.all().select_related('bottle_type')
     serializer_class = ProductSerializer
-    permission_classes = [IsERPUser]
+    permission_classes = [IsERPUser, HasGroupPermission]
+    required_groups = ['Inventory_Managers', 'ERP_Admins']
     search_fields = ['name', 'sku']
 
     def create(self, request, *args, **kwargs):
@@ -59,7 +60,8 @@ class ProductViewSet(viewsets.ModelViewSet):
 class StockViewSet(viewsets.ModelViewSet):
     queryset = Stock.objects.select_related('product', 'warehouse')
     serializer_class = StockSerializer
-    permission_classes = [IsERPUser]
+    permission_classes = [IsERPUser, HasGroupPermission]
+    required_groups = ['Inventory_Managers', 'ERP_Admins']
     filterset_fields = ['warehouse', 'product']
 
     @action(detail=False, methods=['patch', 'put'])

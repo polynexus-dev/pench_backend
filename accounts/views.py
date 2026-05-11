@@ -243,6 +243,15 @@ class ResetPasswordView(APIView):
         else:
             return Response({"error": "Invalid or expired token."}, status=status.HTTP_400_BAD_REQUEST)
 class UserListView(generics.ListAPIView):
-    queryset = User.objects.all()
+    queryset = User.objects.all().order_by('-date_joined')
     serializer_class = UserSerializer
     permission_classes = [permissions.IsAuthenticated]
+    filterset_fields = ['tenant_schema', 'is_driver', 'is_customer', 'is_erp_user', 'is_staff', 'is_superuser']
+    search_fields = ['username', 'first_name', 'last_name', 'email', 'phone']
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        group_name = self.request.query_params.get('group')
+        if group_name:
+            queryset = queryset.filter(groups__name=group_name)
+        return queryset

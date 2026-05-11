@@ -24,6 +24,9 @@ class AdminConfigurationAdmin(admin.ModelAdmin):
     )
 
     def has_add_permission(self, request):
+        from django.db import connection
+        if connection.schema_name == 'public':
+            return False
         # Prevent adding more than one configuration
         if self.model.objects.exists():
             return False
@@ -33,10 +36,16 @@ class AdminConfigurationAdmin(admin.ModelAdmin):
         # Prevent deleting the configuration
         return False
 
+    def has_module_permission(self, request):
+        from django.db import connection
+        return connection.schema_name != 'public'
+
 
 @admin.register(AdminUserProxy)
 class AdminUserProxyAdmin(CustomUserAdmin):
     """
     User management within the Administration module.
     """
-    pass
+    def has_module_permission(self, request):
+        from django.db import connection
+        return connection.schema_name != 'public'
