@@ -110,4 +110,46 @@ class LocalDomainAutoRegisterMiddleware:
                 except Exception as e:
                     pass
 
-        return self.get_response(request)
+import json
+from rest_framework_simplejwt.tokens import AccessToken
+from django.utils import timezone
+
+class TokenExpiryMiddleware:
+    """
+    Middleware that adds 'expires_in_seconds' to every JSON response
+    if a valid JWT token is used.
+    """
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        response = self.get_response(request)
+        
+        # Only process if user is authenticated via JWT
+        auth_header = request.headers.get('Authorization')
+        if auth_header and auth_header.startswith('Bearer '):
+            try:
+                token_str = auth_header.split(' ')[1]
+                token = AccessToken(token_str)
+                
+                # Calculate remaining seconds
+                exp_timestamp = token.get('exp')
+                if exp_timestamp:
+                    remaining = exp_timestamp - timezone.now().timestamp()
+                    
+                    # If it's a JSON response, inject the field
+                    if response.has_header('Content-Type') and 'application/json' in response['Content-Type']:
+                        try:
+                            data = json.loads(response.content)
+                            if isinstance(data, dict):
+                                data['expires_in_seconds'] = int(max(0, remaining))
+                                response.content = json.dumps(data)
+                        except Exception:
+                            pass
+                    
+                    # Also add as a header for convenience
+                    response['X-Token-Expires-In'] = str(int(max(0, remaining)))
+            except Exception:
+                pass
+                
+        return response

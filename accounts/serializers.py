@@ -5,18 +5,31 @@ from .models import User
 
 class UserSerializer(serializers.ModelSerializer):
     groups = serializers.SerializerMethodField()
+    role = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = [
             'id', 'username', 'email', 'first_name', 'last_name',
             'is_erp_user', 'is_driver', 'is_customer', 'portal', 'phone',
-            'tenant_schema', 'groups',
+            'tenant_schema', 'groups', 'role',
         ]
         read_only_fields = ['id', 'is_erp_user', 'is_driver', 'is_customer', 'portal', 'tenant_schema']
 
     def get_groups(self, obj):
         return [group.name for group in obj.groups.all()]
+
+    def get_role(self, obj):
+        if obj.is_superuser or obj.groups.filter(name='SuperAdmin').exists():
+            return "SuperAdmin"
+        if obj.is_erp_user:
+            mgmt_group = obj.groups.exclude(name='Customers').first()
+            return mgmt_group.name if mgmt_group else "ERP_Admin"
+        if obj.is_driver:
+            return "Driver"
+        if obj.is_customer:
+            return "Customer"
+        return "User"
 
 
 class UserCreateSerializer(serializers.ModelSerializer):
