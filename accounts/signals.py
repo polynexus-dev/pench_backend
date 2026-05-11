@@ -15,11 +15,27 @@ def sync_user_groups(sender, instance, created, **kwargs):
             from crm.models import Customer
             with schema_context(instance.tenant_schema):
                 if not Customer.objects.filter(user=instance).exists():
+                    lat = getattr(instance, 'latitude', None)
+                    lon = getattr(instance, 'longitude', None)
+                    location = None
+                    
+                    if lat is not None and lon is not None:
+                        from django.conf import settings
+                        if getattr(settings, 'HAS_GDAL', False):
+                            from django.contrib.gis.geos import Point
+                            location = Point(float(lon), float(lat))
+                        else:
+                            location = {"latitude": float(lat), "longitude": float(lon)}
+
                     Customer.objects.create(
                         user=instance,
                         name=f"{instance.first_name} {instance.last_name}".strip() or instance.username,
-                        email=instance.email or f"{instance.username}@placeholder.com",
-                        phone=getattr(instance, 'phone', "") or ""
+                        company=getattr(instance, 'company', "") or "",
+                        email=instance.email or f"{instance.username}_{instance.id}@penchfoods.in",
+                        phone=getattr(instance, 'phone', "") or "",
+                        address=getattr(instance, 'address', "") or "",
+                        notes=getattr(instance, 'notes', "") or "",
+                        location=location
                     )
 
         # 2. Handle Driver Profile Auto-Creation
@@ -33,15 +49,16 @@ def sync_user_groups(sender, instance, created, **kwargs):
                         vehicle_type="van"
                     )
 
-        # 3. Handle ERP User (Employee) Auto-Creation
-        if instance.is_erp_user and hasattr(instance, 'tenant_schema') and instance.tenant_schema and instance.tenant_schema != 'public':
+        # 3. Handle HR Employee Auto-Creation (For both Staff and Drivers)
+        if (instance.is_erp_user or instance.is_driver) and hasattr(instance, 'tenant_schema') and instance.tenant_schema and instance.tenant_schema != 'public':
             from hr.models import Employee
             import datetime
             with schema_context(instance.tenant_schema):
                 if not Employee.objects.filter(user=instance).exists():
+                    job_title = "Driver" if instance.is_driver else "Staff"
                     Employee.objects.create(
                         user=instance,
-                        job_title="Staff",
+                        job_title=job_title,
                         employee_id=f"EMP-{instance.id}-{datetime.date.today().year}",
                         date_joined=datetime.date.today()
                     )
