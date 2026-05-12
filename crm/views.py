@@ -71,10 +71,11 @@ class CustomerViewSet(viewsets.ModelViewSet):
         from PIL import Image, ImageDraw, ImageFont
 
         # --- COLORS & CONFIG ---
+        # --- COLORS & CONFIG ---
         pench_green = (0, 150, 70) 
-        dark_bg = (20, 30, 40)     
+        deep_forest = (0, 80, 40)   # Premium dark green for QR pixels
+        dark_bg = (15, 25, 35)      # Navy/Black for header
         text_color = (255, 255, 255)
-        qr_pixel_color = (0, 0, 0) # Black is safest for scanners
         
         # 1. Generate QR Code
         from django.urls import reverse
@@ -82,70 +83,77 @@ class CustomerViewSet(viewsets.ModelViewSet):
         full_url = request.build_absolute_uri(resolve_url)
 
         qr = qrcode.QRCode(
-            version=None, # Auto-size
+            version=None,
             error_correction=qrcode.constants.ERROR_CORRECT_H,
-            box_size=10,
-            border=4, # More border for better separation
+            box_size=12, # Slightly larger pixels
+            border=2,
         )
         qr.add_data(full_url)
         qr.make(fit=True)
         
-        qr_img = qr.make_image(fill_color=qr_pixel_color, back_color="white").convert('RGB')
+        # Use Deep Forest Green for pixels, White background
+        qr_img = qr.make_image(fill_color=deep_forest, back_color="white").convert('RGB')
         qr_w, qr_h = qr_img.size
         
-        # 2. Canvas Setup (Ensure it fits the QR)
-        canvas_width = max(600, qr_w + 100)
-        canvas_height = qr_h + 400 # Space for header and footer
-        
-        canvas = Image.new('RGB', (canvas_width, canvas_height), (255, 255, 255))
+        # 2. Canvas Setup (Branded Background)
+        canvas_width = 800
+        canvas_height = 1200
+        canvas = Image.new('RGB', (canvas_width, canvas_height), pench_green)
         draw = ImageDraw.Draw(canvas)
         
-        # 3. Draw Branded Header
-        header_height = 200
-        draw.rectangle([(0, 0), (canvas_width, header_height)], fill=dark_bg)
+        # 3. Draw Premium Header (Dark)
+        header_h = 250
+        draw.rectangle([(0, 0), (canvas_width, header_h)], fill=dark_bg)
         
-        # 4. Embed Logo in QR (Reduced size to 18%)
+        # 4. Draw "White Card" for QR (Provides contrast on green BG)
+        card_margin = 60
+        card_x1 = card_margin
+        card_y1 = header_h - 40 # Overlaps header slightly for modern look
+        card_x2 = canvas_width - card_margin
+        card_y2 = card_y1 + qr_h + 120
+        
+        # Rounded rectangle for the card
+        draw.rounded_rectangle([card_x1, card_y1, card_x2, card_y2], radius=40, fill="white")
+        
+        # 5. Embed Large Logo (22%)
         logo_path = os.path.join(settings.BASE_DIR, 'Untitled design-8 (2).png')
         if os.path.exists(logo_path):
             logo = Image.open(logo_path).convert("RGBA")
-            logo_max_size = int(qr_w * 0.18) # 18% is safer than 25%
-            logo.thumbnail((logo_max_size, logo_max_size), Image.Resampling.LANCZOS)
+            logo_size = int(qr_w * 0.22) # Quite large
+            logo.thumbnail((logo_size, logo_size), Image.Resampling.LANCZOS)
             
             logo_pos = ((qr_w - logo.size[0]) // 2, (qr_h - logo.size[1]) // 2)
-            
-            # White background for logo to clear QR pixels
-            logo_bg = Image.new('RGBA', (logo.size[0] + 10, logo.size[1] + 10), (255, 255, 255, 255))
-            qr_img.paste(logo_bg, (logo_pos[0]-5, logo_pos[1]-5), logo_bg)
+            # Clear a slightly larger area for the logo to ensure no pixel bleed
+            logo_bg = Image.new('RGBA', (logo.size[0] + 15, logo.size[1] + 15), (255, 255, 255, 255))
+            qr_img.paste(logo_bg, (logo_pos[0]-7, logo_pos[1]-7), logo_bg)
             qr_img.paste(logo, logo_pos, logo)
 
-        # 5. Paste QR onto Canvas (Centered below header)
+        # 6. Paste QR onto Card
         qr_x = (canvas_width - qr_w) // 2
-        qr_y = header_height + 50
+        qr_y = card_y1 + 40
         canvas.paste(qr_img, (qr_x, qr_y))
         
-        # 6. Load Fonts
+        # 7. Load Premium Fonts
         try:
-            # Try to use Arial, fallback to default
-            font_bold = ImageFont.truetype("arialbd.ttf", 60)
-            font_small = ImageFont.truetype("arial.ttf", 20)
-            font_title = ImageFont.truetype("arialbd.ttf", 45)
+            f_title = ImageFont.truetype("arialbd.ttf", 70)
+            f_subtitle = ImageFont.truetype("arial.ttf", 30)
+            f_bold = ImageFont.truetype("arialbd.ttf", 80)
+            f_footer = ImageFont.truetype("arial.ttf", 24)
         except Exception:
-            font_bold = ImageFont.load_default()
-            font_small = ImageFont.load_default()
-            font_title = ImageFont.load_default()
+            f_title = f_bold = f_subtitle = f_footer = ImageFont.load_default()
 
-        # 7. Add Text
-        # Title in Header
-        draw.text((canvas_width/2, header_height/2), "PENCH FOODS", fill=text_color, anchor="mm", font=font_title)
+        # 8. Add Text
+        # Main Title
+        draw.text((canvas_width/2, 100), "PENCH FOODS", fill=text_color, anchor="mm", font=f_title)
+        draw.text((canvas_width/2, 160), "Pure. Fresh. Delivered.", fill=(200, 200, 200), anchor="mm", font=f_subtitle)
         
-        # SCAN HERE below QR
-        text_y = qr_y + qr_h + 40
-        draw.text((canvas_width/2, text_y), "SCAN HERE", fill=pench_green, anchor="mm", font=font_bold)
+        # "SCAN HERE" in big white text on green background
+        scan_y = card_y2 + 100
+        draw.text((canvas_width/2, scan_y), "SCAN HERE", fill="white", anchor="mm", font=f_bold)
         
-        # Footer
-        footer_y = canvas_height - 40
-        footer_text = "Powered by Polynexus Technologies"
-        draw.text((canvas_width/2, footer_y), footer_text, fill=(100, 100, 100), anchor="mm", font=font_small)
+        # Bottom Branding
+        footer_y = canvas_height - 60
+        draw.text((canvas_width/2, footer_y), "Powered by Polynexus Technologies", fill=(220, 220, 220), anchor="mm", font=f_footer)
         
         # Save to buffer
         buffer = BytesIO()
