@@ -105,8 +105,18 @@ def generate_collection():
                 "name": "04. Inventory & Warehousing",
                 "item": [
                     crud_folder("Products", "city_url", "api/erp/inventory/products", "Product", {"name": "Milk 1L", "sku": "M1", "unit_price": "60.00"}),
+                    {"name": "PATCH Bulk Update Products", "request": {"method": "PATCH", "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}, {"key": "Content-Type", "value": "application/json"}], "body": {"mode": "raw", "raw": json.dumps([{"id": 1, "unit_price": "65.00"}], indent=4)}, "url": make_url("{{city_url}}/api/erp/inventory/products/bulk_update/")}},
+                    
                     crud_folder("Warehouses", "city_url", "api/erp/inventory/warehouses", "Warehouse"),
-                    {"name": "GET Stock Levels", "request": {"method": "GET", "url": make_url("{{city_url}}/api/erp/inventory/stocks/")}}
+                    
+                    crud_folder("Stock Levels", "city_url", "api/erp/inventory/stock", "Stock", {"product": 1, "warehouse": 1, "quantity": 100}),
+                    {"name": "PATCH Bulk Update Stock", "request": {"method": "PATCH", "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}, {"key": "Content-Type", "value": "application/json"}], "body": {"mode": "raw", "raw": json.dumps([{"id": 1, "quantity": 120}], indent=4)}, "url": make_url("{{city_url}}/api/erp/inventory/stock/bulk_update/")}},
+                    
+                    crud_folder("Bottle Types", "city_url", "api/erp/inventory/bottle-types", "BottleType", {"name": "1L Glass Bottle", "deposit_amount": "50.00", "volume_ml": 1000}),
+                    
+                    crud_folder("Bottle Transactions", "city_url", "api/erp/inventory/bottle-transactions", "Transaction", {"bottle_type": 1, "customer": 1, "transaction_type": "issued", "quantity": 2}),
+                    
+                    {"name": "GET Customer Bottle Balances", "request": {"method": "GET", "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}], "url": make_url("{{city_url}}/api/erp/inventory/bottle-balances/")}}
                 ]
             },
             {

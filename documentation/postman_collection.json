@@ -1216,6 +1216,40 @@
                     ]
                 },
                 {
+                    "name": "PATCH Bulk Update Products",
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "[\n    {\n        \"id\": 1,\n        \"unit_price\": \"65.00\"\n    }\n]"
+                        },
+                        "url": {
+                            "raw": "{{city_url}}/api/erp/inventory/products/bulk_update/",
+                            "host": [
+                                "{{city_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "erp",
+                                "inventory",
+                                "products",
+                                "bulk_update",
+                                ""
+                            ]
+                        }
+                    }
+                },
+                {
                     "name": "Warehouses (Warehouse)",
                     "item": [
                         {
@@ -1365,11 +1399,174 @@
                     ]
                 },
                 {
-                    "name": "GET Stock Levels",
+                    "name": "Stock Levels (Stock)",
+                    "item": [
+                        {
+                            "name": "GET List Stocks",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{city_url}}/api/erp/inventory/stock/",
+                                    "host": [
+                                        "{{city_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "erp",
+                                        "inventory",
+                                        "stock",
+                                        ""
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "name": "POST Create Stock",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    },
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"product\": 1,\n    \"warehouse\": 1,\n    \"quantity\": 100\n}"
+                                },
+                                "url": {
+                                    "raw": "{{city_url}}/api/erp/inventory/stock/",
+                                    "host": [
+                                        "{{city_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "erp",
+                                        "inventory",
+                                        "stock",
+                                        ""
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "name": "GET Single Stock",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{city_url}}/api/erp/inventory/stock/{{last_id}}/",
+                                    "host": [
+                                        "{{city_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "erp",
+                                        "inventory",
+                                        "stock",
+                                        "{{last_id}}",
+                                        ""
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "name": "PATCH Update Stock",
+                            "request": {
+                                "method": "PATCH",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    },
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"product\": 1,\n    \"warehouse\": 1,\n    \"quantity\": 100\n}"
+                                },
+                                "url": {
+                                    "raw": "{{city_url}}/api/erp/inventory/stock/{{last_id}}/",
+                                    "host": [
+                                        "{{city_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "erp",
+                                        "inventory",
+                                        "stock",
+                                        "{{last_id}}",
+                                        ""
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "name": "DELETE Stock",
+                            "request": {
+                                "method": "DELETE",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{city_url}}/api/erp/inventory/stock/{{last_id}}/",
+                                    "host": [
+                                        "{{city_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "erp",
+                                        "inventory",
+                                        "stock",
+                                        "{{last_id}}",
+                                        ""
+                                    ]
+                                }
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "PATCH Bulk Update Stock",
                     "request": {
-                        "method": "GET",
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "[\n    {\n        \"id\": 1,\n        \"quantity\": 120\n    }\n]"
+                        },
                         "url": {
-                            "raw": "{{city_url}}/api/erp/inventory/stocks/",
+                            "raw": "{{city_url}}/api/erp/inventory/stock/bulk_update/",
                             "host": [
                                 "{{city_url}}"
                             ],
@@ -1377,7 +1574,331 @@
                                 "api",
                                 "erp",
                                 "inventory",
-                                "stocks",
+                                "stock",
+                                "bulk_update",
+                                ""
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Bottle Types (BottleType)",
+                    "item": [
+                        {
+                            "name": "GET List BottleTypes",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{city_url}}/api/erp/inventory/bottle-types/",
+                                    "host": [
+                                        "{{city_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "erp",
+                                        "inventory",
+                                        "bottle-types",
+                                        ""
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "name": "POST Create BottleType",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    },
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"name\": \"1L Glass Bottle\",\n    \"deposit_amount\": \"50.00\",\n    \"volume_ml\": 1000\n}"
+                                },
+                                "url": {
+                                    "raw": "{{city_url}}/api/erp/inventory/bottle-types/",
+                                    "host": [
+                                        "{{city_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "erp",
+                                        "inventory",
+                                        "bottle-types",
+                                        ""
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "name": "GET Single BottleType",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{city_url}}/api/erp/inventory/bottle-types/{{last_id}}/",
+                                    "host": [
+                                        "{{city_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "erp",
+                                        "inventory",
+                                        "bottle-types",
+                                        "{{last_id}}",
+                                        ""
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "name": "PATCH Update BottleType",
+                            "request": {
+                                "method": "PATCH",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    },
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"name\": \"1L Glass Bottle\",\n    \"deposit_amount\": \"50.00\",\n    \"volume_ml\": 1000\n}"
+                                },
+                                "url": {
+                                    "raw": "{{city_url}}/api/erp/inventory/bottle-types/{{last_id}}/",
+                                    "host": [
+                                        "{{city_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "erp",
+                                        "inventory",
+                                        "bottle-types",
+                                        "{{last_id}}",
+                                        ""
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "name": "DELETE BottleType",
+                            "request": {
+                                "method": "DELETE",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{city_url}}/api/erp/inventory/bottle-types/{{last_id}}/",
+                                    "host": [
+                                        "{{city_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "erp",
+                                        "inventory",
+                                        "bottle-types",
+                                        "{{last_id}}",
+                                        ""
+                                    ]
+                                }
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "Bottle Transactions (Transaction)",
+                    "item": [
+                        {
+                            "name": "GET List Transactions",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{city_url}}/api/erp/inventory/bottle-transactions/",
+                                    "host": [
+                                        "{{city_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "erp",
+                                        "inventory",
+                                        "bottle-transactions",
+                                        ""
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "name": "POST Create Transaction",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    },
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"bottle_type\": 1,\n    \"customer\": 1,\n    \"transaction_type\": \"issued\",\n    \"quantity\": 2\n}"
+                                },
+                                "url": {
+                                    "raw": "{{city_url}}/api/erp/inventory/bottle-transactions/",
+                                    "host": [
+                                        "{{city_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "erp",
+                                        "inventory",
+                                        "bottle-transactions",
+                                        ""
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "name": "GET Single Transaction",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{city_url}}/api/erp/inventory/bottle-transactions/{{last_id}}/",
+                                    "host": [
+                                        "{{city_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "erp",
+                                        "inventory",
+                                        "bottle-transactions",
+                                        "{{last_id}}",
+                                        ""
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "name": "PATCH Update Transaction",
+                            "request": {
+                                "method": "PATCH",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    },
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"bottle_type\": 1,\n    \"customer\": 1,\n    \"transaction_type\": \"issued\",\n    \"quantity\": 2\n}"
+                                },
+                                "url": {
+                                    "raw": "{{city_url}}/api/erp/inventory/bottle-transactions/{{last_id}}/",
+                                    "host": [
+                                        "{{city_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "erp",
+                                        "inventory",
+                                        "bottle-transactions",
+                                        "{{last_id}}",
+                                        ""
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "name": "DELETE Transaction",
+                            "request": {
+                                "method": "DELETE",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{city_url}}/api/erp/inventory/bottle-transactions/{{last_id}}/",
+                                    "host": [
+                                        "{{city_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "erp",
+                                        "inventory",
+                                        "bottle-transactions",
+                                        "{{last_id}}",
+                                        ""
+                                    ]
+                                }
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "GET Customer Bottle Balances",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{city_url}}/api/erp/inventory/bottle-balances/",
+                            "host": [
+                                "{{city_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "erp",
+                                "inventory",
+                                "bottle-balances",
                                 ""
                             ]
                         }
