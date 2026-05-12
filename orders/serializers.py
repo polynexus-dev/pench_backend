@@ -16,10 +16,10 @@ class OrderSerializer(serializers.ModelSerializer):
     customer_name = serializers.CharField(source='customer.name', read_only=True)
     items = OrderItemSerializer(many=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
-    latitude = serializers.FloatField(source='customer.location.y', read_only=True)
-    longitude = serializers.FloatField(source='customer.location.x', read_only=True)
-
     delivery_address = serializers.CharField(required=False, allow_blank=True)
+    
+    latitude = serializers.SerializerMethodField()
+    longitude = serializers.SerializerMethodField()
 
     class Meta:
         model = Order
@@ -28,6 +28,20 @@ class OrderSerializer(serializers.ModelSerializer):
             'scheduled_delivery_date', 'total', 'items', 'delivery_address',
             'latitude', 'longitude'
         ]
+
+    def get_latitude(self, obj):
+        loc = obj.customer.location
+        if not loc: return None
+        if hasattr(loc, 'y'): return loc.y
+        if isinstance(loc, dict): return loc.get('lat') or loc.get('latitude')
+        return None
+
+    def get_longitude(self, obj):
+        loc = obj.customer.location
+        if not loc: return None
+        if hasattr(loc, 'x'): return loc.x
+        if isinstance(loc, dict): return loc.get('lng') or loc.get('longitude') or loc.get('lon')
+        return None
 
     def create(self, validated_data):
         items_data = validated_data.pop('items')
@@ -61,12 +75,26 @@ class OrderSerializer(serializers.ModelSerializer):
 class RouteStopSerializer(serializers.ModelSerializer):
     customer_name = serializers.CharField(source='order.customer.name', read_only=True)
     address = serializers.CharField(source='order.delivery_address', read_only=True)
-    latitude = serializers.FloatField(source='order.customer.location.y', read_only=True)
-    longitude = serializers.FloatField(source='order.customer.location.x', read_only=True)
+    latitude = serializers.SerializerMethodField()
+    longitude = serializers.SerializerMethodField()
 
     class Meta:
         model = RouteStop
         fields = ['id', 'sequence_number', 'order', 'customer_name', 'address', 'latitude', 'longitude']
+
+    def get_latitude(self, obj):
+        loc = obj.order.customer.location
+        if not loc: return None
+        if hasattr(loc, 'y'): return loc.y
+        if isinstance(loc, dict): return loc.get('lat') or loc.get('latitude')
+        return None
+
+    def get_longitude(self, obj):
+        loc = obj.order.customer.location
+        if not loc: return None
+        if hasattr(loc, 'x'): return loc.x
+        if isinstance(loc, dict): return loc.get('lng') or loc.get('longitude') or loc.get('lon')
+        return None
 
 
 class RouteSerializer(serializers.ModelSerializer):
