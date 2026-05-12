@@ -12,7 +12,7 @@ urlpatterns = [
     # ERP portal
     path('api/erp/', include([
         path('tenants/', include('tenants.urls')),
-        path('customers/', include('crm.urls')),
+        path('', include('crm.urls')),
         path('taxation/', include('taxation.urls')),
         path('orders/', include('orders.urls')),
         path('subscriptions/', include('subscriptions.urls')),

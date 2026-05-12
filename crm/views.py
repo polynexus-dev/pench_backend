@@ -71,10 +71,8 @@ class CustomerViewSet(viewsets.ModelViewSet):
         from PIL import Image, ImageDraw, ImageFont
 
         # --- COLORS & CONFIG ---
-        # --- COLORS & CONFIG ---
         pench_green = (0, 150, 70) 
-        deep_forest = (0, 80, 40)   # Premium dark green for QR pixels
-        dark_bg = (15, 25, 35)      # Navy/Black for header
+        dark_bg = (20, 30, 40)     
         text_color = (255, 255, 255)
         
         # 1. Generate QR Code
@@ -85,75 +83,64 @@ class CustomerViewSet(viewsets.ModelViewSet):
         qr = qrcode.QRCode(
             version=None,
             error_correction=qrcode.constants.ERROR_CORRECT_H,
-            box_size=12, # Slightly larger pixels
+            box_size=9, # Reduced from 12 to prevent overlap with your "SCAN HERE" text
             border=2,
         )
         qr.add_data(full_url)
         qr.make(fit=True)
         
-        # Use Deep Forest Green for pixels, White background
-        qr_img = qr.make_image(fill_color=deep_forest, back_color="white").convert('RGB')
-        qr_w, qr_h = qr_img.size
+        qr_img = qr.make_image(fill_color=pench_green, back_color="white").convert('RGB')
         
-        # 2. Canvas Setup (Branded Background)
-        canvas_width = 800
-        canvas_height = 1200
+        # 2. Canvas Setup (Increased Height for Spacing)
+        width, height = qr_img.size
+        canvas_width = 600
+        canvas_height = 900
+        
         canvas = Image.new('RGB', (canvas_width, canvas_height), pench_green)
         draw = ImageDraw.Draw(canvas)
         
-        # 3. Draw Premium Header (Dark)
-        header_h = 250
-        draw.rectangle([(0, 0), (canvas_width, header_h)], fill=dark_bg)
+        # 3. Draw Stylized Background
+        draw.polygon([(0, 0), (canvas_width, 0), (canvas_width, 350), (0, 500)], fill=dark_bg)
         
-        # 4. Draw "White Card" for QR (Provides contrast on green BG)
-        card_margin = 60
-        card_x1 = card_margin
-        card_y1 = header_h - 40 # Overlaps header slightly for modern look
-        card_x2 = canvas_width - card_margin
-        card_y2 = card_y1 + qr_h + 120
-        
-        # Rounded rectangle for the card
-        draw.rounded_rectangle([card_x1, card_y1, card_x2, card_y2], radius=40, fill="white")
-        
-        # 5. Embed Large Logo (22%)
+        # 4. Embed Logo in QR
         logo_path = os.path.join(settings.BASE_DIR, 'Untitled design-8 (2).png')
         if os.path.exists(logo_path):
             logo = Image.open(logo_path).convert("RGBA")
-            logo_size = int(qr_w * 0.22) # Quite large
-            logo.thumbnail((logo_size, logo_size), Image.Resampling.LANCZOS)
+            logo_max_size = int(width * 0.25)
+            logo.thumbnail((logo_max_size, logo_max_size), Image.Resampling.LANCZOS)
             
+            qr_w, qr_h = qr_img.size
             logo_pos = ((qr_w - logo.size[0]) // 2, (qr_h - logo.size[1]) // 2)
-            # Clear a slightly larger area for the logo to ensure no pixel bleed
-            logo_bg = Image.new('RGBA', (logo.size[0] + 15, logo.size[1] + 15), (255, 255, 255, 255))
-            qr_img.paste(logo_bg, (logo_pos[0]-7, logo_pos[1]-7), logo_bg)
+            
+            logo_bg = Image.new('RGBA', (logo.size[0] + 12, logo.size[1] + 12), (255, 255, 255, 255))
+            qr_img.paste(logo_bg, (logo_pos[0]-6, logo_pos[1]-6), logo_bg)
             qr_img.paste(logo, logo_pos, logo)
 
-        # 6. Paste QR onto Card
-        qr_x = (canvas_width - qr_w) // 2
-        qr_y = card_y1 + 40
+        # 5. Paste QR onto Canvas (Higher Position)
+        qr_x = (canvas_width - width) // 2
+        qr_y = 180
         canvas.paste(qr_img, (qr_x, qr_y))
         
-        # 7. Load Premium Fonts
+        # 6. Load Professional Font
         try:
-            f_title = ImageFont.truetype("arialbd.ttf", 70)
-            f_subtitle = ImageFont.truetype("arial.ttf", 30)
-            f_bold = ImageFont.truetype("arialbd.ttf", 80)
-            f_footer = ImageFont.truetype("arial.ttf", 24)
+            font_bold = ImageFont.truetype("C:\\Windows\\Fonts\\arialbd.ttf", 60)
+            font_small = ImageFont.truetype("C:\\Windows\\Fonts\\arial.ttf", 18) # Smaller Footer
+            font_title = ImageFont.truetype("C:\\Windows\\Fonts\\arialbd.ttf", 45)
         except Exception:
-            f_title = f_bold = f_subtitle = f_footer = ImageFont.load_default()
+            font_bold = ImageFont.load_default()
+            font_small = ImageFont.load_default()
+            font_title = ImageFont.load_default()
 
-        # 8. Add Text
-        # Main Title
-        draw.text((canvas_width/2, 100), "PENCH FOODS", fill=text_color, anchor="mm", font=f_title)
-        draw.text((canvas_width/2, 160), "Pure. Fresh. Delivered.", fill=(200, 200, 200), anchor="mm", font=f_subtitle)
+        # 7. Add Text with Impact
+        # Title
+        draw.text((canvas_width/2, 100), "PENCH FOODS", fill=text_color, anchor="mm", font=font_title)
         
-        # "SCAN HERE" in big white text on green background
-        scan_y = card_y2 + 100
-        draw.text((canvas_width/2, scan_y), "SCAN HERE", fill="white", anchor="mm", font=f_bold)
+        # Big Bold "SCAN HERE" (Moved Down)
+        draw.text((canvas_width/2, 730), "SCAN HERE", fill=dark_bg, anchor="mm", font=font_bold)
         
-        # Bottom Branding
-        footer_y = canvas_height - 60
-        draw.text((canvas_width/2, footer_y), "Powered by Polynexus Technologies", fill=(220, 220, 220), anchor="mm", font=f_footer)
+        # Small Footer
+        footer_text = "Powered by Polynexus Technologies"
+        draw.text((canvas_width/2, 850), footer_text, fill=(255, 255, 255, 200), anchor="mm", font=font_small)
         
         # Save to buffer
         buffer = BytesIO()
