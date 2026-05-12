@@ -14,10 +14,11 @@ Welcome to the Pench Delivery Mobile Manual. This guide explains how to use the 
 ## 3. Completing a Delivery
 For each stop:
 1. Arrive at the customer location.
-2. Tap **"Submit Delivery"**.
-3. **Proof of Delivery (POD)**: If enabled, you must take a photo of the delivered items at the customer's door.
-4. **Bottle Return**: Enter the number of empty bottles you collected from the customer.
-5. Tap **"Confirm"**.
+2. **QR Verification**: Tap "Scan QR" and point your camera at the customer's unique QR code to verify your arrival.
+3. Tap **"Submit Delivery"**.
+4. **Proof of Delivery (POD)**: If enabled, you must take a photo of the delivered items at the customer's door.
+5. **Bottle Return**: Enter the number of empty bottles you collected from the customer.
+6. Tap **"Confirm"**.
 
 ## 4. Finishing the Day
 - Once all stops are completed, tap **"Complete Trip"**.

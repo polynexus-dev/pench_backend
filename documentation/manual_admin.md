@@ -15,19 +15,23 @@ Navigate to **Administration -> Admin Configuration** to manage:
 - **Max Cancellation Time**: Minutes before delivery start when customers can no longer cancel.
 - **Theme Customization**: Update your company name and primary theme color.
 
-## 3. User Management
-Manage your staff under **User Management**:
-- **ERP Users**: Staff who can manage orders, inventory, and finances.
-- **Drivers**: Staff who use the delivery app.
-- **Permissions**: Assign users to specific roles (e.g., Inventory Manager, Billing Clerk).
+## 3. User & Identity Management
+All users are managed under **User Management** in the Public Schema:
+- **Global Identity**: Admins, Drivers, and Customers are centrally stored.
+- **Automated Roles**: Groups (SuperAdmin, Manager, Driver, Customer) are initialized automatically.
+- **Permissions**: Use Django Groups for RBAC (Role Based Access Control).
 
-## 4. Route Optimization
+## 4. Developer Tools
+- **API Documentation**: A role-based Postman collection (v4.2.1) is available in the `documentation/` folder for system integration.
+- **Token Monitoring**: All API responses include `expires_in_seconds` for session tracking.
+
+## 5. Route Optimization
 To create a route:
 1. Go to **Logistics -> Optimized Routes**.
 2. Select the delivery date and the orders to include.
 3. Click "Generate Optimized Route".
 4. Assign a driver to the route.
 
-## 5. Inventory Control
+## 6. Inventory Control
 - **Products**: Add new products and set categories.
 - **Bottle Tracking**: Monitor "Issued" vs. "Returned" bottles for each customer to ensure asset recovery.
