@@ -155,32 +155,19 @@ class CustomerViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'Invalid QR Code.'}, status=404)
 
         user = request.user
+        from django.http import HttpResponseRedirect
         
         # Scenario 1: Delivery Person (Driver)
         if not user.is_anonymous and getattr(user, 'is_driver', False):
-            # Return full customer profile + current active order if exists
-            from orders.models import Order, OrderStatus
-            import datetime
-            today = datetime.date.today()
-            order = Order.objects.filter(customer=customer, scheduled_delivery_date=today).first()
-            
-            return Response({
-                'role': 'driver',
-                'customer': CustomerSerializer(customer).data,
-                'active_order_id': order.id if order else None,
-                'message': f'Ready to deliver to {customer.name}'
-            })
+            # Redirect to the driver app deep link
+            return HttpResponseRedirect(f"pench-driver://customer/{qr_id}")
 
         # Scenario 2: The Customer themselves
         if not user.is_anonymous and user == customer.user:
-            return Response({
-                'role': 'customer',
-                'customer': CustomerSerializer(customer).data,
-                'message': 'Welcome to your dashboard'
-            })
+            # Redirect to the customer app deep link
+            return HttpResponseRedirect(f"pench-customer://customer/{qr_id}")
 
         # Scenario 3: Guest / Stranger
-        from django.http import HttpResponseRedirect
         # Redirect guests directly to the website for marketing
         return HttpResponseRedirect("https://penchfoods.com")
 
