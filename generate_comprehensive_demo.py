@@ -59,11 +59,14 @@ def generate_demo(schema_name):
             # --- 3. HR & STAFF ---
             dept, _ = Department.objects.get_or_create(name=f"Logistics - {schema_name}")
             
-            # Create a dummy driver user
+            # Create a dummy driver user with a unique phone to avoid constraint errors
             driver_username = f"driver_{schema_name}_{random.randint(100,999)}"
+            driver_phone = f"9000{random.randint(100000,999999)}"
+            
             driver_user = User.objects.create_user(
                 username=driver_username,
                 password="password123",
+                phone=driver_phone,
                 first_name="John",
                 last_name="Driver",
                 is_erp_user=True
