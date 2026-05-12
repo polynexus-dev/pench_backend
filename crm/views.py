@@ -76,13 +76,17 @@ class CustomerViewSet(viewsets.ModelViewSet):
         text_color = (255, 255, 255)
         
         # 1. Generate QR Code
+        from django.urls import reverse
+        resolve_url = reverse('customer-qr-resolve', kwargs={'qr_id': str(customer.qr_code_id)})
+        full_url = request.build_absolute_uri(resolve_url)
+
         qr = qrcode.QRCode(
             version=1,
             error_correction=qrcode.constants.ERROR_CORRECT_H,
             box_size=12,
             border=2,
         )
-        qr.add_data(str(customer.qr_code_id))
+        qr.add_data(full_url)
         qr.make(fit=True)
         
         qr_img = qr.make_image(fill_color=pench_green, back_color="white").convert('RGB')
