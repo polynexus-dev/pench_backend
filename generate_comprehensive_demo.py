@@ -98,9 +98,9 @@ def generate_demo(schema_name):
                     # 6. Create a Sample "Pending" Order for today
                     Order.objects.create(
                         customer=customer,
-                        delivery_date=date.today(),
+                        scheduled_delivery_date=date.today(),
                         status=OrderStatus.PENDING,
-                        total_amount=created_products[0].unit_price,
+                        total=created_products[0].unit_price,
                         delivery_address=customer.address
                     )
 
