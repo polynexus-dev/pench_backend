@@ -1,8 +1,13 @@
 from django.db import models
-from django.contrib.gis.db import models as gis_models
+from django.conf import settings
 from django_tenants.models import TenantMixin, DomainMixin
 from core.models import BaseModel
 
+try:
+    from django.contrib.gis.db import models as gis_models
+    HAS_GIS = getattr(settings, 'HAS_GDAL', False)
+except Exception:
+    HAS_GIS = False
 
 class City(TenantMixin):
     """
@@ -43,16 +48,18 @@ class Zone(BaseModel):
     Geographic zone within a city schema.
     """
     name = models.CharField(max_length=100)
-    boundary = gis_models.PolygonField(
-        srid=4326,
-        null=True,
-        blank=True,
-    )
+
+    if HAS_GIS:
+        boundary = gis_models.PolygonField(srid=4326, null=True, blank=True)
+    else:
+        boundary = models.TextField(null=True, blank=True, help_text='GIS Disabled: Falling back to TextField.')
+
     description = models.TextField(blank=True)
     is_active = models.BooleanField(default=True)
 
     def __str__(self):
         return self.name
+
 
 
 class HolidayCalendar(BaseModel):
