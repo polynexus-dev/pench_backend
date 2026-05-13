@@ -151,9 +151,190 @@ def generate_collection():
             {
                 "name": "09. Subscriptions",
                 "item": [
-                    crud_folder("Subscriptions", "city_url", "api/erp/subs", "Subscription", {"customer": "CUSTOMER_UUID", "frequency": "daily"}),
-                    {"name": "POST Vacation Mode", "request": {"method": "POST", "url": make_url("{{city_url}}/api/erp/subs/{{last_id}}/vacation/"), "body": {"mode": "raw", "raw": "{}"}}} ,
-                    {"name": "POST Update Quantity", "request": {"method": "POST", "url": make_url("{{city_url}}/api/erp/subs/{{last_id}}/update-quantity/"), "body": {"mode": "raw", "raw": "{\"quantity\": 2}"}}}
+                    crud_folder("Subscriptions", "city_url", "api/erp/subs", "Subscription", {
+                        "customer": "CUSTOMER_UUID",
+                        "frequency": "daily",
+                        "start_date": "2026-05-01",
+                        "delivery_address": "123 Main Street, Nagpur",
+                        "special_instructions": "Leave at gate",
+                        "items": [
+                            {"product": "PRODUCT_UUID", "quantity": 2}
+                        ]
+                    }),
+                    {
+                        "name": "POST Pause / Vacation Mode",
+                        "request": {
+                            "method": "POST",
+                            "header": [
+                                {"key": "Authorization", "value": "Bearer {{access_token}}"},
+                                {"key": "Content-Type", "value": "application/json"}
+                            ],
+                            "body": {
+                                "mode": "raw",
+                                "raw": json.dumps({
+                                    "pause_start": "2026-05-20",
+                                    "pause_end": "2026-05-28"
+                                }, indent=4)
+                            },
+                            "url": make_url("{{city_url}}/api/erp/subs/{{last_id}}/vacation/"),
+                            "description": "Pause deliveries for a date range (vacation mode). Customer will not receive deliveries between pause_start and pause_end."
+                        }
+                    },
+                    {
+                        "name": "POST Resume Subscription",
+                        "request": {
+                            "method": "POST",
+                            "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+                            "body": {"mode": "raw", "raw": "{}"},
+                            "url": make_url("{{city_url}}/api/erp/subs/{{last_id}}/resume/"),
+                            "description": "Resume a paused/vacation subscription. Clears pause_start and pause_end."
+                        }
+                    },
+                    {
+                        "name": "POST Update Product Quantity",
+                        "request": {
+                            "method": "POST",
+                            "header": [
+                                {"key": "Authorization", "value": "Bearer {{access_token}}"},
+                                {"key": "Content-Type", "value": "application/json"}
+                            ],
+                            "body": {
+                                "mode": "raw",
+                                "raw": json.dumps({
+                                    "product_id": "PRODUCT_UUID",
+                                    "quantity": 3
+                                }, indent=4)
+                            },
+                            "url": make_url("{{city_url}}/api/erp/subs/{{last_id}}/update-quantity/"),
+                            "description": "Update the quantity for a specific product within the subscription."
+                        }
+                    },
+                    {
+                        "name": "POST Add Skip Date",
+                        "request": {
+                            "method": "POST",
+                            "header": [
+                                {"key": "Authorization", "value": "Bearer {{access_token}}"},
+                                {"key": "Content-Type", "value": "application/json"}
+                            ],
+                            "body": {
+                                "mode": "raw",
+                                "raw": json.dumps({
+                                    "skip_date": "2026-05-15",
+                                    "reason": "Festival holiday - customer requested skip"
+                                }, indent=4)
+                            },
+                            "url": make_url("{{city_url}}/api/erp/subs/{{last_id}}/add-skip-date/"),
+                            "description": "Skip delivery on a specific date for this subscription. Does not affect other days."
+                        }
+                    },
+                    {
+                        "name": "PATCH Bulk Update Subscriptions",
+                        "request": {
+                            "method": "PATCH",
+                            "header": [
+                                {"key": "Authorization", "value": "Bearer {{access_token}}"},
+                                {"key": "Content-Type", "value": "application/json"}
+                            ],
+                            "body": {
+                                "mode": "raw",
+                                "raw": json.dumps([
+                                    {"id": "SUB_UUID_1", "status": "paused"},
+                                    {"id": "SUB_UUID_2", "frequency": "alternate"}
+                                ], indent=4)
+                            },
+                            "url": make_url("{{city_url}}/api/erp/subs/bulk-update/"),
+                            "description": "Update multiple subscriptions in one request. Each item must include its 'id'."
+                        }
+                    },
+                    {
+                        "name": "POST Trigger Order Generation (Test)",
+                        "request": {
+                            "method": "POST",
+                            "header": [
+                                {"key": "Authorization", "value": "Bearer {{access_token}}"},
+                                {"key": "Content-Type", "value": "application/json"}
+                            ],
+                            "body": {
+                                "mode": "raw",
+                                "raw": json.dumps({"target_date": "2026-05-14"}, indent=4)
+                            },
+                            "url": make_url("{{city_url}}/api/erp/subs/trigger-generation/"),
+                            "description": "Manually trigger subscription order generation for a given date. Useful for testing without waiting for the nightly Celery task."
+                        }
+                    },
+                    # ── NEW: MONTHLY DELIVERY CALENDAR ──────────────────────────────────
+                    {
+                        "name": "🆕 GET Monthly Delivery Calendar (Single Subscription)",
+                        "request": {
+                            "method": "GET",
+                            "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+                            "url": {
+                                "raw": "{{city_url}}/api/erp/subs/{{last_id}}/monthly-summary/?year=2026&month=5",
+                                "host": ["{{city_url}}"],
+                                "path": ["api", "erp", "subs", "{{last_id}}", "monthly-summary", ""],
+                                "query": [
+                                    {"key": "year",  "value": "2026", "description": "4-digit year (defaults to current year)"},
+                                    {"key": "month", "value": "5",    "description": "Month number 1-12 (defaults to current month)"}
+                                ]
+                            },
+                            "description": (
+                                "Returns a day-by-day delivery calendar for ONE specific subscription.\n\n"
+                                "Each day in 'daily[]' has a 'status' field for frontend calendar colour-coding:\n"
+                                "  • delivered    → order marked as delivered ✅ (GREEN)\n"
+                                "  • undelivered  → past date, missed or cancelled ❌ (RED)\n"
+                                "  • in_transit   → driver started trip, en-route 🚚 (AMBER)\n"
+                                "  • pending      → order confirmed, not yet dispatched ⚪\n"
+                                "  • scheduled    → future expected delivery 📅 (BLUE)\n"
+                                "  • vacation     → paused/vacation range 🏖️ (ORANGE)\n"
+                                "  • skipped      → customer-requested skip date ⚫\n"
+                                "  • off_day      → frequency doesn't include this day (LIGHT GREY)\n"
+                                "  • not_active   → outside subscription start/end period\n\n"
+                                "Also returns a 'summary' block with monthly aggregate counts.\n"
+                                "Accessible by: Admin and the owning Customer."
+                            )
+                        }
+                    },
+                    {
+                        "name": "🆕 GET Monthly Delivery Calendar (All Subscriptions of Customer)",
+                        "request": {
+                            "method": "GET",
+                            "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+                            "url": {
+                                "raw": "{{city_url}}/api/erp/subs/customer-monthly-summary/?customer_id={{last_id}}&year=2026&month=5",
+                                "host": ["{{city_url}}"],
+                                "path": ["api", "erp", "subs", "customer-monthly-summary", ""],
+                                "query": [
+                                    {"key": "customer_id", "value": "{{last_id}}", "description": "UUID of the customer (required)"},
+                                    {"key": "year",        "value": "2026",        "description": "4-digit year (defaults to current year)"},
+                                    {"key": "month",       "value": "5",           "description": "Month number 1-12 (defaults to current month)"}
+                                ]
+                            },
+                            "description": (
+                                "Returns monthly delivery calendar across ALL subscriptions of a customer.\n\n"
+                                "Response structure:\n"
+                                "  • customer_id, customer_name, customer_email\n"
+                                "  • overall_summary → aggregate counts across all subscriptions\n"
+                                "  • subscriptions[] → per-subscription breakdown, each containing:\n"
+                                "      - subscription_id, frequency, frequency_display, status\n"
+                                "      - is_paused, pause_start, pause_end\n"
+                                "      - items[] → products being delivered\n"
+                                "      - summary → monthly counts for this subscription\n"
+                                "      - daily[] → day-by-day calendar array\n\n"
+                                "Day statuses in daily[]:\n"
+                                "  • delivered    → ✅ GREEN\n"
+                                "  • undelivered  → ❌ RED\n"
+                                "  • in_transit   → 🚚 AMBER (driver started trip)\n"
+                                "  • pending      → ⚪ GREY\n"
+                                "  • scheduled    → 📅 BLUE (future, no order yet)\n"
+                                "  • vacation     → 🏖️ ORANGE\n"
+                                "  • skipped      → ⚫ DARK GREY\n"
+                                "  • off_day      → light grey\n"
+                                "  • not_active   → transparent\n\n"
+                                "Useful for Admin: shows complete picture when customer has multiple subscriptions (e.g. milk + curd)."
+                            )
+                        }
+                    }
                 ]
             },
             {

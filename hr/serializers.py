@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import (
     Employee, Department, SalaryStructure, EmployeeSalary, 
-    MonthlyPayroll, EmployeeDocument, DeliveryIncentiveRule
+    MonthlyPayroll, EmployeeDocument, DeliveryIncentiveRule, Attendance
 )
 
 
@@ -69,3 +69,11 @@ class DeliveryIncentiveRuleSerializer(serializers.ModelSerializer):
     class Meta:
         model = DeliveryIncentiveRule
         fields = ['id', 'name', 'metric', 'metric_display', 'threshold', 'incentive_amount', 'is_active']
+
+class AttendanceSerializer(serializers.ModelSerializer):
+    employee_name = serializers.CharField(source='employee.user.get_full_name', read_only=True)
+
+    class Meta:
+        model = Attendance
+        fields = ['id', 'employee', 'employee_name', 'date', 'check_in', 'check_out', 'is_driver_ready', 'notes']
+        read_only_fields = ['id', 'date', 'check_in']

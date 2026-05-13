@@ -4,11 +4,12 @@ from rest_framework.response import Response
 from core.permissions import IsERPUser, HasGroupPermission
 from .models import (
     Employee, Department, SalaryStructure, 
-    MonthlyPayroll, EmployeeDocument, DeliveryIncentiveRule
+    MonthlyPayroll, EmployeeDocument, DeliveryIncentiveRule, Attendance
 )
 from .serializers import (
     EmployeeSerializer, DepartmentSerializer, SalaryStructureSerializer,
-    MonthlyPayrollSerializer, EmployeeDocumentSerializer, DeliveryIncentiveRuleSerializer
+    MonthlyPayrollSerializer, EmployeeDocumentSerializer, DeliveryIncentiveRuleSerializer,
+    AttendanceSerializer
 )
 
 
@@ -115,3 +116,9 @@ class DeliveryIncentiveRuleViewSet(viewsets.ModelViewSet):
     serializer_class = DeliveryIncentiveRuleSerializer
     permission_classes = [IsERPUser, HasGroupPermission]
     required_groups = ['HR_Managers', 'ERP_Admins']
+
+class AttendanceViewSet(viewsets.ModelViewSet):
+    queryset = Attendance.objects.select_related('employee__user').all()
+    serializer_class = AttendanceSerializer
+    permission_classes = [IsERPUser]
+    filterset_fields = ['employee', 'date', 'is_driver_ready']
