@@ -105,7 +105,7 @@ class TrackingConsumer(AsyncWebsocketConsumer):
                     location=location_data
                 )
 
-                # 4. Snap to road "one-by-one" with context
+                # 4. Snap to road using a SLIDING WINDOW of recent raw points for better context
                 from routing.services.osrm_client import match_trail
                 
                 def get_coords(loc):
@@ -113,19 +113,30 @@ class TrackingConsumer(AsyncWebsocketConsumer):
                     if isinstance(loc, dict): return [loc.get('lng'), loc.get('lat')]
                     return [0, 0]
 
-                if prev_trail:
-                    coords_to_match = [get_coords(prev_trail.location), [p_lng, p_lat]]
-                    matched = match_trail(coords_to_match)
-                    # OSRM Match returns a list of points. We take the last one as the snapped version of our current point.
-                    if len(matched) >= 2:
-                        snapped_lng, snapped_lat = matched[-1]
-                        if HAS_GIS and Point:
-                            new_trail.cleaned_location = Point(snapped_lng, snapped_lat, srid=4326)
-                        else:
-                            new_trail.cleaned_location = {'lat': snapped_lat, 'lng': snapped_lng}
-                        new_trail.save(update_fields=['cleaned_location'])
+                # Get the last 4 raw points to provide context for the current one (Total 5 points)
+                context_points = DriverTrail.objects.filter(
+                    user_id=self.user.id
+                ).order_by('-timestamp')[1:5] # Skip the one we just created
+                
+                # Convert to [lng, lat] and reverse to get chronological order
+                coords_to_match = [get_coords(p.location) for p in reversed(context_points)]
+                coords_to_match.append([p_lng, p_lat])
+                
+                if len(coords_to_match) >= 2:
+                    # Provide a radius (e.g., 30 meters) to allow for GPS noise
+                    radiuses = [30.0] * len(coords_to_match)
+                    matched = match_trail(coords_to_match, radiuses=radiuses)
+                    
+                    # We take the LAST point of the matched sequence as the cleaned version of our CURRENT point
+                    snapped_lng, snapped_lat = matched[-1]
+                    
+                    if HAS_GIS and Point:
+                        new_trail.cleaned_location = Point(snapped_lng, snapped_lat, srid=4326)
+                    else:
+                        new_trail.cleaned_location = {'lat': snapped_lat, 'lng': snapped_lng}
+                    new_trail.save(update_fields=['cleaned_location'])
                 else:
-                    # No previous point, just use the current one as cleaned for now
+                    # No context, just use the current one
                     new_trail.cleaned_location = location_data
                     new_trail.save(update_fields=['cleaned_location'])
 

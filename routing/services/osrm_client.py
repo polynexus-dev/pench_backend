@@ -63,12 +63,13 @@ def _euclidean_matrix(stops: list[dict]) -> list[list[float]]:
     return matrix
 
 
-def match_trail(coordinates: list[list[float]]) -> list[list[float]]:
+def match_trail(coordinates: list[list[float]], radiuses: list[float] = None) -> list[list[float]]:
     """
     Snap a list of coordinates to the nearest road using OSRM Matching API.
     
     Args:
         coordinates: List of [lng, lat] pairs.
+        radiuses: List of search radiuses in meters for each point.
         
     Returns:
         List of snapped [lng, lat] pairs. 
@@ -81,30 +82,40 @@ def match_trail(coordinates: list[list[float]]) -> list[list[float]]:
     coords_str = ';'.join(f"{lng},{lat}" for lng, lat in coordinates)
     url = f'{OSRM_BASE_URL}/match/v1/driving/{coords_str}'
 
+    params = {
+        'overview': 'full',
+        'geometries': 'geojson',
+        'tidy': 'true' # Removes points that are too close to each other
+    }
+    
+    if radiuses:
+        params['radiuses'] = ';'.join(map(str, radiuses))
+
     try:
-        # annotations=duration,distance can be added if needed
-        # overview=simplified (default) or full
-        resp = requests.get(url, params={'overview': 'full', 'geometries': 'geojson'}, timeout=5)
+        resp = requests.get(url, params=params, timeout=5)
         resp.raise_for_status()
         data = resp.json()
 
         if data.get('code') != 'Ok':
-            logger.warning(f"OSRM Match failed: {data.get('message', 'unknown')}. Falling back to raw.")
+            logger.warning(f"OSRM Match failed: {data.get('code')} - {data.get('message', 'unknown')}. Falling back to raw.")
+            # Print to console for easy debugging
+            print(f"[OSRM ERROR] {data.get('code')}: {data.get('message')}")
             return coordinates
 
         # The 'tracepoints' array contains information about each input coordinate
-        # and where it snapped.
         snapped = []
-        for point in data.get('tracepoints', []):
+        tracepoints = data.get('tracepoints', [])
+        
+        for i, point in enumerate(tracepoints):
             if point and 'location' in point:
                 snapped.append(point['location']) # [lng, lat]
             else:
-                # If a point couldn't be matched, keep original or skip? 
-                # Keeping original for now to maintain list length
-                snapped.append(coordinates[len(snapped)])
+                # If a point couldn't be matched, keep original
+                snapped.append(coordinates[i])
 
         return snapped
 
     except requests.RequestException as exc:
         logger.error(f'OSRM Match request failed: {exc}')
+        print(f"[OSRM Request Error] {exc}")
         return coordinates
