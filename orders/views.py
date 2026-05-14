@@ -303,3 +303,39 @@ class DriverViewSet(viewsets.ViewSet):
         order_viewset.request = request
         order_viewset.kwargs = {'pk': pk}
         return order_viewset.mark_delivered(request, pk=pk)
+
+    @action(detail=False, methods=['get'], url_path='resolve-qr/(?P<qr_id>[^/.]+)')
+    def resolve_qr(self, request, qr_id=None):
+        """
+        Fetches customer details and today's pending order by QR Code ID.
+        """
+        from crm.models import Customer
+        from crm.serializers import CustomerSerializer
+        from inventory.models import CustomerBottleBalance
+        
+        customer = Customer.objects.filter(qr_code_id=qr_id).first()
+        if not customer:
+            return Response({'detail': 'Invalid QR Code.'}, status=404)
+
+        # Get today's pending order for this customer
+        today = datetime.date.today()
+        order = Order.objects.filter(
+            customer=customer,
+            scheduled_delivery_date=today,
+            status__in=[OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.DISPATCHED, OrderStatus.IN_TRANSIT]
+        ).first()
+
+        # Get bottle balances
+        balances = CustomerBottleBalance.objects.filter(customer=customer)
+        balance_data = [
+            {
+                'bottle_type': b.bottle_type.name,
+                'balance': b.balance
+            } for b in balances
+        ]
+
+        return Response({
+            'customer': CustomerSerializer(customer).data,
+            'order': OrderSerializer(order).data if order else None,
+            'bottle_balances': balance_data
+        })

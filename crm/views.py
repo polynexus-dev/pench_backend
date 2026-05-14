@@ -164,12 +164,12 @@ class CustomerViewSet(viewsets.ModelViewSet):
         # Scenario 1: Delivery Person (Driver)
         if not user.is_anonymous and getattr(user, 'is_driver', False):
             # Redirect to the driver app deep link
-            return HttpResponseRedirect(f"pench-driver://customer/{qr_id}")
+            return HttpResponseRedirect(f"pench-foods://delivery/qr/{qr_id}")
 
         # Scenario 2: The Customer themselves
         if not user.is_anonymous and user == customer.user:
             # Redirect to the customer app deep link
-            return HttpResponseRedirect(f"pench-customer://customer/{qr_id}")
+            return HttpResponseRedirect(f"pench-foods://profile/qr/{qr_id}")
 
         # Scenario 3: Guest / Stranger
         # Redirect guests directly to the website for marketing
