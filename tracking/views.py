@@ -25,7 +25,12 @@ class DriverLocationSerializer(serializers.ModelSerializer):
             user=obj.user,
             timestamp__date=today
         ).order_by('timestamp')
-        return [[t.location.x, t.location.y] for t in trails]
+        
+        # Use pre-cleaned location if available, otherwise raw
+        return [
+            [t.cleaned_location.x, t.cleaned_location.y] if t.cleaned_location else [t.location.x, t.location.y]
+            for t in trails
+        ]
 
 
 class DriverLocationViewSet(viewsets.ReadOnlyModelViewSet):
@@ -63,18 +68,17 @@ class DriverLocationViewSet(viewsets.ReadOnlyModelViewSet):
                 "properties": {"message": "No trail found for this date."}
             })
 
-        # Build LineString coordinates and collect timestamps
+        # Build coordinates using the pre-cleaned data from DB
         coords = []
-        timestamps = []
         for t in trails:
-            coords.append([t.location.x, t.location.y])
-            timestamps.append(t.timestamp.strftime('%H:%M:%S'))
+            loc = t.cleaned_location or t.location
+            coords.append([loc.x, loc.y])
         
         # If only one point, we can't make a LineString, return a Point
         if len(coords) < 2:
             geometry = {
                 "type": "Point",
-                "coordinates": coords[0]
+                "coordinates": coords[0] if coords else [0,0]
             }
         else:
             geometry = {
@@ -90,6 +94,5 @@ class DriverLocationViewSet(viewsets.ReadOnlyModelViewSet):
                 "driver_name": driver.get_full_name(),
                 "date": str(date),
                 "point_count": len(coords),
-                "timestamps": timestamps # Array of times matching the coordinates
             }
         })

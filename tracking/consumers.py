@@ -70,11 +70,9 @@ class TrackingConsumer(AsyncWebsocketConsumer):
     def update_driver_location(self, lat, lng):
         try:
             if not self.tenant or self.tenant.schema_name == 'public':
-                print("[WS Error] Cannot save driver location in the public schema. Simulator is using wrong Host.")
                 return None
 
             with schema_context(self.tenant.schema_name):
-                # Ensure float conversion
                 p_lng = float(lng)
                 p_lat = float(lat)
                 
@@ -83,19 +81,46 @@ class TrackingConsumer(AsyncWebsocketConsumer):
                 else:
                     location_data = {'lat': p_lat, 'lng': p_lng}
                 
-                # Update current live position
+                # 1. Update current live position
                 DriverLocation.objects.update_or_create(
                     user_id=self.user.id,
                     defaults={'location': location_data}
                 )
                 
-                # Log trail breadcrumb
-                DriverTrail.objects.create(
+                # 2. Get the previous raw point for context (if any)
+                prev_trail = DriverTrail.objects.filter(user_id=self.user.id).order_by('-timestamp').first()
+                
+                # 3. Create the new trail record (raw)
+                new_trail = DriverTrail.objects.create(
                     user_id=self.user.id,
                     location=location_data
                 )
 
-                # Fetch recent trails (last 12 hours) to send to frontend
+                # 4. Snap to road "one-by-one" with context
+                from routing.services.osrm_client import match_trail
+                
+                def get_coords(loc):
+                    if hasattr(loc, 'x'): return [loc.x, loc.y]
+                    if isinstance(loc, dict): return [loc.get('lng'), loc.get('lat')]
+                    return [0, 0]
+
+                if prev_trail:
+                    coords_to_match = [get_coords(prev_trail.location), [p_lng, p_lat]]
+                    matched = match_trail(coords_to_match)
+                    # OSRM Match returns a list of points. We take the last one as the snapped version of our current point.
+                    if len(matched) >= 2:
+                        snapped_lng, snapped_lat = matched[-1]
+                        if HAS_GIS and Point:
+                            new_trail.cleaned_location = Point(snapped_lng, snapped_lat, srid=4326)
+                        else:
+                            new_trail.cleaned_location = {'lat': snapped_lat, 'lng': snapped_lng}
+                        new_trail.save(update_fields=['cleaned_location'])
+                else:
+                    # No previous point, just use the current one as cleaned for now
+                    new_trail.cleaned_location = location_data
+                    new_trail.save(update_fields=['cleaned_location'])
+
+                # 5. Fetch recent cleaned trails (last 12 hours) to send to frontend
                 from django.utils import timezone
                 from datetime import timedelta
                 
@@ -105,12 +130,13 @@ class TrackingConsumer(AsyncWebsocketConsumer):
                     timestamp__gte=time_threshold
                 ).order_by('timestamp')
                 
-                def get_coords(loc):
+                def get_cleaned_coords(t):
+                    loc = t.cleaned_location or t.location
                     if hasattr(loc, 'x'): return [loc.x, loc.y]
                     if isinstance(loc, dict): return [loc.get('lng'), loc.get('lat')]
                     return [0, 0]
 
-                return [get_coords(t.location) for t in trails]
+                return [get_cleaned_coords(t) for t in trails]
         except Exception as e:
             print(f"[DB Sync Error] {str(e)}")
             traceback.print_exc()

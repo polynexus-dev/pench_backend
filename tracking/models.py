@@ -40,8 +40,10 @@ class DriverTrail(models.Model):
     
     if HAS_GIS:
         location = gis_models.PointField(srid=4326)
+        cleaned_location = gis_models.PointField(srid=4326, null=True, blank=True)
     else:
         location = models.JSONField()
+        cleaned_location = models.JSONField(null=True, blank=True)
         
     timestamp = models.DateTimeField(auto_now_add=True)
 
