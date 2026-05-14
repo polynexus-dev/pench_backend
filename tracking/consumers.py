@@ -59,6 +59,15 @@ class TrackingConsumer(AsyncWebsocketConsumer):
                         "trail": trail_points # Full array of [lng, lat]
                     }
                 )
+
+                # Also send back to the sender (direct acknowledgment with trail)
+                await self.send(text_data=json.dumps({
+                    "type": "location_update_response",
+                    "driver_id": str(self.user.id),
+                    "lat": lat,
+                    "lng": lng,
+                    "trail": trail_points
+                }))
         except Exception as e:
             print(f"[WS Receive Error] CRASH: {str(e)}")
             traceback.print_exc()
