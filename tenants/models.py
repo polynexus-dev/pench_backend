@@ -47,6 +47,7 @@ class Zone(BaseModel):
     """
     Geographic zone within a city schema.
     """
+    city = models.ForeignKey(City, on_delete=models.CASCADE, related_name='zones', null=True, blank=True)
     name = models.CharField(max_length=100)
 
     if HAS_GIS:
@@ -66,6 +67,7 @@ class HolidayCalendar(BaseModel):
     """
     City-specific holidays within the schema.
     """
+    city = models.ForeignKey(City, on_delete=models.CASCADE, related_name='holidays', null=True, blank=True)
     name = models.CharField(max_length=200)
     date = models.DateField()
     is_recurring = models.BooleanField(default=False)
@@ -73,7 +75,7 @@ class HolidayCalendar(BaseModel):
 
     class Meta:
         ordering = ['date']
-        unique_together = [('date',)]
+        unique_together = [('city', 'date')]
 
     def __str__(self):
-        return f'{self.name} — {self.date}'
+        return f'{self.name} ({self.city.name}) — {self.date}'

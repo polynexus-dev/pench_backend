@@ -4,7 +4,7 @@ from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
-OSRM_BASE_URL = getattr(settings, 'OSRM_BASE_URL', 'http://router.project-osrm.org')
+OSRM_BASE_URL = getattr(settings, 'OSRM_BASE_URL', 'https://osrm.polynexus.in')
 
 
 def build_distance_matrix(stops: list[dict]) -> list[list[float]]:

@@ -27,7 +27,8 @@ def get_osrm_distance_matrix(locations):
     if not coord_list: return None
     
     coords = ";".join(coord_list)
-    url = f"http://router.project-osrm.org/table/v1/bicycle/{coords}?annotations=distance"
+    from django.conf import settings
+    url = f"{settings.OSRM_BASE_URL}/table/v1/driving/{coords}?annotations=distance"
     try:
         response = requests.get(url, timeout=10)
         if response.status_code == 200:
@@ -46,7 +47,8 @@ def get_osrm_route_geometry(locations):
     if not coord_list: return None
     
     coords = ";".join(coord_list)
-    url = f"http://router.project-osrm.org/route/v1/bicycle/{coords}?geometries=geojson&overview=full&continue_straight=false"
+    from django.conf import settings
+    url = f"{settings.OSRM_BASE_URL}/route/v1/driving/{coords}?geometries=geojson&overview=full&continue_straight=false"
     try:
         response = requests.get(url, timeout=10)
         if response.status_code == 200:

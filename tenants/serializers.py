@@ -23,10 +23,10 @@ class CitySerializer(serializers.ModelSerializer):
 class ZoneSerializer(serializers.ModelSerializer):
     class Meta:
         model = Zone
-        fields = ['id', 'name', 'boundary', 'description', 'is_active']
+        fields = ['id', 'city', 'name', 'boundary', 'description', 'is_active']
 
 
 class HolidayCalendarSerializer(serializers.ModelSerializer):
     class Meta:
         model = HolidayCalendar
-        fields = ['id', 'name', 'date', 'is_recurring', 'description']
+        fields = ['id', 'city', 'name', 'date', 'is_recurring', 'description']

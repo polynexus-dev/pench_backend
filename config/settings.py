@@ -218,6 +218,7 @@ CELERY_TIMEZONE = 'UTC'
 # Geodata
 GDAL_LIBRARY_PATH = config('GDAL_LIBRARY_PATH', default='')
 GEOS_LIBRARY_PATH = config('GEOS_LIBRARY_PATH', default='')
+OSRM_BASE_URL = config('OSRM_BASE_URL', default='https://osrm.polynexus.in')
 
 # Payment Gateways
 RAZORPAY_KEY_ID = config('RAZORPAY_KEY_ID', default='')
