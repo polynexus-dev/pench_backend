@@ -122,30 +122,13 @@ class TrackingConsumer(AsyncWebsocketConsumer):
                 coords_to_match = [get_coords(p.location) for p in reversed(context_points)]
                 coords_to_match.append([p_lng, p_lat])
                 
-                if len(coords_to_match) >= 2:
-                    # Provide a radius (e.g., 30 meters) to allow for GPS noise
-                    radiuses = [30.0] * len(coords_to_match)
-                    matched = match_trail(coords_to_match, radiuses=radiuses)
-                    
-                    # We take the LAST point of the matched sequence as the cleaned version of our CURRENT point
-                    snapped_lng, snapped_lat = matched[-1]
-                    
-                    if HAS_GIS and Point:
-                        new_trail.cleaned_location = Point(snapped_lng, snapped_lat, srid=4326)
-                    else:
-                        new_trail.cleaned_location = {'lat': snapped_lat, 'lng': snapped_lng}
-                    new_trail.save(update_fields=['cleaned_location'])
-                else:
-                    # No context, just use the current one
-                    new_trail.cleaned_location = location_data
-                    new_trail.save(update_fields=['cleaned_location'])
-
-                # 5. Fetch recent cleaned trails (last 12 hours) to send to frontend
+                # 5. FETCH HISTORY + MERGE WITH INTERPOLATED PATH
+                # We fetch the coarse historical points from DB
                 from django.utils import timezone
                 from datetime import timedelta
                 
                 time_threshold = timezone.now() - timedelta(hours=12)
-                trails = DriverTrail.objects.filter(
+                historical_trails = DriverTrail.objects.filter(
                     user_id=self.user.id,
                     timestamp__gte=time_threshold
                 ).order_by('timestamp')
@@ -156,7 +139,32 @@ class TrackingConsumer(AsyncWebsocketConsumer):
                     if isinstance(loc, dict): return [loc.get('lng'), loc.get('lat')]
                     return [0, 0]
 
-                return [get_cleaned_coords(t) for t in trails]
+                coarse_history = [get_cleaned_coords(t) for t in historical_trails]
+                
+                if len(coords_to_match) >= 2:
+                    radiuses = [30.0] * len(coords_to_match)
+                    interpolated_segment = match_trail(coords_to_match, radiuses=radiuses)
+                    
+                    # Update current point in DB
+                    snapped_lng, snapped_lat = interpolated_segment[-1]
+                    if HAS_GIS and Point:
+                        new_trail.cleaned_location = Point(snapped_lng, snapped_lat, srid=4326)
+                    else:
+                        new_trail.cleaned_location = {'lat': snapped_lat, 'lng': snapped_lng}
+                    new_trail.save(update_fields=['cleaned_location'])
+
+                    # MERGE: Take the history, but replace the last few points with the 
+                    # high-resolution interpolated road geometry for a "pro" look.
+                    # We remove the last N points from history that are covered by the interpolation
+                    overlap_count = len(coords_to_match)
+                    base_trail = coarse_history[:-overlap_count] if len(coarse_history) > overlap_count else []
+                    
+                    return base_trail + interpolated_segment
+                else:
+                    new_trail.cleaned_location = location_data
+                    new_trail.save(update_fields=['cleaned_location'])
+                    return coarse_history
+
         except Exception as e:
             print(f"[DB Sync Error] {str(e)}")
             traceback.print_exc()

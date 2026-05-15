@@ -67,13 +67,7 @@ def match_trail(coordinates: list[list[float]], radiuses: list[float] = None) ->
     """
     Snap a list of coordinates to the nearest road using OSRM Matching API.
     
-    Args:
-        coordinates: List of [lng, lat] pairs.
-        radiuses: List of search radiuses in meters for each point.
-        
-    Returns:
-        List of snapped [lng, lat] pairs. 
-        Falls back to original coordinates if OSRM fails.
+    Returns the FULL geometry (interpolated points) of the matched path.
     """
     if len(coordinates) < 2:
         return coordinates
@@ -85,7 +79,7 @@ def match_trail(coordinates: list[list[float]], radiuses: list[float] = None) ->
     params = {
         'overview': 'full',
         'geometries': 'geojson',
-        'tidy': 'true' # Removes points that are too close to each other
+        'tidy': 'true'
     }
     
     if radiuses:
@@ -97,25 +91,24 @@ def match_trail(coordinates: list[list[float]], radiuses: list[float] = None) ->
         data = resp.json()
 
         if data.get('code') != 'Ok':
-            logger.warning(f"OSRM Match failed: {data.get('code')} - {data.get('message', 'unknown')}. Falling back to raw.")
-            # Print to console for easy debugging
             print(f"[OSRM ERROR] {data.get('code')}: {data.get('message')}")
             return coordinates
 
-        # The 'tracepoints' array contains information about each input coordinate
-        snapped = []
-        tracepoints = data.get('tracepoints', [])
-        
-        for i, point in enumerate(tracepoints):
-            if point and 'location' in point:
-                snapped.append(point['location']) # [lng, lat]
-            else:
-                # If a point couldn't be matched, keep original
-                snapped.append(coordinates[i])
+        # matchings[0].geometry contains the full road path (interpolated points)
+        matchings = data.get('matchings', [])
+        if matchings and 'geometry' in matchings[0]:
+            # This returns all points along the road curves
+            return matchings[0]['geometry']['coordinates']
 
+        # Fallback to tracepoints if geometry is missing
+        snapped = []
+        for point in data.get('tracepoints', []):
+            if point and 'location' in point:
+                snapped.append(point['location'])
+            else:
+                snapped.append(coordinates[len(snapped)])
         return snapped
 
     except requests.RequestException as exc:
-        logger.error(f'OSRM Match request failed: {exc}')
         print(f"[OSRM Request Error] {exc}")
         return coordinates
