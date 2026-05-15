@@ -59,7 +59,8 @@
                                 "ems",
                                 "drivers",
                                 "check-in"
-                            ]
+                            ],
+                            "query": []
                         },
                         "body": {
                             "mode": "raw",
@@ -91,7 +92,8 @@
                                         "ems",
                                         "drivers",
                                         "check-in"
-                                    ]
+                                    ],
+                                    "query": []
                                 },
                                 "body": {
                                     "mode": "raw",
@@ -133,7 +135,8 @@
                                 "orders",
                                 "driver",
                                 "my-route"
-                            ]
+                            ],
+                            "query": []
                         }
                     },
                     "response": [
@@ -162,7 +165,8 @@
                                         "orders",
                                         "driver",
                                         "my-route"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "status": "OK",
@@ -201,7 +205,8 @@
                                 "driver",
                                 "{{route_id}}",
                                 "start-trip"
-                            ]
+                            ],
+                            "query": []
                         },
                         "body": {
                             "mode": "raw",
@@ -235,7 +240,8 @@
                                         "driver",
                                         "{{route_id}}",
                                         "start-trip"
-                                    ]
+                                    ],
+                                    "query": []
                                 },
                                 "body": {
                                     "mode": "raw",
@@ -282,7 +288,8 @@
                                 "driver",
                                 "{{order_id}}",
                                 "submit-delivery"
-                            ]
+                            ],
+                            "query": []
                         }
                     },
                     "response": [
@@ -312,7 +319,8 @@
                                         "driver",
                                         "{{order_id}}",
                                         "submit-delivery"
-                                    ]
+                                    ],
+                                    "query": []
                                 },
                                 "body": {
                                     "mode": "raw",
@@ -355,7 +363,8 @@
                                 "driver",
                                 "{{route_id}}",
                                 "complete-trip"
-                            ]
+                            ],
+                            "query": []
                         },
                         "body": {
                             "mode": "raw",
@@ -389,7 +398,8 @@
                                         "driver",
                                         "{{route_id}}",
                                         "complete-trip"
-                                    ]
+                                    ],
+                                    "query": []
                                 },
                                 "body": {
                                     "mode": "raw",
@@ -432,7 +442,8 @@
                                 "driver",
                                 "resolve-qr",
                                 "{{qr_id}}"
-                            ]
+                            ],
+                            "query": []
                         }
                     },
                     "response": [
@@ -462,7 +473,8 @@
                                         "driver",
                                         "resolve-qr",
                                         "{{qr_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "status": "OK",
@@ -507,7 +519,8 @@
                                 "api",
                                 "accounts",
                                 "login"
-                            ]
+                            ],
+                            "query": []
                         }
                     },
                     "response": [
@@ -534,7 +547,8 @@
                                         "api",
                                         "accounts",
                                         "login"
-                                    ]
+                                    ],
+                                    "query": []
                                 },
                                 "body": {
                                     "mode": "raw",
@@ -574,7 +588,8 @@
                                 "api",
                                 "accounts",
                                 "me"
-                            ]
+                            ],
+                            "query": []
                         }
                     },
                     "response": [
@@ -601,7 +616,8 @@
                                         "api",
                                         "accounts",
                                         "me"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "status": "OK",
@@ -641,7 +657,8 @@
                                 "api",
                                 "accounts",
                                 "request-otp"
-                            ]
+                            ],
+                            "query": []
                         }
                     },
                     "response": [
@@ -668,7 +685,8 @@
                                         "api",
                                         "accounts",
                                         "request-otp"
-                                    ]
+                                    ],
+                                    "query": []
                                 },
                                 "body": {
                                     "mode": "raw",
@@ -712,7 +730,8 @@
                                 "api",
                                 "accounts",
                                 "login-otp"
-                            ]
+                            ],
+                            "query": []
                         }
                     },
                     "response": [
@@ -739,7 +758,8 @@
                                         "api",
                                         "accounts",
                                         "login-otp"
-                                    ]
+                                    ],
+                                    "query": []
                                 },
                                 "body": {
                                     "mode": "raw",
@@ -786,7 +806,8 @@
                                         "api",
                                         "accounts",
                                         "register"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -813,7 +834,8 @@
                                                 "api",
                                                 "accounts",
                                                 "register"
-                                            ]
+                                            ],
+                                            "query": []
                                         },
                                         "body": {
                                             "mode": "raw",
@@ -857,7 +879,8 @@
                                         "api",
                                         "accounts",
                                         "register"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -884,7 +907,8 @@
                                                 "api",
                                                 "accounts",
                                                 "register"
-                                            ]
+                                            ],
+                                            "query": []
                                         },
                                         "body": {
                                             "mode": "raw",
@@ -928,7 +952,8 @@
                                         "api",
                                         "accounts",
                                         "register"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -955,7 +980,8 @@
                                                 "api",
                                                 "accounts",
                                                 "register"
-                                            ]
+                                            ],
+                                            "query": []
                                         },
                                         "body": {
                                             "mode": "raw",
@@ -999,7 +1025,8 @@
                                         "api",
                                         "accounts",
                                         "register"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -1026,7 +1053,8 @@
                                                 "api",
                                                 "accounts",
                                                 "register"
-                                            ]
+                                            ],
+                                            "query": []
                                         },
                                         "body": {
                                             "mode": "raw",
@@ -1070,7 +1098,8 @@
                                         "api",
                                         "accounts",
                                         "register"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -1097,7 +1126,8 @@
                                                 "api",
                                                 "accounts",
                                                 "register"
-                                            ]
+                                            ],
+                                            "query": []
                                         },
                                         "body": {
                                             "mode": "raw",
@@ -1142,7 +1172,8 @@
                                         "api",
                                         "accounts",
                                         "users"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -1169,7 +1200,8 @@
                                                 "api",
                                                 "accounts",
                                                 "users"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -1213,7 +1245,8 @@
                                         "api",
                                         "accounts",
                                         "users"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -1240,7 +1273,8 @@
                                                 "api",
                                                 "accounts",
                                                 "users"
-                                            ]
+                                            ],
+                                            "query": []
                                         },
                                         "body": {
                                             "mode": "raw",
@@ -1281,7 +1315,8 @@
                                         "accounts",
                                         "users",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -1309,7 +1344,8 @@
                                                 "accounts",
                                                 "users",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -1354,7 +1390,8 @@
                                         "accounts",
                                         "users",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -1382,7 +1419,8 @@
                                                 "accounts",
                                                 "users",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         },
                                         "body": {
                                             "mode": "raw",
@@ -1423,7 +1461,8 @@
                                         "accounts",
                                         "users",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -1451,7 +1490,8 @@
                                                 "accounts",
                                                 "users",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -1494,7 +1534,8 @@
                                 "accounts",
                                 "login",
                                 "refresh"
-                            ]
+                            ],
+                            "query": []
                         }
                     },
                     "response": [
@@ -1522,7 +1563,8 @@
                                         "accounts",
                                         "login",
                                         "refresh"
-                                    ]
+                                    ],
+                                    "query": []
                                 },
                                 "body": {
                                     "mode": "raw",
@@ -1566,7 +1608,8 @@
                                 "api",
                                 "accounts",
                                 "forgot-password"
-                            ]
+                            ],
+                            "query": []
                         }
                     },
                     "response": [
@@ -1593,7 +1636,8 @@
                                         "api",
                                         "accounts",
                                         "forgot-password"
-                                    ]
+                                    ],
+                                    "query": []
                                 },
                                 "body": {
                                     "mode": "raw",
@@ -1637,7 +1681,8 @@
                                 "api",
                                 "accounts",
                                 "reset-password"
-                            ]
+                            ],
+                            "query": []
                         }
                     },
                     "response": [
@@ -1664,7 +1709,8 @@
                                         "api",
                                         "accounts",
                                         "reset-password"
-                                    ]
+                                    ],
+                                    "query": []
                                 },
                                 "body": {
                                     "mode": "raw",
@@ -1713,7 +1759,8 @@
                                         "erp",
                                         "tenants",
                                         "cities"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -1741,7 +1788,8 @@
                                                 "erp",
                                                 "tenants",
                                                 "cities"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -1786,7 +1834,8 @@
                                         "erp",
                                         "tenants",
                                         "cities"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -1814,7 +1863,8 @@
                                                 "erp",
                                                 "tenants",
                                                 "cities"
-                                            ]
+                                            ],
+                                            "query": []
                                         },
                                         "body": {
                                             "mode": "raw",
@@ -1856,7 +1906,8 @@
                                         "tenants",
                                         "cities",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -1885,7 +1936,8 @@
                                                 "tenants",
                                                 "cities",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -1931,7 +1983,8 @@
                                         "tenants",
                                         "cities",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -1960,7 +2013,8 @@
                                                 "tenants",
                                                 "cities",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         },
                                         "body": {
                                             "mode": "raw",
@@ -2002,7 +2056,8 @@
                                         "tenants",
                                         "cities",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -2031,7 +2086,8 @@
                                                 "tenants",
                                                 "cities",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -2073,7 +2129,8 @@
                                         "erp",
                                         "tenants",
                                         "domains"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -2101,7 +2158,8 @@
                                                 "erp",
                                                 "tenants",
                                                 "domains"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -2146,7 +2204,8 @@
                                         "erp",
                                         "tenants",
                                         "domains"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -2174,7 +2233,8 @@
                                                 "erp",
                                                 "tenants",
                                                 "domains"
-                                            ]
+                                            ],
+                                            "query": []
                                         },
                                         "body": {
                                             "mode": "raw",
@@ -2216,7 +2276,8 @@
                                         "tenants",
                                         "domains",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -2245,7 +2306,8 @@
                                                 "tenants",
                                                 "domains",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -2291,7 +2353,8 @@
                                         "tenants",
                                         "domains",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -2320,7 +2383,8 @@
                                                 "tenants",
                                                 "domains",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         },
                                         "body": {
                                             "mode": "raw",
@@ -2362,7 +2426,8 @@
                                         "tenants",
                                         "domains",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -2391,7 +2456,8 @@
                                                 "tenants",
                                                 "domains",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -2427,7 +2493,8 @@
                                         "erp",
                                         "tenants",
                                         "zones"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -2455,7 +2522,8 @@
                                                 "erp",
                                                 "tenants",
                                                 "zones"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -2490,7 +2558,8 @@
                                         "erp",
                                         "tenants",
                                         "zones"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -2518,7 +2587,8 @@
                                                 "erp",
                                                 "tenants",
                                                 "zones"
-                                            ]
+                                            ],
+                                            "query": []
                                         },
                                         "body": {
                                             "mode": "raw",
@@ -2558,7 +2628,8 @@
                                         "erp",
                                         "tenants",
                                         "holidays"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -2586,7 +2657,8 @@
                                                 "erp",
                                                 "tenants",
                                                 "holidays"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -2621,7 +2693,8 @@
                                         "erp",
                                         "tenants",
                                         "holidays"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -2649,7 +2722,8 @@
                                                 "erp",
                                                 "tenants",
                                                 "holidays"
-                                            ]
+                                            ],
+                                            "query": []
                                         },
                                         "body": {
                                             "mode": "raw",
@@ -2699,7 +2773,8 @@
                                         "api",
                                         "erp",
                                         "customers"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -2726,7 +2801,8 @@
                                                 "api",
                                                 "erp",
                                                 "customers"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -2770,7 +2846,8 @@
                                         "api",
                                         "erp",
                                         "customers"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -2797,7 +2874,8 @@
                                                 "api",
                                                 "erp",
                                                 "customers"
-                                            ]
+                                            ],
+                                            "query": []
                                         },
                                         "body": {
                                             "mode": "raw",
@@ -2838,7 +2916,8 @@
                                         "erp",
                                         "customers",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -2866,7 +2945,8 @@
                                                 "erp",
                                                 "customers",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -2911,7 +2991,8 @@
                                         "erp",
                                         "customers",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -2939,7 +3020,8 @@
                                                 "erp",
                                                 "customers",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         },
                                         "body": {
                                             "mode": "raw",
@@ -2980,7 +3062,8 @@
                                         "erp",
                                         "customers",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -3008,7 +3091,8 @@
                                                 "erp",
                                                 "customers",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -3053,7 +3137,8 @@
                                         "erp",
                                         "customers",
                                         "bulk_update"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -3081,7 +3166,8 @@
                                                 "erp",
                                                 "customers",
                                                 "bulk_update"
-                                            ]
+                                            ],
+                                            "query": []
                                         },
                                         "body": {
                                             "mode": "raw",
@@ -3119,7 +3205,8 @@
                                 "customers",
                                 "{{last_id}}",
                                 "qr"
-                            ]
+                            ],
+                            "query": []
                         }
                     },
                     "response": [
@@ -3148,7 +3235,8 @@
                                         "customers",
                                         "{{last_id}}",
                                         "qr"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "status": "OK",
@@ -3180,7 +3268,8 @@
                                 "customers",
                                 "{{last_id}}",
                                 "download-qr"
-                            ]
+                            ],
+                            "query": []
                         }
                     },
                     "response": [
@@ -3209,7 +3298,8 @@
                                         "customers",
                                         "{{last_id}}",
                                         "download-qr"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "status": "OK",
@@ -3254,7 +3344,8 @@
                                         "erp",
                                         "inventory",
                                         "products"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -3282,7 +3373,8 @@
                                                 "erp",
                                                 "inventory",
                                                 "products"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -3327,7 +3419,8 @@
                                         "erp",
                                         "inventory",
                                         "products"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -3355,7 +3448,8 @@
                                                 "erp",
                                                 "inventory",
                                                 "products"
-                                            ]
+                                            ],
+                                            "query": []
                                         },
                                         "body": {
                                             "mode": "raw",
@@ -3397,7 +3491,8 @@
                                         "inventory",
                                         "products",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -3426,7 +3521,8 @@
                                                 "inventory",
                                                 "products",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -3472,7 +3568,8 @@
                                         "inventory",
                                         "products",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -3501,7 +3598,8 @@
                                                 "inventory",
                                                 "products",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         },
                                         "body": {
                                             "mode": "raw",
@@ -3543,7 +3641,8 @@
                                         "inventory",
                                         "products",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -3572,7 +3671,8 @@
                                                 "inventory",
                                                 "products",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -3620,7 +3720,8 @@
                                 "inventory",
                                 "products",
                                 "bulk_update"
-                            ]
+                            ],
+                            "query": []
                         }
                     },
                     "response": [
@@ -3649,7 +3750,8 @@
                                         "inventory",
                                         "products",
                                         "bulk_update"
-                                    ]
+                                    ],
+                                    "query": []
                                 },
                                 "body": {
                                     "mode": "raw",
@@ -3693,7 +3795,8 @@
                                         "erp",
                                         "inventory",
                                         "warehouses"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -3721,7 +3824,8 @@
                                                 "erp",
                                                 "inventory",
                                                 "warehouses"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -3766,7 +3870,8 @@
                                         "erp",
                                         "inventory",
                                         "warehouses"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -3794,7 +3899,8 @@
                                                 "erp",
                                                 "inventory",
                                                 "warehouses"
-                                            ]
+                                            ],
+                                            "query": []
                                         },
                                         "body": {
                                             "mode": "raw",
@@ -3836,7 +3942,8 @@
                                         "inventory",
                                         "warehouses",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -3865,7 +3972,8 @@
                                                 "inventory",
                                                 "warehouses",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -3911,7 +4019,8 @@
                                         "inventory",
                                         "warehouses",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -3940,7 +4049,8 @@
                                                 "inventory",
                                                 "warehouses",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         },
                                         "body": {
                                             "mode": "raw",
@@ -3982,7 +4092,8 @@
                                         "inventory",
                                         "warehouses",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -4011,7 +4122,8 @@
                                                 "inventory",
                                                 "warehouses",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -4053,7 +4165,8 @@
                                         "erp",
                                         "inventory",
                                         "stock"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -4081,7 +4194,8 @@
                                                 "erp",
                                                 "inventory",
                                                 "stock"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -4126,7 +4240,8 @@
                                         "erp",
                                         "inventory",
                                         "stock"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -4154,7 +4269,8 @@
                                                 "erp",
                                                 "inventory",
                                                 "stock"
-                                            ]
+                                            ],
+                                            "query": []
                                         },
                                         "body": {
                                             "mode": "raw",
@@ -4196,7 +4312,8 @@
                                         "inventory",
                                         "stock",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -4225,7 +4342,8 @@
                                                 "inventory",
                                                 "stock",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -4271,7 +4389,8 @@
                                         "inventory",
                                         "stock",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -4300,7 +4419,8 @@
                                                 "inventory",
                                                 "stock",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         },
                                         "body": {
                                             "mode": "raw",
@@ -4342,7 +4462,8 @@
                                         "inventory",
                                         "stock",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -4371,7 +4492,8 @@
                                                 "inventory",
                                                 "stock",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -4419,7 +4541,8 @@
                                 "inventory",
                                 "stock",
                                 "bulk_update"
-                            ]
+                            ],
+                            "query": []
                         }
                     },
                     "response": [
@@ -4448,7 +4571,8 @@
                                         "inventory",
                                         "stock",
                                         "bulk_update"
-                                    ]
+                                    ],
+                                    "query": []
                                 },
                                 "body": {
                                     "mode": "raw",
@@ -4492,7 +4616,8 @@
                                         "erp",
                                         "inventory",
                                         "bottle-types"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -4520,7 +4645,8 @@
                                                 "erp",
                                                 "inventory",
                                                 "bottle-types"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -4565,7 +4691,8 @@
                                         "erp",
                                         "inventory",
                                         "bottle-types"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -4593,7 +4720,8 @@
                                                 "erp",
                                                 "inventory",
                                                 "bottle-types"
-                                            ]
+                                            ],
+                                            "query": []
                                         },
                                         "body": {
                                             "mode": "raw",
@@ -4635,7 +4763,8 @@
                                         "inventory",
                                         "bottle-types",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -4664,7 +4793,8 @@
                                                 "inventory",
                                                 "bottle-types",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -4710,7 +4840,8 @@
                                         "inventory",
                                         "bottle-types",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -4739,7 +4870,8 @@
                                                 "inventory",
                                                 "bottle-types",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         },
                                         "body": {
                                             "mode": "raw",
@@ -4781,7 +4913,8 @@
                                         "inventory",
                                         "bottle-types",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -4810,7 +4943,8 @@
                                                 "inventory",
                                                 "bottle-types",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -4852,7 +4986,8 @@
                                         "erp",
                                         "inventory",
                                         "bottle-transactions"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -4880,7 +5015,8 @@
                                                 "erp",
                                                 "inventory",
                                                 "bottle-transactions"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -4925,7 +5061,8 @@
                                         "erp",
                                         "inventory",
                                         "bottle-transactions"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -4953,7 +5090,8 @@
                                                 "erp",
                                                 "inventory",
                                                 "bottle-transactions"
-                                            ]
+                                            ],
+                                            "query": []
                                         },
                                         "body": {
                                             "mode": "raw",
@@ -4995,7 +5133,8 @@
                                         "inventory",
                                         "bottle-transactions",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -5024,7 +5163,8 @@
                                                 "inventory",
                                                 "bottle-transactions",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -5070,7 +5210,8 @@
                                         "inventory",
                                         "bottle-transactions",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -5099,7 +5240,8 @@
                                                 "inventory",
                                                 "bottle-transactions",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         },
                                         "body": {
                                             "mode": "raw",
@@ -5141,7 +5283,8 @@
                                         "inventory",
                                         "bottle-transactions",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -5170,7 +5313,8 @@
                                                 "inventory",
                                                 "bottle-transactions",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -5209,7 +5353,8 @@
                                 "erp",
                                 "inventory",
                                 "bottle-balances"
-                            ]
+                            ],
+                            "query": []
                         }
                     },
                     "response": [
@@ -5237,7 +5382,8 @@
                                         "erp",
                                         "inventory",
                                         "bottle-balances"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "status": "OK",
@@ -5263,6 +5409,53 @@
                     "name": "Orders (Order)",
                     "item": [
                         {
+                            "name": "GET My Orders",
+                            "request": {
+                                "method": "GET",
+                                "header": [],
+                                "url": {
+                                    "raw": "{{city_url}}/api/erp/orders/",
+                                    "host": [
+                                        "{{city_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "erp",
+                                        "orders"
+                                    ],
+                                    "query": []
+                                },
+                                "description": "Fetches all orders for the currently logged-in customer. Admins see all orders."
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "GET Orders Filtered by Customer (Admin)",
+                            "request": {
+                                "method": "GET",
+                                "header": [],
+                                "url": {
+                                    "raw": "{{city_url}}/api/erp/orders/?customer=1",
+                                    "host": [
+                                        "{{city_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "erp",
+                                        "orders"
+                                    ],
+                                    "query": [
+                                        {
+                                            "key": "customer",
+                                            "value": "1"
+                                        }
+                                    ]
+                                },
+                                "description": "Admin endpoint to view orders of a specific customer."
+                            },
+                            "response": []
+                        },
+                        {
                             "name": "GET List Orders",
                             "request": {
                                 "method": "GET",
@@ -5281,7 +5474,8 @@
                                         "api",
                                         "erp",
                                         "orders"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -5308,7 +5502,8 @@
                                                 "api",
                                                 "erp",
                                                 "orders"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -5352,7 +5547,8 @@
                                         "api",
                                         "erp",
                                         "orders"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -5379,7 +5575,8 @@
                                                 "api",
                                                 "erp",
                                                 "orders"
-                                            ]
+                                            ],
+                                            "query": []
                                         },
                                         "body": {
                                             "mode": "raw",
@@ -5420,7 +5617,8 @@
                                         "erp",
                                         "orders",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -5448,7 +5646,8 @@
                                                 "erp",
                                                 "orders",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -5493,7 +5692,8 @@
                                         "erp",
                                         "orders",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -5521,7 +5721,8 @@
                                                 "erp",
                                                 "orders",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         },
                                         "body": {
                                             "mode": "raw",
@@ -5562,7 +5763,8 @@
                                         "erp",
                                         "orders",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -5590,7 +5792,8 @@
                                                 "erp",
                                                 "orders",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -5632,7 +5835,8 @@
                                         "orders",
                                         "{{order_id}}",
                                         "mark-delivered"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -5661,7 +5865,8 @@
                                                 "orders",
                                                 "{{order_id}}",
                                                 "mark-delivered"
-                                            ]
+                                            ],
+                                            "query": []
                                         },
                                         "body": {
                                             "mode": "raw",
@@ -5702,7 +5907,8 @@
                                         "erp",
                                         "orders",
                                         "mark-all-delivered"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -5730,7 +5936,8 @@
                                                 "erp",
                                                 "orders",
                                                 "mark-all-delivered"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -5772,7 +5979,8 @@
                                         "erp",
                                         "orders",
                                         "routes"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -5800,7 +6008,8 @@
                                                 "erp",
                                                 "orders",
                                                 "routes"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -5845,7 +6054,8 @@
                                         "erp",
                                         "orders",
                                         "routes"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -5873,7 +6083,8 @@
                                                 "erp",
                                                 "orders",
                                                 "routes"
-                                            ]
+                                            ],
+                                            "query": []
                                         },
                                         "body": {
                                             "mode": "raw",
@@ -5915,7 +6126,8 @@
                                         "orders",
                                         "routes",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -5944,7 +6156,8 @@
                                                 "orders",
                                                 "routes",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -5990,7 +6203,8 @@
                                         "orders",
                                         "routes",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -6019,7 +6233,8 @@
                                                 "orders",
                                                 "routes",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         },
                                         "body": {
                                             "mode": "raw",
@@ -6061,7 +6276,8 @@
                                         "orders",
                                         "routes",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -6090,7 +6306,8 @@
                                                 "orders",
                                                 "routes",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -6122,7 +6339,8 @@
                                         "routes",
                                         "{{route_id}}",
                                         "tracking"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -6151,7 +6369,8 @@
                                                 "routes",
                                                 "{{route_id}}",
                                                 "tracking"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -6183,7 +6402,8 @@
                                         "routes",
                                         "{{route_id}}",
                                         "generate-reconciliation"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -6212,7 +6432,8 @@
                                                 "routes",
                                                 "{{route_id}}",
                                                 "generate-reconciliation"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -6246,7 +6467,8 @@
                                 "orders",
                                 "routes",
                                 "create-optimized"
-                            ]
+                            ],
+                            "query": []
                         },
                         "body": {
                             "mode": "raw",
@@ -6279,7 +6501,8 @@
                                         "orders",
                                         "routes",
                                         "create-optimized"
-                                    ]
+                                    ],
+                                    "query": []
                                 },
                                 "body": {
                                     "mode": "raw",
@@ -6322,7 +6545,8 @@
                                         "reconciliations",
                                         "{{last_id}}",
                                         "reconcile"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -6351,7 +6575,8 @@
                                                 "reconciliations",
                                                 "{{last_id}}",
                                                 "reconcile"
-                                            ]
+                                            ],
+                                            "query": []
                                         },
                                         "body": {
                                             "mode": "raw",
@@ -6401,7 +6626,8 @@
                                         "api",
                                         "ems",
                                         "drivers"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -6428,7 +6654,8 @@
                                                 "api",
                                                 "ems",
                                                 "drivers"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -6472,7 +6699,8 @@
                                         "api",
                                         "ems",
                                         "drivers"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -6499,7 +6727,8 @@
                                                 "api",
                                                 "ems",
                                                 "drivers"
-                                            ]
+                                            ],
+                                            "query": []
                                         },
                                         "body": {
                                             "mode": "raw",
@@ -6540,7 +6769,8 @@
                                         "ems",
                                         "drivers",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -6568,7 +6798,8 @@
                                                 "ems",
                                                 "drivers",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -6613,7 +6844,8 @@
                                         "ems",
                                         "drivers",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -6641,7 +6873,8 @@
                                                 "ems",
                                                 "drivers",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         },
                                         "body": {
                                             "mode": "raw",
@@ -6682,7 +6915,8 @@
                                         "ems",
                                         "drivers",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -6710,7 +6944,8 @@
                                                 "ems",
                                                 "drivers",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -6742,7 +6977,8 @@
                                 "api",
                                 "ems",
                                 "tracking"
-                            ]
+                            ],
+                            "query": []
                         }
                     },
                     "response": [
@@ -6769,7 +7005,8 @@
                                         "api",
                                         "ems",
                                         "tracking"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "status": "OK",
@@ -6814,7 +7051,8 @@
                                         "erp",
                                         "hr",
                                         "employees"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -6842,7 +7080,8 @@
                                                 "erp",
                                                 "hr",
                                                 "employees"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -6887,7 +7126,8 @@
                                         "erp",
                                         "hr",
                                         "employees"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -6915,7 +7155,8 @@
                                                 "erp",
                                                 "hr",
                                                 "employees"
-                                            ]
+                                            ],
+                                            "query": []
                                         },
                                         "body": {
                                             "mode": "raw",
@@ -6957,7 +7198,8 @@
                                         "hr",
                                         "employees",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -6986,7 +7228,8 @@
                                                 "hr",
                                                 "employees",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -7032,7 +7275,8 @@
                                         "hr",
                                         "employees",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -7061,7 +7305,8 @@
                                                 "hr",
                                                 "employees",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         },
                                         "body": {
                                             "mode": "raw",
@@ -7103,7 +7348,8 @@
                                         "hr",
                                         "employees",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -7132,7 +7378,8 @@
                                                 "hr",
                                                 "employees",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -7174,7 +7421,8 @@
                                         "erp",
                                         "hr",
                                         "attendance"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -7202,7 +7450,8 @@
                                                 "erp",
                                                 "hr",
                                                 "attendance"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -7247,7 +7496,8 @@
                                         "erp",
                                         "hr",
                                         "attendance"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -7275,7 +7525,8 @@
                                                 "erp",
                                                 "hr",
                                                 "attendance"
-                                            ]
+                                            ],
+                                            "query": []
                                         },
                                         "body": {
                                             "mode": "raw",
@@ -7317,7 +7568,8 @@
                                         "hr",
                                         "attendance",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -7346,7 +7598,8 @@
                                                 "hr",
                                                 "attendance",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -7392,7 +7645,8 @@
                                         "hr",
                                         "attendance",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -7421,7 +7675,8 @@
                                                 "hr",
                                                 "attendance",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         },
                                         "body": {
                                             "mode": "raw",
@@ -7463,7 +7718,8 @@
                                         "hr",
                                         "attendance",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -7492,7 +7748,8 @@
                                                 "hr",
                                                 "attendance",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -7539,7 +7796,8 @@
                                         "erp",
                                         "finance",
                                         "invoices"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -7567,7 +7825,8 @@
                                                 "erp",
                                                 "finance",
                                                 "invoices"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -7612,7 +7871,8 @@
                                         "erp",
                                         "finance",
                                         "invoices"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -7640,7 +7900,8 @@
                                                 "erp",
                                                 "finance",
                                                 "invoices"
-                                            ]
+                                            ],
+                                            "query": []
                                         },
                                         "body": {
                                             "mode": "raw",
@@ -7682,7 +7943,8 @@
                                         "finance",
                                         "invoices",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -7711,7 +7973,8 @@
                                                 "finance",
                                                 "invoices",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -7757,7 +8020,8 @@
                                         "finance",
                                         "invoices",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -7786,7 +8050,8 @@
                                                 "finance",
                                                 "invoices",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         },
                                         "body": {
                                             "mode": "raw",
@@ -7828,7 +8093,8 @@
                                         "finance",
                                         "invoices",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -7857,7 +8123,8 @@
                                                 "finance",
                                                 "invoices",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -7899,7 +8166,8 @@
                                         "erp",
                                         "finance",
                                         "payments"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -7927,7 +8195,8 @@
                                                 "erp",
                                                 "finance",
                                                 "payments"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -7972,7 +8241,8 @@
                                         "erp",
                                         "finance",
                                         "payments"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -8000,7 +8270,8 @@
                                                 "erp",
                                                 "finance",
                                                 "payments"
-                                            ]
+                                            ],
+                                            "query": []
                                         },
                                         "body": {
                                             "mode": "raw",
@@ -8042,7 +8313,8 @@
                                         "finance",
                                         "payments",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -8071,7 +8343,8 @@
                                                 "finance",
                                                 "payments",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -8117,7 +8390,8 @@
                                         "finance",
                                         "payments",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -8146,7 +8420,8 @@
                                                 "finance",
                                                 "payments",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         },
                                         "body": {
                                             "mode": "raw",
@@ -8188,7 +8463,8 @@
                                         "finance",
                                         "payments",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -8217,7 +8493,8 @@
                                                 "finance",
                                                 "payments",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -8263,7 +8540,8 @@
                                         "api",
                                         "erp",
                                         "subs"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -8290,7 +8568,8 @@
                                                 "api",
                                                 "erp",
                                                 "subs"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -8334,7 +8613,8 @@
                                         "api",
                                         "erp",
                                         "subs"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -8361,7 +8641,8 @@
                                                 "api",
                                                 "erp",
                                                 "subs"
-                                            ]
+                                            ],
+                                            "query": []
                                         },
                                         "body": {
                                             "mode": "raw",
@@ -8402,7 +8683,8 @@
                                         "erp",
                                         "subs",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -8430,7 +8712,8 @@
                                                 "erp",
                                                 "subs",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -8475,7 +8758,8 @@
                                         "erp",
                                         "subs",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -8503,7 +8787,8 @@
                                                 "erp",
                                                 "subs",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         },
                                         "body": {
                                             "mode": "raw",
@@ -8544,7 +8829,8 @@
                                         "erp",
                                         "subs",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -8572,7 +8858,8 @@
                                                 "erp",
                                                 "subs",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -8620,7 +8907,8 @@
                                 "subs",
                                 "{{last_id}}",
                                 "vacation"
-                            ]
+                            ],
+                            "query": []
                         },
                         "description": "Pause deliveries for a date range (vacation mode). Customer will not receive deliveries between pause_start and pause_end."
                     },
@@ -8650,7 +8938,8 @@
                                         "subs",
                                         "{{last_id}}",
                                         "vacation"
-                                    ]
+                                    ],
+                                    "query": []
                                 },
                                 "body": {
                                     "mode": "raw",
@@ -8696,7 +8985,8 @@
                                 "subs",
                                 "{{last_id}}",
                                 "resume"
-                            ]
+                            ],
+                            "query": []
                         },
                         "description": "Resume a paused/vacation subscription. Clears pause_start and pause_end."
                     },
@@ -8726,7 +9016,8 @@
                                         "subs",
                                         "{{last_id}}",
                                         "resume"
-                                    ]
+                                    ],
+                                    "query": []
                                 },
                                 "body": {
                                     "mode": "raw",
@@ -8776,7 +9067,8 @@
                                 "subs",
                                 "{{last_id}}",
                                 "update-quantity"
-                            ]
+                            ],
+                            "query": []
                         },
                         "description": "Update the quantity for a specific product within the subscription."
                     },
@@ -8806,7 +9098,8 @@
                                         "subs",
                                         "{{last_id}}",
                                         "update-quantity"
-                                    ]
+                                    ],
+                                    "query": []
                                 },
                                 "body": {
                                     "mode": "raw",
@@ -8856,7 +9149,8 @@
                                 "subs",
                                 "{{last_id}}",
                                 "add-skip-date"
-                            ]
+                            ],
+                            "query": []
                         },
                         "description": "Skip delivery on a specific date for this subscription. Does not affect other days."
                     },
@@ -8886,7 +9180,8 @@
                                         "subs",
                                         "{{last_id}}",
                                         "add-skip-date"
-                                    ]
+                                    ],
+                                    "query": []
                                 },
                                 "body": {
                                     "mode": "raw",
@@ -8935,7 +9230,8 @@
                                 "erp",
                                 "subs",
                                 "bulk-update"
-                            ]
+                            ],
+                            "query": []
                         },
                         "description": "Update multiple subscriptions in one request. Each item must include its 'id'."
                     },
@@ -8964,7 +9260,8 @@
                                         "erp",
                                         "subs",
                                         "bulk-update"
-                                    ]
+                                    ],
+                                    "query": []
                                 },
                                 "body": {
                                     "mode": "raw",
@@ -9013,7 +9310,8 @@
                                 "erp",
                                 "subs",
                                 "trigger-generation"
-                            ]
+                            ],
+                            "query": []
                         },
                         "description": "Manually trigger subscription order generation for a given date. Useful for testing without waiting for the nightly Celery task."
                     },
@@ -9042,7 +9340,8 @@
                                         "erp",
                                         "subs",
                                         "trigger-generation"
-                                    ]
+                                    ],
+                                    "query": []
                                 },
                                 "body": {
                                     "mode": "raw",
@@ -9083,19 +9382,16 @@
                                 "erp",
                                 "subs",
                                 "{{last_id}}",
-                                "monthly-summary",
-                                "?year=2026&month=5"
+                                "monthly-summary"
                             ],
                             "query": [
                                 {
                                     "key": "year",
-                                    "value": "2026",
-                                    "description": "4-digit year (defaults to current year)"
+                                    "value": "2026"
                                 },
                                 {
                                     "key": "month",
-                                    "value": "5",
-                                    "description": "Month number 1-12 (defaults to current month)"
+                                    "value": "5"
                                 }
                             ]
                         },
@@ -9126,8 +9422,17 @@
                                         "erp",
                                         "subs",
                                         "{{last_id}}",
-                                        "monthly-summary",
-                                        "?year=2026&month=5"
+                                        "monthly-summary"
+                                    ],
+                                    "query": [
+                                        {
+                                            "key": "year",
+                                            "value": "2026"
+                                        },
+                                        {
+                                            "key": "month",
+                                            "value": "5"
+                                        }
                                     ]
                                 }
                             },
@@ -9164,24 +9469,20 @@
                                 "api",
                                 "erp",
                                 "subs",
-                                "customer-monthly-summary",
-                                "?customer_id={{last_id}}&year=2026&month=5"
+                                "customer-monthly-summary"
                             ],
                             "query": [
                                 {
                                     "key": "customer_id",
-                                    "value": "{{last_id}}",
-                                    "description": "UUID of the customer (required)"
+                                    "value": "{{last_id}}"
                                 },
                                 {
                                     "key": "year",
-                                    "value": "2026",
-                                    "description": "4-digit year (defaults to current year)"
+                                    "value": "2026"
                                 },
                                 {
                                     "key": "month",
-                                    "value": "5",
-                                    "description": "Month number 1-12 (defaults to current month)"
+                                    "value": "5"
                                 }
                             ]
                         },
@@ -9211,8 +9512,21 @@
                                         "api",
                                         "erp",
                                         "subs",
-                                        "customer-monthly-summary",
-                                        "?customer_id={{last_id}}&year=2026&month=5"
+                                        "customer-monthly-summary"
+                                    ],
+                                    "query": [
+                                        {
+                                            "key": "customer_id",
+                                            "value": "{{last_id}}"
+                                        },
+                                        {
+                                            "key": "year",
+                                            "value": "2026"
+                                        },
+                                        {
+                                            "key": "month",
+                                            "value": "5"
+                                        }
                                     ]
                                 }
                             },
@@ -9258,7 +9572,8 @@
                                         "erp",
                                         "taxation",
                                         "taxes"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -9286,7 +9601,8 @@
                                                 "erp",
                                                 "taxation",
                                                 "taxes"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -9331,7 +9647,8 @@
                                         "erp",
                                         "taxation",
                                         "taxes"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -9359,7 +9676,8 @@
                                                 "erp",
                                                 "taxation",
                                                 "taxes"
-                                            ]
+                                            ],
+                                            "query": []
                                         },
                                         "body": {
                                             "mode": "raw",
@@ -9401,7 +9719,8 @@
                                         "taxation",
                                         "taxes",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -9430,7 +9749,8 @@
                                                 "taxation",
                                                 "taxes",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -9476,7 +9796,8 @@
                                         "taxation",
                                         "taxes",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -9505,7 +9826,8 @@
                                                 "taxation",
                                                 "taxes",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         },
                                         "body": {
                                             "mode": "raw",
@@ -9547,7 +9869,8 @@
                                         "taxation",
                                         "taxes",
                                         "{{last_id}}"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "response": [
@@ -9576,7 +9899,8 @@
                                                 "taxation",
                                                 "taxes",
                                                 "{{last_id}}"
-                                            ]
+                                            ],
+                                            "query": []
                                         }
                                     },
                                     "status": "OK",
@@ -9620,7 +9944,8 @@
                                 "erp",
                                 "administration",
                                 "config"
-                            ]
+                            ],
+                            "query": []
                         }
                     },
                     "response": [
@@ -9648,7 +9973,8 @@
                                         "erp",
                                         "administration",
                                         "config"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "status": "OK",
@@ -9694,7 +10020,8 @@
                                 "administration",
                                 "config",
                                 "1"
-                            ]
+                            ],
+                            "query": []
                         }
                     },
                     "response": [
@@ -9723,7 +10050,8 @@
                                         "administration",
                                         "config",
                                         "1"
-                                    ]
+                                    ],
+                                    "query": []
                                 },
                                 "body": {
                                     "mode": "raw",
@@ -9769,7 +10097,8 @@
                                 "erp",
                                 "tracking",
                                 "live"
-                            ]
+                            ],
+                            "query": []
                         }
                     },
                     "response": [
@@ -9797,7 +10126,8 @@
                                         "erp",
                                         "tracking",
                                         "live"
-                                    ]
+                                    ],
+                                    "query": []
                                 }
                             },
                             "status": "OK",
@@ -9835,8 +10165,7 @@
                                 "tracking",
                                 "live",
                                 "{{last_id}}",
-                                "trail",
-                                "?date=2026-05-15"
+                                "trail"
                             ],
                             "query": [
                                 {
@@ -9872,8 +10201,13 @@
                                         "tracking",
                                         "live",
                                         "{{last_id}}",
-                                        "trail",
-                                        "?date=2026-05-15"
+                                        "trail"
+                                    ],
+                                    "query": [
+                                        {
+                                            "key": "date",
+                                            "value": "2026-05-15"
+                                        }
                                     ]
                                 }
                             },
@@ -9908,8 +10242,13 @@
                             "path": [
                                 "{{city_url}}",
                                 "ws",
-                                "tracking",
-                                "?token={{access_token}}"
+                                "tracking"
+                            ],
+                            "query": [
+                                {
+                                    "key": "token",
+                                    "value": "{{access_token}}"
+                                }
                             ]
                         },
                         "description": "Connect using Postman WebSocket Request. Send: {\"lat\": 18.5, \"lng\": 73.8}"
@@ -9937,8 +10276,13 @@
                                     "path": [
                                         "{{city_url}}",
                                         "ws",
-                                        "tracking",
-                                        "?token={{access_token}}"
+                                        "tracking"
+                                    ],
+                                    "query": [
+                                        {
+                                            "key": "token",
+                                            "value": "{{access_token}}"
+                                        }
                                     ]
                                 }
                             },

@@ -12,9 +12,32 @@ import datetime
 class OrderViewSet(viewsets.ModelViewSet):
     queryset = Order.objects.select_related('customer').prefetch_related('items')
     serializer_class = OrderSerializer
-    permission_classes = [IsERPUser, HasGroupPermission]
-    required_groups = ['Logistics_Managers', 'ERP_Admins']
+    permission_classes = [IsAuthenticated] # Base permission is just authenticated
     filterset_fields = ['status', 'customer', 'scheduled_delivery_date']
+
+    def get_permissions(self):
+        """
+        ERP users can do everything. Customers can only list and retrieve.
+        """
+        if self.action in ['list', 'retrieve']:
+            return [IsAuthenticated()]
+        # Management actions require ERP permissions
+        return [IsERPUser(), HasGroupPermission()]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        
+        # If user is ERP Admin/Manager, show all
+        if user.is_erp_user or user.is_superuser:
+            return qs
+            
+        # Otherwise, if they have a customer profile, show only their orders
+        if hasattr(user, 'customer_profile'):
+            return qs.filter(customer=user.customer_profile)
+            
+        # Fallback for drivers or other roles: no orders unless they are ERP users
+        return qs.none()
 
     def create(self, request, *args, **kwargs):
         """
