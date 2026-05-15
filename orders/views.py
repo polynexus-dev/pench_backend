@@ -233,17 +233,27 @@ class DriverViewSet(viewsets.ViewSet):
         """
         Returns the active route for the logged-in driver for today.
         """
-        # Look for the nearest upcoming active route (today or future)
-        route = Route.objects.filter(
-            driver=request.user,
-            delivery_date__gte=datetime.date.today(),
-            is_completed=False
-        ).prefetch_related('stops__order__customer').order_by('delivery_date').first()
+        from django_tenants.utils import schema_context
+        from django.db import connection
         
-        if not route:
-            return Response({'detail': 'No active route found for today.'}, status=404)
+        user = request.user
+        schema = user.tenant_schema
+        
+        # If we are in public schema, switch to driver's schema
+        context_schema = schema if connection.schema_name == 'public' and schema else connection.schema_name
+        
+        with schema_context(context_schema):
+            # Look for the nearest upcoming active route (today or future)
+            route = Route.objects.filter(
+                driver=user,
+                delivery_date__gte=datetime.date.today(),
+                is_completed=False
+            ).prefetch_related('stops__order__customer').order_by('delivery_date').first()
             
-        return Response(RouteSerializer(route).data)
+            if not route:
+                return Response({'detail': 'No active route found for today.'}, status=404)
+                
+            return Response(RouteSerializer(route).data)
 
     @action(detail=True, methods=['post'], url_path='start-trip')
     def start_trip(self, request, pk=None):
@@ -252,35 +262,43 @@ class DriverViewSet(viewsets.ViewSet):
         pk is the Route ID.
         """
         from django.utils import timezone
-        # Professional Error Handling: Distinguish between "Not Found" and "Forbidden"
-        route = Route.objects.filter(id=pk).first()
-        if not route:
-            return Response({'error': f'Route with ID {pk} does not exist in this city.'}, status=status.HTTP_404_NOT_FOUND)
+        from django_tenants.utils import schema_context
+        from django.db import connection
         
-        if route.driver != request.user:
-            return Response({
-                'error': 'Access Denied',
-                'detail': f'This route is assigned to {route.driver.username if route.driver else "nobody"}. You (User {request.user.id}) cannot complete it.'
-            }, status=status.HTTP_403_FORBIDDEN)
+        user = request.user
+        schema = user.tenant_schema
+        context_schema = schema if connection.schema_name == 'public' and schema else connection.schema_name
         
-        route.started_at = timezone.now()
-        route.save(update_fields=['started_at'])
-        
-        # Mark Driver Profile as Unavailable (Busy on trip)
-        if route.driver:
-            from routing.models import Driver
-            driver_profile = Driver.objects.filter(user=route.driver).first()
-            if driver_profile:
-                driver_profile.is_available = False
-                driver_profile.on_trip = True
-                driver_profile.save(update_fields=['is_available', 'on_trip'])
-        
-        # Update all orders in this route to IN_TRANSIT
-        for stop in route.stops.all():
-            stop.order.status = OrderStatus.IN_TRANSIT
-            stop.order.save(update_fields=['status'])
+        with schema_context(context_schema):
+            # Professional Error Handling: Distinguish between "Not Found" and "Forbidden"
+            route = Route.objects.filter(id=pk).first()
+            if not route:
+                return Response({'error': f'Route with ID {pk} does not exist in this city.'}, status=status.HTTP_404_NOT_FOUND)
             
-        return Response({'detail': 'Trip started successfully.', 'started_at': route.started_at})
+            if route.driver != user:
+                return Response({
+                    'error': 'Access Denied',
+                    'detail': f'This route is assigned to {route.driver.username if route.driver else "nobody"}. You (User {user.id}) cannot complete it.'
+                }, status=status.HTTP_403_FORBIDDEN)
+            
+            route.started_at = timezone.now()
+            route.save(update_fields=['started_at'])
+            
+            # Mark Driver Profile as Unavailable (Busy on trip)
+            if route.driver:
+                from routing.models import Driver
+                driver_profile = Driver.objects.filter(user=route.driver).first()
+                if driver_profile:
+                    driver_profile.is_available = False
+                    driver_profile.on_trip = True
+                    driver_profile.save(update_fields=['is_available', 'on_trip'])
+            
+            # Update all orders in this route to IN_TRANSIT
+            for stop in route.stops.all():
+                stop.order.status = OrderStatus.IN_TRANSIT
+                stop.order.save(update_fields=['status'])
+                
+            return Response({'detail': 'Trip started successfully.', 'started_at': route.started_at})
 
     @action(detail=True, methods=['post'], url_path='complete-trip')
     def complete_trip(self, request, pk=None):
@@ -289,31 +307,39 @@ class DriverViewSet(viewsets.ViewSet):
         pk is the Route ID.
         """
         from django.utils import timezone
-        # Professional Error Handling: Distinguish between "Not Found" and "Forbidden"
-        route = Route.objects.filter(id=pk).first()
-        if not route:
-            return Response({'error': f'Route with ID {pk} does not exist in this city.'}, status=status.HTTP_404_NOT_FOUND)
+        from django_tenants.utils import schema_context
+        from django.db import connection
         
-        if route.driver != request.user:
-            return Response({
-                'error': 'Access Denied',
-                'detail': f'This route is assigned to {route.driver.username if route.driver else "nobody"}. You (User {request.user.id}) cannot complete it.'
-            }, status=status.HTTP_403_FORBIDDEN)
+        user = request.user
+        schema = user.tenant_schema
+        context_schema = schema if connection.schema_name == 'public' and schema else connection.schema_name
         
-        route.completed_at = timezone.now()
-        route.is_completed = True
-        route.save(update_fields=['completed_at', 'is_completed'])
-
-        # Mark Driver Profile as Available again
-        if route.driver:
-            from routing.models import Driver
-            driver_profile = Driver.objects.filter(user=route.driver).first()
-            if driver_profile:
-                driver_profile.is_available = True
-                driver_profile.on_trip = False
-                driver_profile.save(update_fields=['is_available', 'on_trip'])
+        with schema_context(context_schema):
+            # Professional Error Handling: Distinguish between "Not Found" and "Forbidden"
+            route = Route.objects.filter(id=pk).first()
+            if not route:
+                return Response({'error': f'Route with ID {pk} does not exist in this city.'}, status=status.HTTP_404_NOT_FOUND)
             
-        return Response({'detail': 'Trip completed successfully.', 'completed_at': route.completed_at})
+            if route.driver != user:
+                return Response({
+                    'error': 'Access Denied',
+                    'detail': f'This route is assigned to {route.driver.username if route.driver else "nobody"}. You (User {user.id}) cannot complete it.'
+                }, status=status.HTTP_403_FORBIDDEN)
+            
+            route.completed_at = timezone.now()
+            route.is_completed = True
+            route.save(update_fields=['completed_at', 'is_completed'])
+    
+            # Mark Driver Profile as Available again
+            if route.driver:
+                from routing.models import Driver
+                driver_profile = Driver.objects.filter(user=route.driver).first()
+                if driver_profile:
+                    driver_profile.is_available = True
+                    driver_profile.on_trip = False
+                    driver_profile.save(update_fields=['is_available', 'on_trip'])
+                
+            return Response({'detail': 'Trip completed successfully.', 'completed_at': route.completed_at})
 
     @action(detail=True, methods=['post'], url_path='submit-delivery')
     def submit_delivery(self, request, pk=None):
@@ -332,33 +358,41 @@ class DriverViewSet(viewsets.ViewSet):
         """
         Fetches customer details and today's pending order by QR Code ID.
         """
-        from crm.models import Customer
-        from crm.serializers import CustomerSerializer
-        from inventory.models import CustomerBottleBalance
+        from django_tenants.utils import schema_context
+        from django.db import connection
         
-        customer = Customer.objects.filter(qr_code_id=qr_id).first()
-        if not customer:
-            return Response({'detail': 'Invalid QR Code.'}, status=404)
-
-        # Get today's pending order for this customer
-        today = datetime.date.today()
-        order = Order.objects.filter(
-            customer=customer,
-            scheduled_delivery_date=today,
-            status__in=[OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.DISPATCHED, OrderStatus.IN_TRANSIT]
-        ).first()
-
-        # Get bottle balances
-        balances = CustomerBottleBalance.objects.filter(customer=customer)
-        balance_data = [
-            {
-                'bottle_type': b.bottle_type.name,
-                'balance': b.balance
-            } for b in balances
-        ]
-
-        return Response({
-            'customer': CustomerSerializer(customer).data,
-            'order': OrderSerializer(order).data if order else None,
-            'bottle_balances': balance_data
-        })
+        user = request.user
+        schema = user.tenant_schema
+        context_schema = schema if connection.schema_name == 'public' and schema else connection.schema_name
+        
+        with schema_context(context_schema):
+            from crm.models import Customer
+            from crm.serializers import CustomerSerializer
+            from inventory.models import CustomerBottleBalance
+            
+            customer = Customer.objects.filter(qr_code_id=qr_id).first()
+            if not customer:
+                return Response({'detail': 'Invalid QR Code.'}, status=404)
+    
+            # Get today's pending order for this customer
+            today = datetime.date.today()
+            order = Order.objects.filter(
+                customer=customer,
+                scheduled_delivery_date=today,
+                status__in=[OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.DISPATCHED, OrderStatus.IN_TRANSIT]
+            ).first()
+    
+            # Get bottle balances
+            balances = CustomerBottleBalance.objects.filter(customer=customer)
+            balance_data = [
+                {
+                    'bottle_type': b.bottle_type.name,
+                    'balance': b.balance
+                } for b in balances
+            ]
+    
+            return Response({
+                'customer': CustomerSerializer(customer).data,
+                'order': OrderSerializer(order).data if order else None,
+                'bottle_balances': balance_data
+            })

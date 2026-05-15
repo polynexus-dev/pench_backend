@@ -99,10 +99,10 @@ DATABASES = {
 # ──────────────────────────────────────────────
 
 MIDDLEWARE = [
+    'core.middleware.LocalDomainAutoRegisterMiddleware', # Run this before TenantMainMiddleware to auto-register local IPs
     'django_tenants.middleware.main.TenantMainMiddleware', # mandatory first
     'corsheaders.middleware.CorsMiddleware', # Move this up for CORS to work
     'django.middleware.security.SecurityMiddleware',
-    'core.middleware.LocalDomainAutoRegisterMiddleware', 
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',

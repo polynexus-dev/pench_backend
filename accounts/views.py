@@ -168,8 +168,14 @@ class LoginOTPView(APIView):
             if city:
                 response_data['tenant_schema'] = city.schema_name
                 response_data['tenant_name'] = city.name
-                # Look up the domain
-                domain = Domain.objects.filter(tenant=city).first()
+                # Look up the domain (smart selection based on current request host)
+                current_host = request.get_host().split(':')[0]
+                base_domain = '.'.join(current_host.split('.')[-2:]) if 'nip.io' not in current_host else '.'.join(current_host.split('.')[-5:])
+                
+                domain = Domain.objects.filter(tenant=city, domain__icontains=base_domain).first()
+                if not domain:
+                    domain = Domain.objects.filter(tenant=city).first()
+                    
                 response_data['tenant_domain'] = domain.domain if domain else None
                 
                 # If driver, find their active (incomplete) route

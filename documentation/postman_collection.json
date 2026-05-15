@@ -1731,7 +1731,10 @@
                         }
                     ]
                 }
-            ]
+            ],
+            "auth": {
+                "type": "noauth"
+            }
         },
         {
             "name": "02. Platform & Tenants",
@@ -10313,5 +10316,15 @@
                 ]
             }
         }
-    ]
+    ],
+    "auth": {
+        "type": "bearer",
+        "bearer": [
+            {
+                "key": "token",
+                "value": "{{access_token}}",
+                "type": "string"
+            }
+        ]
+    }
 }

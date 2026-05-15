@@ -170,7 +170,14 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
         # Route Admin/ERP users to the Public Domain
         if self.user.is_superuser or self.user.is_erp_user or self.user.groups.filter(name='SuperAdmin').exists():
             from tenants.models import Domain
-            public_domain = Domain.objects.filter(tenant__schema_name='public').first()
+            request = self.context.get('request')
+            current_host = request.get_host().split(':')[0] if request else 'localhost'
+            base_domain = '.'.join(current_host.split('.')[-2:]) if 'nip.io' not in current_host else '.'.join(current_host.split('.')[-5:])
+            
+            public_domain = Domain.objects.filter(tenant__schema_name='public', domain__icontains=base_domain).first()
+            if not public_domain:
+                public_domain = Domain.objects.filter(tenant__schema_name='public').first()
+                
             if public_domain:
                 data['domain_name'] = public_domain.domain
             else:
@@ -198,7 +205,15 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
                 if city:
                     data['sid'] = city.schema_name
                     data['city_name'] = city.name
-                    domain = Domain.objects.filter(tenant=city).first()
+                    
+                    request = self.context.get('request')
+                    current_host = request.get_host().split(':')[0] if request else 'localhost'
+                    base_domain = '.'.join(current_host.split('.')[-2:]) if 'nip.io' not in current_host else '.'.join(current_host.split('.')[-5:])
+                    
+                    domain = Domain.objects.filter(tenant=city, domain__icontains=base_domain).first()
+                    if not domain:
+                        domain = Domain.objects.filter(tenant=city).first()
+                        
                     data['domain_name'] = domain.domain if domain else None
                     
                     # If driver, find today's active route
