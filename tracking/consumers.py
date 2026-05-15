@@ -161,8 +161,19 @@ class TrackingConsumer(AsyncWebsocketConsumer):
                     
                     return base_trail + interpolated_segment
                 else:
-                    new_trail.cleaned_location = location_data
+                    # FIRST POINT of the trip: No context yet, but we still snap it to the 
+                    # nearest road to avoid an initial "raw" jump.
+                    from routing.services.osrm_client import snap_to_road
+                    snapped_lng, snapped_lat = snap_to_road(p_lng, p_lat)
+                    
+                    if HAS_GIS and Point:
+                        new_trail.cleaned_location = Point(snapped_lng, snapped_lat, srid=4326)
+                    else:
+                        new_trail.cleaned_location = {'lat': snapped_lat, 'lng': snapped_lng}
                     new_trail.save(update_fields=['cleaned_location'])
+                    
+                    # Add this single snapped point to coarse_history for the broadcast
+                    coarse_history.append([snapped_lng, snapped_lat])
                     return coarse_history
 
         except Exception as e:

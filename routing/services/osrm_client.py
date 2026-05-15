@@ -63,6 +63,23 @@ def _euclidean_matrix(stops: list[dict]) -> list[list[float]]:
     return matrix
 
 
+def snap_to_road(lng: float, lat: float) -> list[float]:
+    """
+    Snap a single coordinate to the nearest road.
+    Useful for the first point of a trip.
+    """
+    url = f'{OSRM_BASE_URL}/nearest/v1/driving/{lng},{lat}'
+    try:
+        resp = requests.get(url, params={'number': 1}, timeout=3)
+        resp.raise_for_status()
+        data = resp.json()
+        if data.get('code') == 'Ok' and data.get('waypoints'):
+            return data['waypoints'][0]['location']
+    except Exception as e:
+        print(f"[OSRM Nearest Error] {e}")
+    return [lng, lat]
+
+
 def match_trail(coordinates: list[list[float]], radiuses: list[float] = None) -> list[list[float]]:
     """
     Snap a list of coordinates to the nearest road using OSRM Matching API.
