@@ -12,10 +12,11 @@ echo "PostgreSQL is ready!"
 if [ "$RUN_MIGRATIONS" = "1" ]; then
     echo "--- STARTING SAFE MIGRATION FIX ---"
 
-    # Use fix_migrations.py which handles:
-    #   - Tables that already exist (--fake-initial)
-    #   - New model changes (makemigrations)
-    #   - Both shared + tenant schemas
+    # Use fix_migrations.py which:
+    #   - Applies migrations one by one using Django's Python API
+    #   - If a migration fails with "already exists", fakes ONLY that migration
+    #   - Continues to apply genuinely new migrations normally
+    #   - Handles both shared (public) + all tenant schemas
     python fix_migrations.py || {
         echo "fix_migrations.py reported errors — falling back to manual steps"
 
