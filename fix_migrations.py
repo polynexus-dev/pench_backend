@@ -59,6 +59,7 @@ def apply_all_pending(schema_label: str):
     executor = MigrationExecutor(connection)
     leaf_nodes = executor.loader.graph.leaf_nodes()
     plan = executor.migration_plan(leaf_nodes)
+    # plan is list of (Migration_object, is_backward) tuples
     forwards = [(m, b) for m, b in plan if not b]
 
     if not forwards:
@@ -69,8 +70,10 @@ def apply_all_pending(schema_label: str):
 
     applied = faked = failed = 0
 
-    for (app_label, mig_name), _ in forwards:
-        label = f"{app_label}.{mig_name}"
+    for migration, _ in forwards:
+        app_label = migration.app_label
+        mig_name  = migration.name
+        label     = f"{app_label}.{mig_name}"
 
         # Rebuild executor each loop so its state graph reflects
         # any migrations we just applied / faked above.
