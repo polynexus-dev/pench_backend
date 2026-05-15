@@ -12,22 +12,11 @@ echo "PostgreSQL is ready!"
 if [ "$RUN_MIGRATIONS" = "1" ]; then
     echo "--- STARTING SAFE MIGRATION FIX ---"
 
-    # Use fix_migrations.py which:
-    #   - Applies migrations one by one using Django's Python API
-    #   - If a migration fails with "already exists", fakes ONLY that migration
-    #   - Continues to apply genuinely new migrations normally
-    #   - Handles both shared (public) + all tenant schemas
-    python fix_migrations.py || {
-        echo "fix_migrations.py reported errors — falling back to manual steps"
-
-        # Fallback: shared migrate with fake-initial
-        python manage.py migrate_schemas --shared --fake-initial --noinput || \
-        python manage.py migrate_schemas --shared --noinput
-
-        # Fallback: tenant migrate with fake-initial
-        python manage.py migrate_schemas --tenant --fake-initial --noinput || \
-        python manage.py migrate_schemas --tenant --noinput
-    }
+    # fix_migrations.py uses Django's Python API directly.
+    # It applies each migration in a savepoint and fakes any that fail
+    # with "already exists" — no subprocess migrate_schemas calls at all.
+    python fix_migrations.py
+    echo "fix_migrations.py completed"
 
     # Bootstrap Public Tenant and Admin User
     echo "[*] Bootstrapping Public Tenant and Admin User..."
