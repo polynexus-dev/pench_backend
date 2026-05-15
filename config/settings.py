@@ -28,6 +28,8 @@ SHARED_APPS = [
     'tenants',
     'core',
     'accounts',
+    'django_extensions',
+    'schema_graph',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',

@@ -17,6 +17,33 @@ class RouteStatus(models.TextChoices):
     COMPLETED = 'completed', 'Completed'
     FAILED = 'failed', 'Failed'
 
+class Zone(BaseModel):
+    """
+    Geographic delivery zone within a city.
+    Each zone has a permanent driver assigned to it.
+    """
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    assigned_driver = models.ForeignKey(
+        'accounts.User', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True, 
+        related_name='assigned_zones',
+        help_text="The primary driver for this zone."
+    )
+    
+    if HAS_GIS:
+        boundary = gis_models.PolygonField(srid=4326, null=True, blank=True)
+    else:
+        boundary = models.JSONField(null=True, blank=True)
+        
+    is_active = models.BooleanField(default=True)
+
+    def __str__(self):
+        return f"Zone: {self.name} ({self.assigned_driver.get_full_name() if self.assigned_driver else 'No Driver'})"
+
+
 class Driver(BaseModel):
     user = models.OneToOneField(
         'accounts.User',
@@ -28,6 +55,13 @@ class Driver(BaseModel):
     max_capacity_kg = models.DecimalField(max_digits=8, decimal_places=2, default=500)
     is_available = models.BooleanField(default=True)
     on_trip = models.BooleanField(default=False)
+    zone = models.ForeignKey(
+        Zone, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True, 
+        related_name='driver_profiles'
+    )
 
     def __str__(self):
         return f'Driver: {self.user.get_full_name()} ({self.vehicle_plate})'

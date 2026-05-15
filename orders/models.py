@@ -26,6 +26,8 @@ class Order(BaseModel):
     delivery_notes = models.TextField(blank=True)
     total = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     pod_image = models.ImageField(upload_to='pod_images/', null=True, blank=True)
+    pod_latitude = models.DecimalField(max_digits=12, decimal_places=9, null=True, blank=True)
+    pod_longitude = models.DecimalField(max_digits=12, decimal_places=9, null=True, blank=True)
     delivered_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:

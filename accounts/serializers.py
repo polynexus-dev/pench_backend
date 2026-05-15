@@ -216,20 +216,20 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
                         
                     data['domain_name'] = domain.domain if domain else None
                     
-                    # If driver, find today's active route
+                    # If driver, find their active route from the NEW routing system
                     if self.user.is_driver:
                         from django_tenants.utils import schema_context
-                        import datetime
                         with schema_context(schema):
-                            from orders.models import Route
-                            # Look for the nearest upcoming active route (today or future)
-                            route = Route.objects.filter(
-                                driver=self.user,
-                                delivery_date__gte=datetime.date.today(),
-                                is_completed=False
-                            ).order_by('delivery_date').first()
-                            if route:
-                                data['active_route_id'] = str(route.id)
+                            from routing.models import Route, Driver
+                            # Find the driver profile first
+                            driver_profile = Driver.objects.filter(user=self.user).first()
+                            if driver_profile:
+                                route = Route.objects.filter(
+                                    driver=driver_profile,
+                                    status__in=['pending', 'in_progress']
+                                ).first()
+                                if route:
+                                    data['active_route_id'] = str(route.id)
         return data
 
 

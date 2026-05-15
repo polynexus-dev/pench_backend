@@ -57,13 +57,17 @@ class Subscription(BaseModel):
         """
         Logic to determine if a delivery should occur on a specific date.
         """
-        if self.status != SubscriptionStatus.ACTIVE or self.is_paused:
+        if self.status != SubscriptionStatus.ACTIVE:
             return False
             
-        # Check explicit pause range
+        # 1. Check for Vacation / Pause range first
         if self.pause_start and self.pause_end:
             if self.pause_start <= target_date <= self.pause_end:
                 return False
+        
+        # 2. Check for "Hard Pause" (is_paused is True but no dates set)
+        if self.is_paused and not (self.pause_start and self.pause_end):
+            return False
 
         # Check frequency
         weekday = target_date.weekday() # 0 = Monday

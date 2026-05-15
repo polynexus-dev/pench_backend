@@ -37,6 +37,13 @@ class Customer(BaseModel):
 
     notes = models.TextField(blank=True)
     is_active = models.BooleanField(default=True)
+    zone = models.ForeignKey(
+        'routing.Zone',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='customers'
+    )
     qr_code_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
 
     def save(self, *args, **kwargs):

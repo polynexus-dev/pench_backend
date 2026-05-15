@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django_tenants.admin import TenantAdminMixin
-from .models import City, Domain, Zone, HolidayCalendar
+from .models import City, Domain, HolidayCalendar
 
 
 class DomainInline(admin.TabularInline):
@@ -13,10 +13,6 @@ class CityAdmin(TenantAdminMixin, admin.ModelAdmin):
     list_display = ['name', 'state', 'code', 'is_active', 'schema_name']
     inlines = [DomainInline]
 
-
-@admin.register(Zone)
-class ZoneAdmin(admin.ModelAdmin):
-    list_display = ['name', 'is_active']
 
 
 @admin.register(HolidayCalendar)

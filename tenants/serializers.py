@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import City, Zone, HolidayCalendar
+from .models import City, HolidayCalendar
 
 
 class CitySerializer(serializers.ModelSerializer):
@@ -7,7 +7,7 @@ class CitySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = City
-        fields = ['id', 'schema_name', 'name', 'state', 'code', 'is_active', 'timezone', 'created_at']
+        fields = ['id', 'schema_name', 'name', 'state', 'code', 'boundary', 'is_active', 'timezone', 'created_at']
         read_only_fields = ['id', 'created_at']
 
     def create(self, validated_data):
@@ -19,11 +19,6 @@ class CitySerializer(serializers.ModelSerializer):
                 validated_data['schema_name'] = validated_data.get('code', '').lower()
         return super().create(validated_data)
 
-
-class ZoneSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Zone
-        fields = ['id', 'city', 'name', 'boundary', 'description', 'is_active']
 
 
 class HolidayCalendarSerializer(serializers.ModelSerializer):

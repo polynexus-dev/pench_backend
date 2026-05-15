@@ -1,15 +1,50 @@
 from rest_framework import serializers
 from rest_framework_gis.serializers import GeoFeatureModelSerializer
-from .models import Route, Driver, TrackingEvent, DailyReconciliation
+from .models import Route, Driver, TrackingEvent, DailyReconciliation, Zone
+
+
+class ZoneSerializer(serializers.ModelSerializer):
+    driver_name = serializers.CharField(source='assigned_driver.get_full_name', read_only=True)
+    
+    # Use GeometryField to correctly parse the GeoJSON from Postman
+    from rest_framework_gis.fields import GeometryField
+    boundary = GeometryField(required=False, allow_null=True)
+
+    class Meta:
+        model = Zone
+        fields = ['id', 'name', 'description', 'boundary', 'assigned_driver', 'driver_name', 'is_active']
+        read_only_fields = ['id', 'driver_name']
+
+    def validate(self, data):
+        from django.db import connection
+        from rest_framework import serializers
+        
+        boundary = data.get('boundary')
+        city = connection.tenant
+        
+        # Geofencing Validation
+        if boundary and city and hasattr(city, 'boundary') and city.boundary:
+            if not city.boundary.contains(boundary):
+                raise serializers.ValidationError({
+                    "boundary": f"This zone boundary is outside the permitted city limits for {city.name}."
+                })
+                
+        return data
+
+    def create(self, validated_data):
+        # Extra safety: ensure 'city' doesn't cause a TypeError
+        validated_data.pop('city', None)
+        return super().create(validated_data)
 
 
 class DriverSerializer(serializers.ModelSerializer):
     full_name = serializers.SerializerMethodField()
+    current_route = serializers.SerializerMethodField()
 
     class Meta:
         model = Driver
         fields = ['id', 'user', 'full_name', 'vehicle_plate', 'vehicle_type',
-                  'max_capacity_kg', 'is_available', 'on_trip']
+                  'max_capacity_kg', 'is_available', 'on_trip', 'zone', 'current_route']
 
     def get_full_name(self, obj):
         try:
@@ -17,15 +52,51 @@ class DriverSerializer(serializers.ModelSerializer):
         except Exception:
             return "User Profile Error"
 
+    def get_current_route(self, obj):
+        # Look for the most recent route that isn't completed or failed
+        route = obj.routes.filter(status__in=['pending', 'in_progress']).first()
+        return route.id if route else None
+
     def create(self, validated_data):
         from django.db import connection
+        from hr.models import Employee, Department
+        from django.utils import timezone
+        
+        zone = validated_data.get('zone')
         driver = super().create(validated_data)
         
-        # Sync the tenant_schema back to the User model in the public schema
+        # 1. Sync the tenant_schema back to the User model
         user = driver.user
         if user:
             user.tenant_schema = connection.schema_name
             user.save()
+            
+        # 2. Automatically create an Employee record in the HR module
+        logistics_dept, _ = Department.objects.get_or_create(
+            name="Logistics",
+            defaults={"description": "Fleet and delivery management."}
+        )
+        
+        # Generate a unique Employee ID for the driver
+        import random
+        emp_id = f"DRV-{timezone.now().year}-{random.randint(1000, 9999)}"
+        
+        Employee.objects.get_or_create(
+            user=user,
+            defaults={
+                "department": logistics_dept,
+                "job_title": "Delivery Driver",
+                "employee_id": emp_id,
+                "date_joined": timezone.now().date(),
+                "is_active": True
+            }
+        )
+            
+        # 3. If a zone was provided, set this driver as the primary driver for that zone
+        if zone:
+            zone.assigned_driver = user
+            zone.save()
+            
         return driver
 
 

@@ -22,6 +22,12 @@ class City(TenantMixin):
         default=False, 
         help_text='If enabled, drivers must upload a photo to mark an order as delivered.'
     )
+    
+    if HAS_GIS:
+        boundary = gis_models.PolygonField(srid=4326, null=True, blank=True, help_text='Geofencing boundary for this city.')
+    else:
+        boundary = models.JSONField(null=True, blank=True, help_text='GIS Disabled: Falling back to JSONField.')
+        
     created_at = models.DateTimeField(auto_now_add=True)
 
     # auto_create_schema=True by default in TenantMixin
@@ -42,24 +48,6 @@ class Domain(DomainMixin):
     """
     pass
 
-
-class Zone(BaseModel):
-    """
-    Geographic zone within a city schema.
-    """
-    city = models.ForeignKey(City, on_delete=models.CASCADE, related_name='zones', null=True, blank=True)
-    name = models.CharField(max_length=100)
-
-    if HAS_GIS:
-        boundary = gis_models.PolygonField(srid=4326, null=True, blank=True)
-    else:
-        boundary = models.TextField(null=True, blank=True, help_text='GIS Disabled: Falling back to TextField.')
-
-    description = models.TextField(blank=True)
-    is_active = models.BooleanField(default=True)
-
-    def __str__(self):
-        return self.name
 
 
 

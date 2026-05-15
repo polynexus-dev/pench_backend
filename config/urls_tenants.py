@@ -13,7 +13,7 @@ urlpatterns = [
         path('', include('crm.urls')),
         path('taxation/', include('taxation.urls')),
         path('orders/', include('orders.urls')),
-        path('subs/', include('subscriptions.urls')),
+        path('subscriptions/', include('subscriptions.urls')),
         path('inventory/', include('inventory.urls')),
         path('finance/', include('finance.urls')),
         path('hr/', include('hr.urls')),

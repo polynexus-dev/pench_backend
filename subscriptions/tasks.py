@@ -65,13 +65,19 @@ def generate_city_orders(target_date):
             skipped_count += 1
             continue
             
-        # 3. Create Order
+        # 3. Duplicate Prevention: Check if an order already exists for this sub and date
+        if Order.objects.filter(subscription=sub, scheduled_delivery_date=target_date).exists():
+            logger.info(f"Skipping: Order already exists for Sub {sub.id} on {target_date}")
+            skipped_count += 1
+            continue
+            
+        # 4. Create Order
         with transaction.atomic():
             order = Order.objects.create(
                 customer=sub.customer,
                 subscription=sub,
                 scheduled_delivery_date=target_date,
-                status=OrderStatus.CONFIRMED, # Auto-confirmed for subscriptions
+                status=OrderStatus.PENDING, # Starts as PENDING for admin review
                 delivery_address=sub.delivery_address or sub.customer.address,
                 delivery_notes=sub.special_instructions
             )

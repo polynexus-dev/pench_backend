@@ -3,10 +3,11 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from core.permissions import IsDriverOrReadOnly, IsERPUser
-from .models import Route, Driver, TrackingEvent, DailyReconciliation
+from .models import Route, Driver, TrackingEvent, DailyReconciliation, Zone
 from .serializers import (
     RouteSerializer, DriverSerializer, TrackingEventSerializer, 
-    DailyReconciliationSerializer, ReconcileActionSerializer
+    DailyReconciliationSerializer, ReconcileActionSerializer,
+    ZoneSerializer
 )
 from .tasks import optimize_route_task
 
@@ -138,3 +139,10 @@ class DailyReconciliationViewSet(viewsets.ModelViewSet):
             notes=ser.validated_data.get('notes', '')
         )
         return Response(DailyReconciliationSerializer(recon).data)
+
+
+class ZoneViewSet(viewsets.ModelViewSet):
+    queryset = Zone.objects.select_related('assigned_driver')
+    serializer_class = ZoneSerializer
+    permission_classes = [IsAuthenticated]
+    filterset_fields = ['is_active', 'assigned_driver']

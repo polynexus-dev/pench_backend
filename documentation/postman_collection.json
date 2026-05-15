@@ -64,7 +64,7 @@
                         },
                         "body": {
                             "mode": "raw",
-                            "raw": "{}"
+                            "raw": "{\n    \"username\": \"driver_name\",\n    \"phone\": \"9876543210\",\n    \"role\": \"Drivers\",\n    \"tenant_schema\": \"nagpur\",\n    \"vehicle_plate\": \"MH-31-AZ-1234\",\n    \"vehicle_type\": \"Mini Van\",\n    \"max_capacity_kg\": 500,\n    \"zone\": \"UUID_OF_ZONE\"\n}"
                         }
                     },
                     "response": [
@@ -795,7 +795,7 @@
                                 ],
                                 "body": {
                                     "mode": "raw",
-                                    "raw": "{\n    \"username\": \"superadmin\",\n    \"password\": \"password123\",\n    \"email\": \"super@example.com\",\n    \"phone\": \"9100000001\",\n    \"first_name\": \"Super\",\n    \"last_name\": \"Admin\",\n    \"role\": \"SuperAdmin\",\n    \"is_erp_user\": true\n}"
+                                    "raw": "{\n    \"username\": \"driver_name\",\n    \"phone\": \"9876543210\",\n    \"role\": \"Drivers\",\n    \"tenant_schema\": \"nagpur\",\n    \"vehicle_plate\": \"MH-31-AZ-1234\",\n    \"vehicle_type\": \"Mini Van\",\n    \"max_capacity_kg\": 500,\n    \"zone\": \"UUID_OF_ZONE\"\n}"
                                 },
                                 "url": {
                                     "raw": "{{base_url}}/api/accounts/register/",
@@ -868,7 +868,7 @@
                                 ],
                                 "body": {
                                     "mode": "raw",
-                                    "raw": "{\n    \"username\": \"staffuser\",\n    \"password\": \"password123\",\n    \"email\": \"staff@example.com\",\n    \"phone\": \"9100000002\",\n    \"first_name\": \"Staff\",\n    \"last_name\": \"User\",\n    \"role\": \"Staff\",\n    \"is_erp_user\": true\n}"
+                                    "raw": "{\n    \"username\": \"driver_name\",\n    \"phone\": \"9876543210\",\n    \"role\": \"Drivers\",\n    \"tenant_schema\": \"nagpur\",\n    \"vehicle_plate\": \"MH-31-AZ-1234\",\n    \"vehicle_type\": \"Mini Van\",\n    \"max_capacity_kg\": 500,\n    \"zone\": \"UUID_OF_ZONE\"\n}"
                                 },
                                 "url": {
                                     "raw": "{{base_url}}/api/accounts/register/",
@@ -941,7 +941,7 @@
                                 ],
                                 "body": {
                                     "mode": "raw",
-                                    "raw": "{\n    \"username\": \"manageruser\",\n    \"password\": \"password123\",\n    \"email\": \"manager@example.com\",\n    \"phone\": \"9100000003\",\n    \"first_name\": \"Manager\",\n    \"last_name\": \"User\",\n    \"role\": \"Managers\",\n    \"is_erp_user\": true\n}"
+                                    "raw": "{\n    \"username\": \"driver_name\",\n    \"phone\": \"9876543210\",\n    \"role\": \"Drivers\",\n    \"tenant_schema\": \"nagpur\",\n    \"vehicle_plate\": \"MH-31-AZ-1234\",\n    \"vehicle_type\": \"Mini Van\",\n    \"max_capacity_kg\": 500,\n    \"zone\": \"UUID_OF_ZONE\"\n}"
                                 },
                                 "url": {
                                     "raw": "{{base_url}}/api/accounts/register/",
@@ -1014,7 +1014,7 @@
                                 ],
                                 "body": {
                                     "mode": "raw",
-                                    "raw": "{\n    \"username\": \"driveruser\",\n    \"password\": \"password123\",\n    \"email\": \"driver@example.com\",\n    \"phone\": \"9100000004\",\n    \"first_name\": \"Driver\",\n    \"last_name\": \"User\",\n    \"role\": \"Drivers\",\n    \"is_driver\": true,\n    \"tenant_schema\": \"nagpur\"\n}"
+                                    "raw": "{\n    \"username\": \"driver_name\",\n    \"phone\": \"9876543210\",\n    \"role\": \"Drivers\",\n    \"tenant_schema\": \"nagpur\",\n    \"vehicle_plate\": \"MH-31-AZ-1234\",\n    \"vehicle_type\": \"Mini Van\",\n    \"max_capacity_kg\": 500,\n    \"zone\": \"UUID_OF_ZONE\"\n}"
                                 },
                                 "url": {
                                     "raw": "{{base_url}}/api/accounts/register/",
@@ -1087,7 +1087,7 @@
                                 ],
                                 "body": {
                                     "mode": "raw",
-                                    "raw": "{\n    \"username\": \"customeruser\",\n    \"password\": \"password123\",\n    \"email\": \"customer@example.com\",\n    \"phone\": \"9100000005\",\n    \"role\": \"Customers\",\n    \"is_customer\": true,\n    \"tenant_schema\": \"nagpur\"\n}"
+                                    "raw": "{\n    \"username\": \"driver_name\",\n    \"phone\": \"9876543210\",\n    \"role\": \"Drivers\",\n    \"tenant_schema\": \"nagpur\",\n    \"vehicle_plate\": \"MH-31-AZ-1234\",\n    \"vehicle_type\": \"Mini Van\",\n    \"max_capacity_kg\": 500,\n    \"zone\": \"UUID_OF_ZONE\"\n}"
                                 },
                                 "url": {
                                     "raw": "{{base_url}}/api/accounts/register/",
@@ -2549,17 +2549,16 @@
                                 "method": "POST",
                                 "body": {
                                     "mode": "raw",
-                                    "raw": "{\n    \"city\": 1,\n    \"name\": \"North Zone\",\n    \"description\": \"Covering the northern suburb area\",\n    \"boundary\": {\n        \"type\": \"Polygon\",\n        \"coordinates\": [\n            [\n                [\n                    72.8777,\n                    19.076\n                ],\n                [\n                    72.9,\n                    19.076\n                ],\n                [\n                    72.9,\n                    19.1\n                ],\n                [\n                    72.8777,\n                    19.1\n                ],\n                [\n                    72.8777,\n                    19.076\n                ]\n            ]\n        ]\n    }\n}"
+                                    "raw": "{\n    \"name\": \"North Zone\",\n    \"description\": \"Covering the northern suburb area\",\n    \"boundary\": {\n        \"type\": \"Polygon\",\n        \"coordinates\": [\n            [\n                [\n                    72.8777,\n                    19.076\n                ],\n                [\n                    72.9,\n                    19.076\n                ],\n                [\n                    72.9,\n                    19.1\n                ],\n                [\n                    72.8777,\n                    19.1\n                ],\n                [\n                    72.8777,\n                    19.076\n                ]\n            ]\n        ]\n    }\n}"
                                 },
                                 "url": {
-                                    "raw": "{{city_url}}/api/erp/tenants/zones/",
+                                    "raw": "{{city_url}}/api/ems/zones/",
                                     "host": [
                                         "{{city_url}}"
                                     ],
                                     "path": [
                                         "api",
-                                        "erp",
-                                        "tenants",
+                                        "ems",
                                         "zones"
                                     ],
                                     "query": []
@@ -6691,7 +6690,7 @@
                                 ],
                                 "body": {
                                     "mode": "raw",
-                                    "raw": "{}"
+                                    "raw": "{\n    \"username\": \"driver_name\",\n    \"phone\": \"9876543210\",\n    \"role\": \"Drivers\",\n    \"tenant_schema\": \"nagpur\",\n    \"vehicle_plate\": \"MH-31-AZ-1234\",\n    \"vehicle_type\": \"Mini Van\",\n    \"max_capacity_kg\": 500,\n    \"zone\": \"UUID_OF_ZONE\"\n}"
                                 },
                                 "url": {
                                     "raw": "{{city_url}}/api/ems/drivers/",

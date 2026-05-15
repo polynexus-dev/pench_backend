@@ -80,6 +80,8 @@ class OrderViewSet(viewsets.ModelViewSet):
         order = self.get_object()
         bottles_returned = int(request.data.get('bottles_returned', 0))
         pod_image = request.FILES.get('pod_image')
+        pod_lat = request.data.get('pod_latitude')
+        pod_lon = request.data.get('pod_longitude')
         
         # Check if POD is required for this tenant
         from administration.models import AdminConfiguration
@@ -97,7 +99,11 @@ class OrderViewSet(viewsets.ModelViewSet):
             order.delivered_at = timezone.now()
             if pod_image:
                 order.pod_image = pod_image
-            order.save(update_fields=['status', 'delivered_at', 'pod_image'])
+            if pod_lat:
+                order.pod_latitude = pod_lat
+            if pod_lon:
+                order.pod_longitude = pod_lon
+            order.save(update_fields=['status', 'delivered_at', 'pod_image', 'pod_latitude', 'pod_longitude'])
             
             from inventory.services import record_bottle_transaction
             from inventory.models import BottleTransactionType
@@ -347,11 +353,19 @@ class DriverViewSet(viewsets.ViewSet):
         One-tap delivery submission for the driver.
         pk is the Order ID.
         """
-        # Logic is similar to OrderViewSet.mark_delivered but optimized for driver context
-        order_viewset = OrderViewSet()
-        order_viewset.request = request
-        order_viewset.kwargs = {'pk': pk}
-        return order_viewset.mark_delivered(request, pk=pk)
+        from django_tenants.utils import schema_context
+        from django.db import connection
+        
+        user = request.user
+        schema = user.tenant_schema
+        context_schema = schema if connection.schema_name == 'public' and schema else connection.schema_name
+        
+        with schema_context(context_schema):
+            # Logic is similar to OrderViewSet.mark_delivered but optimized for driver context
+            order_viewset = OrderViewSet()
+            order_viewset.request = request
+            order_viewset.kwargs = {'pk': pk}
+            return order_viewset.mark_delivered(request, pk=pk)
 
     @action(detail=False, methods=['get'], url_path='resolve-qr/(?P<qr_id>[^/.]+)')
     def resolve_qr(self, request, qr_id=None):
