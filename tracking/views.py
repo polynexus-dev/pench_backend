@@ -74,16 +74,31 @@ class DriverLocationViewSet(viewsets.ReadOnlyModelViewSet):
             loc = t.cleaned_location or t.location
             coords.append([loc.x, loc.y])
         
+        # Generate continuous curved road geometry using OSRM Route
+        from routing.services.osrm_client import get_road_route
+        
+        # OSRM has a limit on waypoints in the URL (usually 100)
+        # Downsample coordinates if there are too many, OSRM will route between them anyway
+        if len(coords) > 90:
+            step = len(coords) // 90 + 1
+            sampled_coords = coords[::step]
+            if sampled_coords[-1] != coords[-1]:
+                sampled_coords.append(coords[-1])
+        else:
+            sampled_coords = coords
+            
+        route_coords = get_road_route(sampled_coords) if len(sampled_coords) > 1 else coords
+        
         # If only one point, we can't make a LineString, return a Point
-        if len(coords) < 2:
+        if len(route_coords) < 2:
             geometry = {
                 "type": "Point",
-                "coordinates": coords[0] if coords else [0,0]
+                "coordinates": route_coords[0] if route_coords else [0,0]
             }
         else:
             geometry = {
                 "type": "LineString",
-                "coordinates": coords
+                "coordinates": route_coords
             }
 
         return Response({

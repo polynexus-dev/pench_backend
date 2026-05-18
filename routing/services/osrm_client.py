@@ -47,8 +47,8 @@ def build_distance_matrix(stops: list[dict]) -> list[list[float]]:
         logger.debug('OSRM matrix fetched: %dx%d', len(matrix), len(matrix[0]))
         return matrix
 
-    except requests.RequestException as exc:
-        logger.error('OSRM request failed: %s — falling back.', exc)
+    except Exception as exc:
+        logger.error('OSRM matrix failed: %s — falling back.', exc)
         if base_url != FALLBACK_OSRM_URL:
             trigger_osrm_fallback()
             return build_distance_matrix(stops) # Retry once with public fallback
@@ -82,7 +82,9 @@ def snap_to_road(lng: float, lat: float) -> list[float]:
         data = resp.json()
         if data.get('code') == 'Ok' and data.get('waypoints'):
             return data['waypoints'][0]['location']
-    except requests.RequestException as e:
+        else:
+            raise RuntimeError(f"OSRM code not Ok: {data.get('code')}")
+    except Exception as e:
         print(f"[OSRM Nearest Error] {e}")
         if base_url != FALLBACK_OSRM_URL:
             trigger_osrm_fallback()
@@ -118,8 +120,7 @@ def match_trail(coordinates: list[list[float]], radiuses: list[float] = None) ->
         data = resp.json()
 
         if data.get('code') != 'Ok':
-            print(f"[OSRM ERROR] {data.get('code')}: {data.get('message')}")
-            return coordinates
+            raise RuntimeError(f"OSRM code not Ok: {data.get('code')}: {data.get('message')}")
 
         matchings = data.get('matchings', [])
         if matchings and 'geometry' in matchings[0]:
@@ -133,8 +134,8 @@ def match_trail(coordinates: list[list[float]], radiuses: list[float] = None) ->
                 snapped.append(coordinates[len(snapped)])
         return snapped
 
-    except requests.RequestException as exc:
-        print(f"[OSRM Match Request Error] {exc}")
+    except Exception as exc:
+        print(f"[OSRM Match Error] {exc}")
         if base_url != FALLBACK_OSRM_URL:
             trigger_osrm_fallback()
             return match_trail(coordinates, radiuses) # Retry once with public fallback
@@ -167,8 +168,10 @@ def get_road_route(coordinates: list[list[float]]) -> list[list[float]]:
         
         if data.get('code') == 'Ok' and 'routes' in data and len(data['routes']) > 0:
             return data['routes'][0]['geometry']['coordinates']
-    except requests.RequestException as e:
-        logger.error(f"[OSRM Route Request Error] {e}")
+        else:
+            raise RuntimeError(f"OSRM code not Ok: {data.get('code')}")
+    except Exception as e:
+        logger.error(f"[OSRM Route Error] {e}")
         if base_url != FALLBACK_OSRM_URL:
             trigger_osrm_fallback()
             return get_road_route(coordinates) # Retry once with public fallback

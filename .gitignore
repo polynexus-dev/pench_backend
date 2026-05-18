@@ -56,6 +56,7 @@ build/
 # Migration helpers (one-off)
 reset_migratiosn.py
 clean_migrations.py
+# fix_migrations.py
 
 # Data seeding / demo generation
 create_dummy_data.py
@@ -71,6 +72,7 @@ list_pune_customers.py
 fix_admin.py
 fix_duplicates.py
 find_all_duplicates.py
+scratch_analyze_db.py
 
 # Simulation / testing scripts
 simulate_tracking.py
