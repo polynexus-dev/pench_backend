@@ -150,6 +150,25 @@ def get_road_route(coordinates: list[list[float]]) -> list[list[float]]:
     if len(coordinates) < 2:
         return coordinates
 
+    # OSRM has coordinate limits (usually 100) and URL length limits. Chunk if necessary.
+    max_chunk_size = 50
+    if len(coordinates) > max_chunk_size:
+        full_route = []
+        for i in range(0, len(coordinates) - 1, max_chunk_size - 1):
+            chunk = coordinates[i:i + max_chunk_size]
+            if len(chunk) < 2:
+                break
+            
+            chunk_route = get_road_route(chunk)
+            
+            # Append the chunk route. Avoid duplicating the overlapping point.
+            if not full_route:
+                full_route.extend(chunk_route)
+            else:
+                full_route.extend(chunk_route[1:])
+                
+        return full_route
+
     # OSRM expects coordinates as lon,lat (note: lon first)
     coords_str = ';'.join(f"{lng},{lat}" for lng, lat in coordinates)
     base_url = get_osrm_base_url()
