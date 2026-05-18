@@ -181,20 +181,30 @@ class LoginOTPView(APIView):
                     
                 response_data['tenant_domain'] = domain.domain if domain else None
                 
-                # If driver, find their active route from the NEW routing system
+                # If driver, find their active route
                 if user.is_driver:
                     from django_tenants.utils import schema_context
                     with schema_context(user.tenant_schema):
-                        from routing.models import Route, Driver
-                        # Find the driver profile first
-                        driver_profile = Driver.objects.filter(user=user).first()
-                        if driver_profile:
-                            route = Route.objects.filter(
-                                driver=driver_profile,
-                                status__in=['pending', 'in_progress']
-                            ).first()
-                            if route:
-                                response_data['active_route_id'] = str(route.id)
+                        # 1. Search in the delivery routing system (used by the mobile app's stop schedule)
+                        from orders.models import Route as OrdersRoute
+                        route = OrdersRoute.objects.filter(
+                            driver=user,
+                            is_completed=False
+                        ).order_by('delivery_date').first()
+                        
+                        if route:
+                            response_data['active_route_id'] = str(route.id)
+                        else:
+                            # 2. Fallback to the new routing system
+                            from routing.models import Route as RoutingRoute, Driver
+                            driver_profile = Driver.objects.filter(user=user).first()
+                            if driver_profile:
+                                r_route = RoutingRoute.objects.filter(
+                                    driver=driver_profile,
+                                    status__in=['pending', 'in_progress']
+                                ).first()
+                                if r_route:
+                                    response_data['active_route_id'] = str(r_route.id)
         
         return Response(response_data)
 

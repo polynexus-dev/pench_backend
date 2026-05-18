@@ -249,10 +249,9 @@ class DriverViewSet(viewsets.ViewSet):
         context_schema = schema if connection.schema_name == 'public' and schema else connection.schema_name
         
         with schema_context(context_schema):
-            # Look for the nearest upcoming active route (today or future)
+            # Look for the oldest incomplete active route
             route = Route.objects.filter(
                 driver=user,
-                delivery_date__gte=datetime.date.today(),
                 is_completed=False
             ).prefetch_related('stops__order__customer').order_by('delivery_date').first()
             

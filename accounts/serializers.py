@@ -225,20 +225,30 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
                         
                     data['domain_name'] = domain.domain if domain else None
                     
-                    # If driver, find their active route from the NEW routing system
+                    # If driver, find their active route
                     if self.user.is_driver:
                         from django_tenants.utils import schema_context
                         with schema_context(schema):
-                            from routing.models import Route, Driver
-                            # Find the driver profile first
-                            driver_profile = Driver.objects.filter(user=self.user).first()
-                            if driver_profile:
-                                route = Route.objects.filter(
-                                    driver=driver_profile,
-                                    status__in=['pending', 'in_progress']
-                                ).first()
-                                if route:
-                                    data['active_route_id'] = str(route.id)
+                            # 1. Search in the delivery routing system (used by the mobile app's stop schedule)
+                            from orders.models import Route as OrdersRoute
+                            route = OrdersRoute.objects.filter(
+                                driver=self.user,
+                                is_completed=False
+                            ).order_by('delivery_date').first()
+                            
+                            if route:
+                                data['active_route_id'] = str(route.id)
+                            else:
+                                # 2. Fallback to the new routing system
+                                from routing.models import Route as RoutingRoute, Driver
+                                driver_profile = Driver.objects.filter(user=self.user).first()
+                                if driver_profile:
+                                    r_route = RoutingRoute.objects.filter(
+                                        driver=driver_profile,
+                                        status__in=['pending', 'in_progress']
+                                    ).first()
+                                    if r_route:
+                                        data['active_route_id'] = str(r_route.id)
         return data
 
 
