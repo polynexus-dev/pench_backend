@@ -35,3 +35,9 @@ To create a route:
 ## 6. Inventory Control
 - **Products**: Add new products and set categories.
 - **Bottle Tracking**: Monitor "Issued" vs. "Returned" bottles for each customer to ensure asset recovery.
+
+## 7. Live Tracking & Reconnection Resiliency
+The real-time vehicle and driver tracking dashboard features advanced state restoration and connectivity buffering:
+- **Zero-Loss Tracking**: If a driver's mobile app or the admin's tracking browser suffers a temporary network disconnection, the system automatically keeps previous trail segments stored in the database.
+- **Auto-Restoration**: As soon as connection is re-established, the backend pushes the entire active day's trail instantly. The map recovers and updates immediately, preventing any trail data from being wiped or showing up as blank.
+- **Live Diagnostics**: The dashboard shows a real-time connection status light (`Live Connected` vs `Disconnected`) so admins always know they are seeing up-to-the-second data.

@@ -28,6 +28,13 @@ class TrackingConsumer(AsyncWebsocketConsumer):
         await self.accept()
         print("[WS Connect] ACCEPTED")
 
+        if self.user.is_staff:
+            initial_state = await self.get_initial_state()
+            await self.send(text_data=json.dumps({
+                "type": "initial_state",
+                "drivers": initial_state
+            }))
+
     async def disconnect(self, close_code):
         if hasattr(self, 'user') and self.user.is_staff:
             await self.channel_layer.group_discard("admins", self.channel_name)
@@ -178,5 +185,57 @@ class TrackingConsumer(AsyncWebsocketConsumer):
 
         except Exception as e:
             print(f"[DB Sync Error] {str(e)}")
+            traceback.print_exc()
+            return []
+
+    @database_sync_to_async
+    def get_initial_state(self):
+        try:
+            if not self.tenant or self.tenant.schema_name == 'public':
+                return []
+
+            with schema_context(self.tenant.schema_name):
+                from django.utils import timezone
+                from datetime import timedelta
+                
+                time_threshold = timezone.now() - timedelta(hours=12)
+                
+                # Fetch all active driver locations updated in the last 12 hours
+                active_locations = DriverLocation.objects.select_related('user').filter(
+                    updated_at__gte=time_threshold
+                )
+                
+                drivers_state = []
+                for loc in active_locations:
+                    driver = loc.user
+                    
+                    # Fetch their trail
+                    trails = DriverTrail.objects.filter(
+                        user=driver,
+                        timestamp__gte=time_threshold
+                    ).order_by('timestamp')
+                    
+                    trail_points = []
+                    for t in trails:
+                        point_loc = t.cleaned_location or t.location
+                        if hasattr(point_loc, 'x'):
+                            trail_points.append([point_loc.x, point_loc.y])
+                        elif isinstance(point_loc, dict):
+                            trail_points.append([point_loc.get('lng'), point_loc.get('lat')])
+                    
+                    # Snapped lat/lng of current position
+                    current_lat = loc.location.y if hasattr(loc.location, 'y') else loc.location.get('lat')
+                    current_lng = loc.location.x if hasattr(loc.location, 'x') else loc.location.get('lng')
+                    
+                    drivers_state.append({
+                        "driver_id": str(driver.id),
+                        "driver_name": driver.get_full_name() or driver.username,
+                        "lat": current_lat,
+                        "lng": current_lng,
+                        "trail": trail_points
+                    })
+                return drivers_state
+        except Exception as e:
+            print(f"[Initial State Error] {str(e)}")
             traceback.print_exc()
             return []

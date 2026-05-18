@@ -308,6 +308,13 @@
                 const data = JSON.parse(e.data);
                 if (data.type === 'broadcast_location') {
                     updateDriverOnMap(data);
+                } else if (data.type === 'initial_state') {
+                    addLog(`Received initial state with ${data.drivers ? data.drivers.length : 0} active drivers`);
+                    if (data.drivers && data.drivers.length > 0) {
+                        data.drivers.forEach(driver => {
+                            updateDriverOnMap(driver);
+                        });
+                    }
                 }
             };
 
