@@ -238,10 +238,10 @@ class SetPasswordSerializer(serializers.Serializer):
 
 
 class ForgotPasswordSerializer(serializers.Serializer):
-    email = serializers.EmailField()
+    phone = serializers.CharField(max_length=20)
 
 
 class ResetPasswordSerializer(serializers.Serializer):
-    token = serializers.CharField()
-    uidb64 = serializers.CharField()
+    phone = serializers.CharField(max_length=20)
+    code = serializers.CharField(max_length=6)
     new_password = serializers.CharField(write_only=True, min_length=8)

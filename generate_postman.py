@@ -74,6 +74,8 @@ def generate_collection():
                     {"name": "GET Me (Profile)", "request": {"method": "GET", "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}], "url": make_url("{{base_url}}/api/accounts/me/")}},
                     {"name": "POST Request OTP", "request": {"method": "POST", "header": [{"key": "Content-Type", "value": "application/json"}], "body": {"mode": "raw", "raw": json.dumps({"phone": "918000000101"}, indent=4)}, "url": make_url("{{base_url}}/api/accounts/request-otp/")}},
                     {"name": "POST Login OTP", "request": {"method": "POST", "header": [{"key": "Content-Type", "value": "application/json"}], "body": {"mode": "raw", "raw": json.dumps({"phone": "918000000101", "code": "123456"}, indent=4)}, "url": make_url("{{base_url}}/api/accounts/login-otp/")}},
+                    {"name": "POST Forgot Password OTP", "request": {"method": "POST", "header": [{"key": "Content-Type", "value": "application/json"}], "body": {"mode": "raw", "raw": json.dumps({"phone": "918000000101"}, indent=4)}, "url": make_url("{{base_url}}/api/accounts/forgot-password/")}},
+                    {"name": "POST Reset Password OTP", "request": {"method": "POST", "header": [{"key": "Content-Type", "value": "application/json"}], "body": {"mode": "raw", "raw": json.dumps({"phone": "918000000101", "code": "123456", "new_password": "NewSecurePassword123"}, indent=4)}, "url": make_url("{{base_url}}/api/accounts/reset-password/")}},
                     {
                         "name": "User Registration (Templates)",
                         "item": [

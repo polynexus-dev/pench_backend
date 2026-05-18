@@ -215,36 +215,52 @@ class ForgotPasswordView(APIView):
     def post(self, request):
         serializer = ForgotPasswordSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        email = serializer.validated_data['email']
+        phone = serializer.validated_data['phone']
         
-        user = User.objects.filter(email=email).first()
-        if user:
-            token_generator = PasswordResetTokenGenerator()
-            token = token_generator.make_token(user)
-            uidb64 = urlsafe_base64_encode(force_bytes(user.pk))
+        # 1. Check if User already exists in Public Schema
+        user = User.objects.filter(phone=phone).first()
+        
+        # 2. If not found, search across ALL tenant schemas (same as RequestOTPView)
+        if not user:
+            from crm.models import Customer
+            from tenants.models import City
+            from django_tenants.utils import schema_context
             
-            # Construct reset link (in a real app, this would be a frontend URL)
-            # For now, we point to a placeholder
-            reset_link = f"http://localhost:3000/reset-password?uidb64={uidb64}&token={token}"
+            # Iterate through all cities to find this customer
+            for city in City.objects.exclude(schema_name='public'):
+                with schema_context(city.schema_name):
+                    customer = Customer.objects.filter(phone=phone).first()
+                    if customer:
+                        # Found them! Create the public User account
+                        username = phone # Use phone as username for easy login
+                        user = User.objects.create(
+                            username=username,
+                            phone=phone,
+                            is_customer=True,
+                            tenant_schema=city.schema_name,
+                            first_name=customer.name
+                        )
+                        # Link the customer in the tenant schema to the new public user
+                        customer.user = user
+                        customer.save()
+                        print(f"Global Search: Found {customer.name} in {city.name}. Linked to new User {username}")
+                        break # Stop searching other cities
             
-            context = {
-                'city_name': 'Smart Dairy ERP',
-                'reset_link': reset_link,
-            }
+            if not user:
+                return Response(
+                    {"error": "No customer found with this phone number in any city."}, 
+                    status=status.HTTP_404_NOT_FOUND
+                )
+        
+        # 3. Generate and return OTP
+        otp_obj = generate_otp(phone)
+        
+        response_data = {
+            "message": "OTP for password reset sent successfully.",
+            "otp": otp_obj.code
+        }
             
-            html_message = render_to_string('emails/password_reset.html', context)
-            
-            # Send email (prints to console by default if not configured)
-            send_mail(
-                subject='Password Reset Request',
-                message=f'Reset your password here: {reset_link}',
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[email],
-                html_message=html_message
-            )
-            
-        # We return success regardless of whether the email exists for security
-        return Response({"message": "If an account exists with this email, a reset link has been sent."})
+        return Response(response_data)
 
 
 class ResetPasswordView(APIView):
@@ -253,20 +269,41 @@ class ResetPasswordView(APIView):
     def post(self, request):
         serializer = ResetPasswordSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        phone = serializer.validated_data['phone']
+        code = serializer.validated_data['code']
+        new_password = serializer.validated_data['new_password']
         
-        try:
-            uid = force_str(urlsafe_base64_decode(serializer.validated_data['uidb64']))
-            user = User.objects.get(pk=uid)
-        except (TypeError, ValueError, OverflowError, User.DoesNotExist):
-            user = None
+        # 1. Validate OTP
+        otp = OTP.objects.filter(
+            phone=phone, 
+            code=code, 
+            is_used=False,
+            expires_at__gt=timezone.now()
+        ).first()
+        
+        if not otp:
+            return Response(
+                {"error": "Invalid or expired OTP."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # 2. Get User
+        user = User.objects.filter(phone=phone).first()
+        if not user:
+            return Response(
+                {"error": "User with this phone number does not exist."}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
             
-        token_generator = PasswordResetTokenGenerator()
-        if user and token_generator.check_token(user, serializer.validated_data['token']):
-            user.set_password(serializer.validated_data['new_password'])
-            user.save()
-            return Response({"message": "Password reset successfully."})
-        else:
-            return Response({"error": "Invalid or expired token."}, status=status.HTTP_400_BAD_REQUEST)
+        # 3. Mark OTP as used
+        otp.is_used = True
+        otp.save()
+        
+        # 4. Set new password
+        user.set_password(new_password)
+        user.save()
+        
+        return Response({"message": "Password reset successfully."})
 class UserListView(generics.ListAPIView):
     queryset = User.objects.all().order_by('-date_joined')
     serializer_class = UserSerializer
