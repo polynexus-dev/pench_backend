@@ -97,40 +97,31 @@ class TrackingConsumer(AsyncWebsocketConsumer):
                 else:
                     location_data = {'lat': p_lat, 'lng': p_lng}
                 
-                # 1. Update current live position
+                # 1. Snap the raw point immediately to the nearest road
+                from routing.services.osrm_client import snap_to_road
+                snapped_lng, snapped_lat = snap_to_road(p_lng, p_lat)
+                
+                if HAS_GIS and Point:
+                    location_data = Point(p_lng, p_lat, srid=4326)
+                    cleaned_location_data = Point(snapped_lng, snapped_lat, srid=4326)
+                else:
+                    location_data = {'lat': p_lat, 'lng': p_lng}
+                    cleaned_location_data = {'lat': snapped_lat, 'lng': snapped_lng}
+                
+                # 2. Update current live position (using snapped location for precision)
                 DriverLocation.objects.update_or_create(
                     user_id=self.user.id,
-                    defaults={'location': location_data}
+                    defaults={'location': cleaned_location_data}
                 )
                 
-                # 2. Get the previous raw point for context (if any)
-                prev_trail = DriverTrail.objects.filter(user_id=self.user.id).order_by('-timestamp').first()
-                
-                # 3. Create the new trail record (raw)
-                new_trail = DriverTrail.objects.create(
+                # 3. Create the new trail record (raw location + snapped cleaned_location)
+                DriverTrail.objects.create(
                     user_id=self.user.id,
-                    location=location_data
+                    location=location_data,
+                    cleaned_location=cleaned_location_data
                 )
 
-                # 4. Snap to road using a SLIDING WINDOW of recent raw points for better context
-                from routing.services.osrm_client import match_trail
-                
-                def get_coords(loc):
-                    if hasattr(loc, 'x'): return [loc.x, loc.y]
-                    if isinstance(loc, dict): return [loc.get('lng'), loc.get('lat')]
-                    return [0, 0]
-
-                # Get the last 4 raw points to provide context for the current one (Total 5 points)
-                context_points = DriverTrail.objects.filter(
-                    user_id=self.user.id
-                ).order_by('-timestamp')[1:5] # Skip the one we just created
-                
-                # Convert to [lng, lat] and reverse to get chronological order
-                coords_to_match = [get_coords(p.location) for p in reversed(context_points)]
-                coords_to_match.append([p_lng, p_lat])
-                
-                # 5. FETCH HISTORY + MERGE WITH INTERPOLATED PATH
-                # We fetch the coarse historical points from DB
+                # 4. Fetch history and build continuous street-snapped route path
                 from django.utils import timezone
                 from datetime import timedelta
                 
@@ -146,42 +137,19 @@ class TrackingConsumer(AsyncWebsocketConsumer):
                     if isinstance(loc, dict): return [loc.get('lng'), loc.get('lat')]
                     return [0, 0]
 
-                coarse_history = [get_cleaned_coords(t) for t in historical_trails]
+                snapped_coords = [get_cleaned_coords(t) for t in historical_trails]
                 
-                if len(coords_to_match) >= 2:
-                    radiuses = [30.0] * len(coords_to_match)
-                    interpolated_segment = match_trail(coords_to_match, radiuses=radiuses)
-                    
-                    # Update current point in DB
-                    snapped_lng, snapped_lat = interpolated_segment[-1]
-                    if HAS_GIS and Point:
-                        new_trail.cleaned_location = Point(snapped_lng, snapped_lat, srid=4326)
-                    else:
-                        new_trail.cleaned_location = {'lat': snapped_lat, 'lng': snapped_lng}
-                    new_trail.save(update_fields=['cleaned_location'])
-
-                    # MERGE: Take the history, but replace the last few points with the 
-                    # high-resolution interpolated road geometry for a "pro" look.
-                    # We remove the last N points from history that are covered by the interpolation
-                    overlap_count = len(coords_to_match)
-                    base_trail = coarse_history[:-overlap_count] if len(coarse_history) > overlap_count else []
-                    
-                    return base_trail + interpolated_segment
+                # Filter out consecutive duplicates to prevent redundant OSRM routing calls
+                unique_coords = []
+                for coord in snapped_coords:
+                    if not unique_coords or unique_coords[-1] != coord:
+                        unique_coords.append(coord)
+                        
+                if len(unique_coords) >= 2:
+                    from routing.services.osrm_client import get_road_route
+                    return get_road_route(unique_coords)
                 else:
-                    # FIRST POINT of the trip: No context yet, but we still snap it to the 
-                    # nearest road to avoid an initial "raw" jump.
-                    from routing.services.osrm_client import snap_to_road
-                    snapped_lng, snapped_lat = snap_to_road(p_lng, p_lat)
-                    
-                    if HAS_GIS and Point:
-                        new_trail.cleaned_location = Point(snapped_lng, snapped_lat, srid=4326)
-                    else:
-                        new_trail.cleaned_location = {'lat': snapped_lat, 'lng': snapped_lng}
-                    new_trail.save(update_fields=['cleaned_location'])
-                    
-                    # Add this single snapped point to coarse_history for the broadcast
-                    coarse_history.append([snapped_lng, snapped_lat])
-                    return coarse_history
+                    return unique_coords
 
         except Exception as e:
             print(f"[DB Sync Error] {str(e)}")
@@ -222,6 +190,19 @@ class TrackingConsumer(AsyncWebsocketConsumer):
                             trail_points.append([point_loc.x, point_loc.y])
                         elif isinstance(point_loc, dict):
                             trail_points.append([point_loc.get('lng'), point_loc.get('lat')])
+                    
+                    # Filter out consecutive duplicates to optimize OSRM payload
+                    unique_coords = []
+                    for coord in trail_points:
+                        if not unique_coords or unique_coords[-1] != coord:
+                            unique_coords.append(coord)
+                            
+                    # Route along streets to avoid straight-line jumps cutting through blocks
+                    if len(unique_coords) >= 2:
+                        from routing.services.osrm_client import get_road_route
+                        trail_points = get_road_route(unique_coords)
+                    else:
+                        trail_points = unique_coords
                     
                     # Snapped lat/lng of current position
                     current_lat = loc.location.y if hasattr(loc.location, 'y') else loc.location.get('lat')

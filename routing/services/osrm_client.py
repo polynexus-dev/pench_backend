@@ -4,33 +4,36 @@ from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
+# --- OSRM URL RESOLUTION WITH AUTO-SWITCHING FALLBACK ---
 OSRM_BASE_URL = getattr(settings, 'OSRM_BASE_URL', 'https://osrm.polynexus.in')
+FALLBACK_OSRM_URL = 'https://osrm.polynexus.in'
+_use_fallback = False
+
+def get_osrm_base_url() -> str:
+    global _use_fallback
+    if _use_fallback:
+        return FALLBACK_OSRM_URL
+    return OSRM_BASE_URL
+
+def trigger_osrm_fallback():
+    global _use_fallback
+    if not _use_fallback and OSRM_BASE_URL != FALLBACK_OSRM_URL:
+        print(f"\n[OSRM Client] Connection failed to {OSRM_BASE_URL}. Switching globally to public fallback {FALLBACK_OSRM_URL}...")
+        _use_fallback = True
 
 
 def build_distance_matrix(stops: list[dict]) -> list[list[float]]:
     """
     Fetch a driving duration matrix from OSRM for a list of stops.
-
     Uses: GET /table/v1/driving/{coordinates}
-    Public OSRM endpoint: router.project-osrm.org
-
-    Args:
-        stops: List of dicts with 'lat' and 'lon' keys.
-               stops[0] is treated as the depot (warehouse).
-
-    Returns:
-        NxN matrix of durations in seconds (float).
-        Falls back to Euclidean distances if OSRM call fails.
-
-    Raises:
-        RuntimeError if the OSRM response is malformed.
     """
     if len(stops) < 2:
         raise ValueError('At least 2 stops (depot + 1 delivery) are required.')
 
     # OSRM expects coordinates as lon,lat (note: lon first)
     coords_str = ';'.join(f"{s['lon']},{s['lat']}" for s in stops)
-    url = f'{OSRM_BASE_URL}/table/v1/driving/{coords_str}'
+    base_url = get_osrm_base_url()
+    url = f'{base_url}/table/v1/driving/{coords_str}'
 
     try:
         resp = requests.get(url, params={'annotations': 'duration'}, timeout=10)
@@ -45,7 +48,10 @@ def build_distance_matrix(stops: list[dict]) -> list[list[float]]:
         return matrix
 
     except requests.RequestException as exc:
-        logger.error('OSRM request failed: %s — falling back to Euclidean.', exc)
+        logger.error('OSRM request failed: %s — falling back.', exc)
+        if base_url != FALLBACK_OSRM_URL:
+            trigger_osrm_fallback()
+            return build_distance_matrix(stops) # Retry once with public fallback
         return _euclidean_matrix(stops)
 
 
@@ -68,22 +74,25 @@ def snap_to_road(lng: float, lat: float) -> list[float]:
     Snap a single coordinate to the nearest road.
     Useful for the first point of a trip.
     """
-    url = f'{OSRM_BASE_URL}/nearest/v1/driving/{lng},{lat}'
+    base_url = get_osrm_base_url()
+    url = f'{base_url}/nearest/v1/driving/{lng},{lat}'
     try:
         resp = requests.get(url, params={'number': 1}, timeout=3)
         resp.raise_for_status()
         data = resp.json()
         if data.get('code') == 'Ok' and data.get('waypoints'):
             return data['waypoints'][0]['location']
-    except Exception as e:
+    except requests.RequestException as e:
         print(f"[OSRM Nearest Error] {e}")
+        if base_url != FALLBACK_OSRM_URL:
+            trigger_osrm_fallback()
+            return snap_to_road(lng, lat) # Retry once with public fallback
     return [lng, lat]
 
 
 def match_trail(coordinates: list[list[float]], radiuses: list[float] = None) -> list[list[float]]:
     """
     Snap a list of coordinates to the nearest road using OSRM Matching API.
-    
     Returns the FULL geometry (interpolated points) of the matched path.
     """
     if len(coordinates) < 2:
@@ -91,7 +100,8 @@ def match_trail(coordinates: list[list[float]], radiuses: list[float] = None) ->
 
     # OSRM expects coordinates as lon,lat (note: lon first)
     coords_str = ';'.join(f"{lng},{lat}" for lng, lat in coordinates)
-    url = f'{OSRM_BASE_URL}/match/v1/driving/{coords_str}'
+    base_url = get_osrm_base_url()
+    url = f'{base_url}/match/v1/driving/{coords_str}'
 
     params = {
         'overview': 'full',
@@ -111,13 +121,10 @@ def match_trail(coordinates: list[list[float]], radiuses: list[float] = None) ->
             print(f"[OSRM ERROR] {data.get('code')}: {data.get('message')}")
             return coordinates
 
-        # matchings[0].geometry contains the full road path (interpolated points)
         matchings = data.get('matchings', [])
         if matchings and 'geometry' in matchings[0]:
-            # This returns all points along the road curves
             return matchings[0]['geometry']['coordinates']
 
-        # Fallback to tracepoints if geometry is missing
         snapped = []
         for point in data.get('tracepoints', []):
             if point and 'location' in point:
@@ -127,5 +134,42 @@ def match_trail(coordinates: list[list[float]], radiuses: list[float] = None) ->
         return snapped
 
     except requests.RequestException as exc:
-        print(f"[OSRM Request Error] {exc}")
+        print(f"[OSRM Match Request Error] {exc}")
+        if base_url != FALLBACK_OSRM_URL:
+            trigger_osrm_fallback()
+            return match_trail(coordinates, radiuses) # Retry once with public fallback
         return coordinates
+
+
+def get_road_route(coordinates: list[list[float]]) -> list[list[float]]:
+    """
+    Given a list of coordinates, routes them sequentially along the street network
+    using the OSRM Route API to return a continuous street-based path.
+    """
+    if len(coordinates) < 2:
+        return coordinates
+
+    # OSRM expects coordinates as lon,lat (note: lon first)
+    coords_str = ';'.join(f"{lng},{lat}" for lng, lat in coordinates)
+    base_url = get_osrm_base_url()
+    url = f"{base_url}/route/v1/driving/{coords_str}"
+    
+    params = {
+        'overview': 'full',
+        'geometries': 'geojson',
+        'continue_straight': 'false'
+    }
+    
+    try:
+        resp = requests.get(url, params=params, timeout=5)
+        resp.raise_for_status()
+        data = resp.json()
+        
+        if data.get('code') == 'Ok' and 'routes' in data and len(data['routes']) > 0:
+            return data['routes'][0]['geometry']['coordinates']
+    except requests.RequestException as e:
+        logger.error(f"[OSRM Route Request Error] {e}")
+        if base_url != FALLBACK_OSRM_URL:
+            trigger_osrm_fallback()
+            return get_road_route(coordinates) # Retry once with public fallback
+    return coordinates
