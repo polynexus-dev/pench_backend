@@ -29,18 +29,25 @@ services:
     ports:
       - "8083:8083"
     environment:
+      - SECRET_KEY=${SECRET_KEY:-django-insecure-docker-dev-key-change-in-prod}
       - DEBUG=1
+      - HAS_GDAL=True                              # GDAL is installed in this image
       - DB_NAME=delivery_erp
       - DB_USER=postgres
       - DB_PASSWORD=admin
       - DB_HOST=db
       - DB_PORT=5432
       - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - ALLOWED_HOSTS=.pench.api.polynexus.in,13.235.143.251,localhost,127.0.0.1
+      - CORS_ALLOW_ALL_ORIGINS=True
       - RUN_MIGRATIONS=1
       - PUBLIC_DOMAIN=pench.api.polynexus.in
-      - GDAL_LIBRARY_PATH=
+      - GDAL_LIBRARY_PATH=                         # Let Django auto-detect on Linux
       - GEOS_LIBRARY_PATH=
+    volumes:
+      - media_data:/app/media                      # Persist uploaded media across restarts
     depends_on:
       db:
         condition: service_healthy
@@ -51,12 +58,16 @@ services:
     build: .
     command: celery -A config worker -l info
     environment:
+      - SECRET_KEY=${SECRET_KEY:-django-insecure-docker-dev-key-change-in-prod}
+      - HAS_GDAL=True
       - DB_NAME=delivery_erp
       - DB_USER=postgres
       - DB_PASSWORD=admin
       - DB_HOST=db
       - DB_PORT=5432
       - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - GDAL_LIBRARY_PATH=
       - GEOS_LIBRARY_PATH=
     depends_on:
@@ -64,24 +75,36 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      web:
+        condition: service_started           # Wait for web (migrations) to begin first
 
   beat:
     build: .
-    command: celery -A config beat -l info
+    command: celery -A config beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
     environment:
+      - SECRET_KEY=${SECRET_KEY:-django-insecure-docker-dev-key-change-in-prod}
+      - HAS_GDAL=True
       - DB_NAME=delivery_erp
       - DB_USER=postgres
       - DB_PASSWORD=admin
       - DB_HOST=db
       - DB_PORT=5432
       - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - GDAL_LIBRARY_PATH=
       - GEOS_LIBRARY_PATH=
+    volumes:
+      - beat_data:/app/beat                        # Persist celerybeat-schedule file
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
+      web:
+        condition: service_started
 
 volumes:
   postgres_data:
+  media_data:
+  beat_data:

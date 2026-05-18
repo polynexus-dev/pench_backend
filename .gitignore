@@ -49,15 +49,61 @@ build/
 # Cache
 **/__pycache__/
 
-# Docker Build (Already on VM)
-Dockerfile
-docker-compose.yml
+# ──────────────────────────────────────────────────────────────
+# One-off Debug / Demo / Utility Scripts (not part of the app)
+# ──────────────────────────────────────────────────────────────
 
-# Maintenance Scripts
-fix_admin.py
+# Migration helpers (one-off)
+reset_migratiosn.py
+clean_migrations.py
+
+# Data seeding / demo generation
+create_dummy_data.py
+generate_comprehensive_demo.py
+setup_vm_test.py
+
+# Debugging scripts
+debug_qr.py
+scan_all_qr.py
 check_table.py
+check_trails.py
+list_pune_customers.py
+fix_admin.py
+fix_duplicates.py
+find_all_duplicates.py
 
-# Documents
-documentation/
-#######
+# Simulation / testing scripts
+simulate_tracking.py
+test_consumer_logic.py
+test_websocket_trail.py
+
+# API/Postman doc generator (generated output, not source)
+generate_postman.py
+
+# Frontend debug HTML
+tracking_viewer.html
+
+# ──────────────────────────────────────────────────────────────
+# Binary / Large Files
+# ──────────────────────────────────────────────────────────────
+
+# GDAL Windows wheel (46 MB — install from pip instead)
+*.whl
+
+# Celery beat schedule (runtime binary state file)
+celerybeat-schedule
+
+# Project images / design assets
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+
+# ──────────────────────────────────────────────────────────────
+# Docker (managed separately on the VM)
+# ──────────────────────────────────────────────────────────────
+# Dockerfile
+# docker-compose.yml
+
 
