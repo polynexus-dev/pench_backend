@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from django.contrib.auth.models import Group
+from django.contrib.auth.models import Group, Permission
+from django.contrib.contenttypes.models import ContentType
 from .models import User
 
 
@@ -8,6 +9,7 @@ class UserSerializer(serializers.ModelSerializer):
     customer_dashboard = serializers.SerializerMethodField()
     groups = serializers.SerializerMethodField()
     role = serializers.SerializerMethodField()
+    user_permissions = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -15,6 +17,7 @@ class UserSerializer(serializers.ModelSerializer):
             'id', 'username', 'email', 'first_name', 'last_name',
             'is_erp_user', 'is_driver', 'is_customer', 'portal', 'phone',
             'tenant_schema', 'groups', 'role', 'customer_dashboard',
+            'user_permissions',
         ]
         read_only_fields = ['id', 'is_erp_user', 'is_driver', 'is_customer', 'portal', 'tenant_schema']
 
@@ -77,6 +80,12 @@ class UserSerializer(serializers.ModelSerializer):
         if obj.is_customer:
             return "Customer"
         return "User"
+
+    def get_user_permissions(self, obj):
+        return [
+            {"id": p.id, "name": p.name, "codename": p.codename}
+            for p in obj.user_permissions.all()
+        ]
 
 
 class UserCreateSerializer(serializers.ModelSerializer):
@@ -245,3 +254,43 @@ class ResetPasswordSerializer(serializers.Serializer):
     phone = serializers.CharField(max_length=20)
     code = serializers.CharField(max_length=6)
     new_password = serializers.CharField(write_only=True, min_length=8)
+
+
+class PermissionSerializer(serializers.ModelSerializer):
+    content_type = serializers.PrimaryKeyRelatedField(
+        queryset=ContentType.objects.all(),
+        required=False,
+        allow_null=True
+    )
+    content_type_name = serializers.CharField(source='content_type.app_label', read_only=True)
+
+    class Meta:
+        model = Permission
+        fields = ['id', 'name', 'codename', 'content_type', 'content_type_name']
+        validators = []  # Disable UniqueTogetherValidator to allow content_type to be optional
+
+    def create(self, validated_data):
+        if not validated_data.get('content_type'):
+            # Default ContentType to User
+            user_content_type = ContentType.objects.get_for_model(User)
+            validated_data['content_type'] = user_content_type
+        return super().create(validated_data)
+
+
+class GroupSerializer(serializers.ModelSerializer):
+    permissions = serializers.PrimaryKeyRelatedField(
+        many=True,
+        queryset=Permission.objects.all(),
+        required=False
+    )
+    permissions_detail = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = Group
+        fields = ['id', 'name', 'permissions', 'permissions_detail']
+
+    def get_permissions_detail(self, obj):
+        return [
+            {"id": p.id, "name": p.name, "codename": p.codename}
+            for p in obj.permissions.all()
+        ]

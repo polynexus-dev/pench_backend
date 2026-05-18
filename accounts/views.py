@@ -1,6 +1,7 @@
-from rest_framework import generics, permissions, status
+from rest_framework import generics, permissions, status, viewsets
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework.decorators import action
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 from django.utils import timezone
@@ -10,12 +11,14 @@ from django.utils.encoding import force_bytes, force_str
 from django.template.loader import render_to_string
 from django.core.mail import send_mail
 from django.conf import settings
+from django.contrib.auth.models import Group, Permission
 from .models import User, OTP
 from .serializers import (
     UserSerializer, UserCreateSerializer, 
     RequestOTPSerializer, LoginOTPSerializer,
     MyTokenObtainPairSerializer, SetPasswordSerializer,
-    ForgotPasswordSerializer, ResetPasswordSerializer
+    ForgotPasswordSerializer, ResetPasswordSerializer,
+    PermissionSerializer, GroupSerializer
 )
 from .utils import generate_otp
 
@@ -304,12 +307,17 @@ class ResetPasswordView(APIView):
         user.save()
         
         return Response({"message": "Password reset successfully."})
-class UserListView(generics.ListAPIView):
+class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all().order_by('-date_joined')
     serializer_class = UserSerializer
     permission_classes = [permissions.IsAuthenticated]
     filterset_fields = ['tenant_schema', 'is_driver', 'is_customer', 'is_erp_user', 'is_staff', 'is_superuser']
     search_fields = ['username', 'first_name', 'last_name', 'email', 'phone']
+
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return UserCreateSerializer
+        return UserSerializer
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -317,3 +325,74 @@ class UserListView(generics.ListAPIView):
         if group_name:
             queryset = queryset.filter(groups__name=group_name)
         return queryset
+
+    @action(detail=True, methods=['post'], url_path='assign-permissions')
+    def assign_permissions(self, request, pk=None):
+        user = self.get_object()
+        permission_ids = request.data.get('permission_ids', [])
+        if not isinstance(permission_ids, list):
+            return Response({"error": "permission_ids must be a list of IDs."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        valid_permissions = Permission.objects.filter(id__in=permission_ids)
+        if len(valid_permissions) != len(permission_ids):
+            found_ids = list(valid_permissions.values_list('id', flat=True))
+            missing_ids = list(set(permission_ids) - set(found_ids))
+            return Response({"error": f"Invalid permission IDs: {missing_ids}"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        user.user_permissions.set(valid_permissions)
+        return Response({
+            "message": f"Successfully assigned {len(valid_permissions)} permissions to user {user.username}.",
+            "permissions": [{"id": p.id, "codename": p.codename} for p in user.user_permissions.all()]
+        })
+
+    @action(detail=True, methods=['post'], url_path='assign-groups')
+    def assign_groups(self, request, pk=None):
+        user = self.get_object()
+        group_ids = request.data.get('group_ids', [])
+        if not isinstance(group_ids, list):
+            return Response({"error": "group_ids must be a list of IDs."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        valid_groups = Group.objects.filter(id__in=group_ids)
+        if len(valid_groups) != len(group_ids):
+            found_ids = list(valid_groups.values_list('id', flat=True))
+            missing_ids = list(set(group_ids) - set(found_ids))
+            return Response({"error": f"Invalid group IDs: {missing_ids}"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        user.groups.set(valid_groups)
+        return Response({
+            "message": f"Successfully assigned {len(valid_groups)} groups to user {user.username}.",
+            "groups": [g.name for g in user.groups.all()]
+        })
+
+
+class PermissionViewSet(viewsets.ModelViewSet):
+    queryset = Permission.objects.all().order_by('id')
+    serializer_class = PermissionSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    search_fields = ['name', 'codename']
+
+
+class GroupViewSet(viewsets.ModelViewSet):
+    queryset = Group.objects.all().order_by('id')
+    serializer_class = GroupSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    search_fields = ['name']
+
+    @action(detail=True, methods=['post'], url_path='assign-permissions')
+    def assign_permissions(self, request, pk=None):
+        group = self.get_object()
+        permission_ids = request.data.get('permission_ids', [])
+        if not isinstance(permission_ids, list):
+            return Response({"error": "permission_ids must be a list of IDs."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        valid_permissions = Permission.objects.filter(id__in=permission_ids)
+        if len(valid_permissions) != len(permission_ids):
+            found_ids = list(valid_permissions.values_list('id', flat=True))
+            missing_ids = list(set(permission_ids) - set(found_ids))
+            return Response({"error": f"Invalid permission IDs: {missing_ids}"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        group.permissions.set(valid_permissions)
+        return Response({
+            "message": f"Successfully assigned {len(valid_permissions)} permissions to group {group.name}.",
+            "permissions": [{"id": p.id, "codename": p.codename} for p in group.permissions.all()]
+        })
