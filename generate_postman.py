@@ -139,6 +139,127 @@ def generate_collection():
                         }
                         print(f"[-] Injected zone field to {req.get('name')} in collection.")
 
+    # 4. Make sure Folder 02 "Platform & Tenants" -> "Cities (City)" -> POST Create City & PATCH Update City use formdata with exact keys
+    platform_folder = None
+    for folder in coll.get("item", []):
+        if "02. Platform & Tenants" in folder.get("name", ""):
+            platform_folder = folder
+            break
+            
+    if platform_folder:
+        for item in platform_folder.get("item", []):
+            if "Cities (City)" in item.get("name", ""):
+                for req in item.get("item", []):
+                    if req.get("name") in ["POST Create City", "PATCH Update City"]:
+                        req["request"]["body"] = {
+                            "mode": "formdata",
+                            "formdata": [
+                                {
+                                    "key": "name",
+                                    "value": "Nagpur Test City",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "schema_name",
+                                    "value": "nagpur_test",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "state",
+                                    "value": "Maharashtra",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "code",
+                                    "value": "NGP_TEST",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "timezone",
+                                    "value": "Asia/Kolkata",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "boundary",
+                                    "value": json.dumps({
+                                        "type": "Polygon",
+                                        "coordinates": [
+                                            [
+                                                [79.0, 21.0],
+                                                [79.2, 21.0],
+                                                [79.2, 21.2],
+                                                [79.0, 21.2],
+                                                [79.0, 21.0]
+                                            ]
+                                        ]
+                                    }),
+                                    "type": "text",
+                                    "description": "Optional: raw GeoJSON string for city boundaries."
+                                },
+                                {
+                                    "key": "boundary_file",
+                                    "type": "file",
+                                    "description": "Select .geojson, .kml, or .zip shapefile to upload city boundaries."
+                                }
+                            ]
+                        }
+                        print(f"[-] Injected formdata and key/values to {req.get('name')} in collection.")
+
+    # 5. Make sure Folder 02 "Platform & Tenants" -> "Zones (Zone)" -> POST Create Zone & PATCH Update Zone use formdata with exact keys
+    if platform_folder:
+        for item in platform_folder.get("item", []):
+            if "Zones (Zone)" in item.get("name", ""):
+                for req in item.get("item", []):
+                    if req.get("name") in ["POST Create Zone", "PATCH Update Zone"]:
+                        req["request"]["body"] = {
+                            "mode": "formdata",
+                            "formdata": [
+                                {
+                                    "key": "name",
+                                    "value": "Nagpur Inside Sector 1",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "description",
+                                    "value": "High-priority residential delivery sector",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "assigned_driver",
+                                    "value": "",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "is_active",
+                                    "value": "true",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "boundary",
+                                    "value": json.dumps({
+                                        "type": "Polygon",
+                                        "coordinates": [
+                                            [
+                                                [79.05, 21.05],
+                                                [79.15, 21.05],
+                                                [79.15, 21.15],
+                                                [79.05, 21.15],
+                                                [79.05, 21.05]
+                                            ]
+                                        ]
+                                    }),
+                                    "type": "text",
+                                    "description": "Optional: raw GeoJSON string for zone boundaries."
+                                },
+                                {
+                                    "key": "boundary_file",
+                                    "type": "file",
+                                    "description": "Select .geojson, .kml, or .zip shapefile to upload zone boundaries."
+                                }
+                            ]
+                        }
+                        print(f"[-] Injected formdata and key/values to {req.get('name')} in collection.")
+
     with open("documentation/postman_collection.json", "w") as f:
         json.dump(coll, f, indent=4)
     print(f"Permanent Master Collection {collection_name} generated successfully.")

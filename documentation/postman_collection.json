@@ -2219,8 +2219,45 @@
                                     }
                                 ],
                                 "body": {
-                                    "mode": "raw",
-                                    "raw": "{\n    \"name\": \"Nagpur\",\n    \"schema_name\": \"nagpur\"\n}"
+                                    "mode": "formdata",
+                                    "formdata": [
+                                        {
+                                            "key": "name",
+                                            "value": "Nagpur Test City",
+                                            "type": "text"
+                                        },
+                                        {
+                                            "key": "schema_name",
+                                            "value": "nagpur_test",
+                                            "type": "text"
+                                        },
+                                        {
+                                            "key": "state",
+                                            "value": "Maharashtra",
+                                            "type": "text"
+                                        },
+                                        {
+                                            "key": "code",
+                                            "value": "NGP_TEST",
+                                            "type": "text"
+                                        },
+                                        {
+                                            "key": "timezone",
+                                            "value": "Asia/Kolkata",
+                                            "type": "text"
+                                        },
+                                        {
+                                            "key": "boundary",
+                                            "value": "{\"type\": \"Polygon\", \"coordinates\": [[[79.0, 21.0], [79.2, 21.0], [79.2, 21.2], [79.0, 21.2], [79.0, 21.0]]]}",
+                                            "type": "text",
+                                            "description": "Optional: raw GeoJSON string for city boundaries."
+                                        },
+                                        {
+                                            "key": "boundary_file",
+                                            "type": "file",
+                                            "description": "Select .geojson, .kml, or .zip shapefile to upload city boundaries."
+                                        }
+                                    ]
                                 },
                                 "url": {
                                     "raw": "{{base_url}}/api/erp/tenants/cities/",
@@ -2367,8 +2404,45 @@
                                     }
                                 ],
                                 "body": {
-                                    "mode": "raw",
-                                    "raw": "{\n    \"name\": \"Nagpur\",\n    \"schema_name\": \"nagpur\"\n}"
+                                    "mode": "formdata",
+                                    "formdata": [
+                                        {
+                                            "key": "name",
+                                            "value": "Nagpur Test City",
+                                            "type": "text"
+                                        },
+                                        {
+                                            "key": "schema_name",
+                                            "value": "nagpur_test",
+                                            "type": "text"
+                                        },
+                                        {
+                                            "key": "state",
+                                            "value": "Maharashtra",
+                                            "type": "text"
+                                        },
+                                        {
+                                            "key": "code",
+                                            "value": "NGP_TEST",
+                                            "type": "text"
+                                        },
+                                        {
+                                            "key": "timezone",
+                                            "value": "Asia/Kolkata",
+                                            "type": "text"
+                                        },
+                                        {
+                                            "key": "boundary",
+                                            "value": "{\"type\": \"Polygon\", \"coordinates\": [[[79.0, 21.0], [79.2, 21.0], [79.2, 21.2], [79.0, 21.2], [79.0, 21.0]]]}",
+                                            "type": "text",
+                                            "description": "Optional: raw GeoJSON string for city boundaries."
+                                        },
+                                        {
+                                            "key": "boundary_file",
+                                            "type": "file",
+                                            "description": "Select .geojson, .kml, or .zip shapefile to upload city boundaries."
+                                        }
+                                    ]
                                 },
                                 "url": {
                                     "raw": "{{base_url}}/api/erp/tenants/cities/{{last_id}}/",
@@ -2943,8 +3017,40 @@
                             "request": {
                                 "method": "POST",
                                 "body": {
-                                    "mode": "raw",
-                                    "raw": "{\n    \"name\": \"North Zone\",\n    \"description\": \"Covering the northern suburb area\",\n    \"boundary\": {\n        \"type\": \"Polygon\",\n        \"coordinates\": [\n            [\n                [\n                    72.8777,\n                    19.076\n                ],\n                [\n                    72.9,\n                    19.076\n                ],\n                [\n                    72.9,\n                    19.1\n                ],\n                [\n                    72.8777,\n                    19.1\n                ],\n                [\n                    72.8777,\n                    19.076\n                ]\n            ]\n        ]\n    }\n}"
+                                    "mode": "formdata",
+                                    "formdata": [
+                                        {
+                                            "key": "name",
+                                            "value": "Nagpur Inside Sector 1",
+                                            "type": "text"
+                                        },
+                                        {
+                                            "key": "description",
+                                            "value": "High-priority residential delivery sector",
+                                            "type": "text"
+                                        },
+                                        {
+                                            "key": "assigned_driver",
+                                            "value": "",
+                                            "type": "text"
+                                        },
+                                        {
+                                            "key": "is_active",
+                                            "value": "true",
+                                            "type": "text"
+                                        },
+                                        {
+                                            "key": "boundary",
+                                            "value": "{\"type\": \"Polygon\", \"coordinates\": [[[79.05, 21.05], [79.15, 21.05], [79.15, 21.15], [79.05, 21.15], [79.05, 21.05]]]}",
+                                            "type": "text",
+                                            "description": "Optional: raw GeoJSON string for zone boundaries."
+                                        },
+                                        {
+                                            "key": "boundary_file",
+                                            "type": "file",
+                                            "description": "Select .geojson, .kml, or .zip shapefile to upload zone boundaries."
+                                        }
+                                    ]
                                 },
                                 "url": {
                                     "raw": "{{city_url}}/api/ems/zones/",
