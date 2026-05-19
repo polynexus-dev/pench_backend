@@ -37,6 +37,13 @@ class DriverTrail(models.Model):
         on_delete=models.CASCADE,
         related_name='trails'
     )
+    route = models.ForeignKey(
+        'routing.Route',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='driver_trails'
+    )
     
     if HAS_GIS:
         location = gis_models.PointField(srid=4326)

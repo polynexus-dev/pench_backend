@@ -123,8 +123,13 @@ def match_trail(coordinates: list[list[float]], radiuses: list[float] = None) ->
             raise RuntimeError(f"OSRM code not Ok: {data.get('code')}: {data.get('message')}")
 
         matchings = data.get('matchings', [])
-        if matchings and 'geometry' in matchings[0]:
-            return matchings[0]['geometry']['coordinates']
+        if matchings:
+            all_coords = []
+            for m in matchings:
+                if 'geometry' in m and 'coordinates' in m['geometry']:
+                    all_coords.extend(m['geometry']['coordinates'])
+            if all_coords:
+                return all_coords
 
         snapped = []
         for point in data.get('tracepoints', []):
