@@ -13,24 +13,96 @@ class DriverLocationSerializer(serializers.ModelSerializer):
     lat = serializers.FloatField(source='location.y', read_only=True)
     lng = serializers.FloatField(source='location.x', read_only=True)
     trail = serializers.SerializerMethodField()
+    distance_km = serializers.SerializerMethodField()
+    planned_route = serializers.SerializerMethodField()
 
     class Meta:
         model = DriverLocation
-        fields = ['id', 'user', 'driver_name', 'lat', 'lng', 'trail', 'updated_at']
+        fields = ['id', 'user', 'driver_name', 'lat', 'lng', 'trail', 'distance_km', 'planned_route', 'updated_at']
 
     def get_trail(self, obj):
-        import datetime
-        today = datetime.date.today()
-        trails = DriverTrail.objects.filter(
-            user=obj.user,
-            timestamp__date=today
-        ).order_by('timestamp')
+        from routing.models import Route, RouteStatus
+        active_route = Route.objects.filter(
+            driver__user_id=obj.user.id,
+            status=RouteStatus.IN_PROGRESS
+        ).first()
         
-        # Use pre-cleaned location if available, otherwise raw
-        return [
-            [t.cleaned_location.x, t.cleaned_location.y] if t.cleaned_location else [t.location.x, t.location.y]
-            for t in trails
-        ]
+        if active_route:
+            trails = DriverTrail.objects.filter(
+                user=obj.user,
+                route=active_route
+            ).order_by('timestamp')
+        else:
+            import datetime
+            today = datetime.date.today()
+            trails = DriverTrail.objects.filter(
+                user=obj.user,
+                route__isnull=True,
+                timestamp__date=today
+            ).order_by('timestamp')
+        
+        # Robust coordinates coordinate extraction for GIS / non-GIS setups
+        def get_coords(t):
+            loc = t.cleaned_location or t.location
+            if hasattr(loc, 'x'): return [loc.x, loc.y]
+            if isinstance(loc, dict): return [loc.get('lng'), loc.get('lat')]
+            return [0, 0]
+            
+        return [get_coords(t) for t in trails]
+
+    def get_distance_km(self, obj):
+        trail_coords = self.get_trail(obj)
+        if not trail_coords or len(trail_coords) < 2:
+            return 0.0
+        
+        import math
+        def calc_dist(lon1, lat1, lon2, lat2):
+            lon1, lat1, lon2, lat2 = map(math.radians, [lon1, lat1, lon2, lat2])
+            dlon = lon2 - lon1 
+            dlat = lat2 - lat1 
+            a = math.sin(dlat/2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon/2)**2
+            c = 2 * math.asin(math.sqrt(a)) 
+            return c * 6371000
+
+        total_dist = 0.0
+        for i in range(len(trail_coords) - 1):
+            total_dist += calc_dist(
+                trail_coords[i][0], trail_coords[i][1],
+                trail_coords[i+1][0], trail_coords[i+1][1]
+            )
+        return round(total_dist / 1000.0, 2)
+
+    def get_planned_route(self, obj):
+        from routing.models import Route, RouteStatus
+        active_route = Route.objects.filter(
+            driver__user_id=obj.user.id,
+            status=RouteStatus.IN_PROGRESS
+        ).first()
+        
+        if not active_route or not active_route.geometry:
+            return []
+            
+        geom = active_route.geometry
+        if hasattr(geom, 'coords'):
+            return list(geom.coords)
+        elif isinstance(geom, str):
+            try:
+                import json
+                parsed = json.loads(geom)
+                if isinstance(parsed, dict) and 'coordinates' in parsed:
+                    return parsed['coordinates']
+            except Exception:
+                pass
+            try:
+                pts = []
+                for part in geom.replace('LINESTRING', '').replace('(', '').replace(')', '').strip().split(','):
+                    coord = part.strip().split()
+                    if len(coord) >= 2:
+                        pts.append([float(coord[0]), float(coord[1])])
+                return pts
+            except Exception:
+                pass
+        return []
 
 
 class DriverLocationViewSet(viewsets.ReadOnlyModelViewSet):
@@ -45,40 +117,107 @@ class DriverLocationViewSet(viewsets.ReadOnlyModelViewSet):
     def trail(self, request, pk=None):
         """
         Returns the historical trail of a driver as GeoJSON LineString.
+        Supports filtering by `route_id`, active route, or `date`.
         """
         location_obj = self.get_object()
         driver = location_obj.user
         
+        route_id = request.query_params.get('route_id')
         date_str = request.query_params.get('date')
-        if date_str:
-            date = datetime.datetime.strptime(date_str, '%Y-%m-%d').date()
+        route_info = ""
+        route_obj = None
+        
+        if route_id:
+            from routing.models import Route
+            route_obj = Route.objects.filter(id=route_id).first()
+            trails = DriverTrail.objects.filter(
+                user=driver,
+                route_id=route_id
+            ).order_by('timestamp')
+            route_info = f"Route #{route_id}"
+        elif not date_str:
+            # Default: try to fetch the current active route's trail first
+            from routing.models import Route, RouteStatus
+            active_route = Route.objects.filter(
+                driver__user_id=driver.id,
+                status=RouteStatus.IN_PROGRESS
+            ).first()
+            route_obj = active_route
+            if active_route:
+                trails = DriverTrail.objects.filter(
+                    user=driver,
+                    route=active_route
+                ).order_by('timestamp')
+                route_info = f"Active Route #{active_route.id}"
+            else:
+                # Fall back to today's date-based trail (route-less)
+                date = datetime.date.today()
+                trails = DriverTrail.objects.filter(
+                    user=driver,
+                    timestamp__date=date
+                ).order_by('timestamp')
+                route_info = f"Date: {date}"
         else:
-            date = datetime.date.today()
-
-        # Fetch all points for this driver on this day
-        trails = DriverTrail.objects.filter(
-            user=driver,
-            timestamp__date=date
-        ).order_by('timestamp')
+            date = datetime.datetime.strptime(date_str, '%Y-%m-%d').date()
+            trails = DriverTrail.objects.filter(
+                user=driver,
+                timestamp__date=date
+            ).order_by('timestamp')
+            route_info = f"Date: {date}"
 
         if not trails.exists():
             return Response({
                 "type": "Feature",
                 "geometry": None,
-                "properties": {"message": "No trail found for this date."}
+                "properties": {"message": "No trail found.", "info": route_info}
             })
 
-        # Build coordinates using the pre-cleaned data from DB
+        # Planned route coordinates extraction
+        planned_coords = []
+        if route_obj and route_obj.geometry:
+            geom = route_obj.geometry
+            if hasattr(geom, 'coords'):
+                planned_coords = list(geom.coords)
+            elif isinstance(geom, str):
+                try:
+                    import json
+                    parsed = json.loads(geom)
+                    if isinstance(parsed, dict) and 'coordinates' in parsed:
+                        planned_coords = parsed['coordinates']
+                except Exception:
+                    pass
+                if not planned_coords:
+                    try:
+                        pts = []
+                        for part in geom.replace('LINESTRING', '').replace('(', '').replace(')', '').strip().split(','):
+                            coord = part.strip().split()
+                            if len(coord) >= 2:
+                                pts.append([float(coord[0]), float(coord[1])])
+                        planned_coords = pts
+                    except Exception:
+                        pass
+
+        # Build coordinates using pre-cleaned data from DB
         coords = []
         for t in trails:
             loc = t.cleaned_location or t.location
-            coords.append([loc.x, loc.y])
-        
-        # Generate continuous curved road geometry using OSRM Route
-        from routing.services.osrm_client import get_road_route
+            if hasattr(loc, 'x'):
+                coords.append([loc.x, loc.y])
+            elif isinstance(loc, dict):
+                coords.append([loc.get('lng'), loc.get('lat')])
+
+        if not coords:
+            return Response({
+                "type": "Feature",
+                "geometry": None,
+                "properties": {"message": "No coordinates extracted.", "info": route_info}
+            })
+
+        # Generate continuous curved road geometry using OSRM Match API for high-fidelity alignment
+        from routing.services.osrm_client import match_trail
         
         # OSRM has a limit on waypoints in the URL (usually 100)
-        # Downsample coordinates if there are too many, OSRM will route between them anyway
+        # Downsample coordinates if there are too many, OSRM will match between them anyway
         if len(coords) > 90:
             step = len(coords) // 90 + 1
             sampled_coords = coords[::step]
@@ -87,8 +226,26 @@ class DriverLocationViewSet(viewsets.ReadOnlyModelViewSet):
         else:
             sampled_coords = coords
             
-        route_coords = get_road_route(sampled_coords) if len(sampled_coords) > 1 else coords
+        route_coords = match_trail(sampled_coords) if len(sampled_coords) > 1 else coords
         
+        # Calculate final snapped distance
+        import math
+        def calc_dist(lon1, lat1, lon2, lat2):
+            lon1, lat1, lon2, lat2 = map(math.radians, [lon1, lat1, lon2, lat2])
+            dlon = lon2 - lon1 
+            dlat = lat2 - lat1 
+            a = math.sin(dlat/2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon/2)**2
+            c = 2 * math.asin(math.sqrt(a)) 
+            return c * 6371000
+
+        total_dist = 0.0
+        for i in range(len(route_coords) - 1):
+            total_dist += calc_dist(
+                route_coords[i][0], route_coords[i][1],
+                route_coords[i+1][0], route_coords[i+1][1]
+            )
+        distance_km = round(total_dist / 1000.0, 2)
+
         # If only one point, we can't make a LineString, return a Point
         if len(route_coords) < 2:
             geometry = {
@@ -107,7 +264,9 @@ class DriverLocationViewSet(viewsets.ReadOnlyModelViewSet):
             "properties": {
                 "driver_id": driver.id,
                 "driver_name": driver.get_full_name(),
-                "date": str(date),
+                "info": route_info,
                 "point_count": len(coords),
+                "distance_km": distance_km,
+                "planned_route": planned_coords
             }
         })

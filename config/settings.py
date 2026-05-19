@@ -22,15 +22,6 @@ except (ImportError, AttributeError):
     # or if explicitly configured via environment
     HAS_GDAL = config('HAS_GDAL', default=(os.name != 'nt'), cast=bool)
 
-if not HAS_GDAL:
-    import sys
-    from unittest.mock import MagicMock
-    sys.modules['django.contrib.gis'] = MagicMock()
-    sys.modules['django.contrib.gis.admin'] = MagicMock()
-    sys.modules['django.contrib.gis.db'] = MagicMock()
-    sys.modules['django.contrib.gis.db.models'] = MagicMock()
-    sys.modules['django.contrib.gis.geos'] = MagicMock()
-
 SHARED_APPS = [
     'daphne',
     'django_tenants',
