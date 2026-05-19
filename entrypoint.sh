@@ -64,6 +64,9 @@ PYEOF
     echo "[*] Setting up System Groups..."
     python manage.py setup_groups || echo "setup_groups failed — skipping"
 
+    echo "[*] Collecting static files..."
+    python manage.py collectstatic --noinput
+
     echo "--- MIGRATION FIX COMPLETE ---"
 fi
 
