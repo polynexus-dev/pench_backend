@@ -2135,6 +2135,67 @@
             "name": "02. Platform & Tenants",
             "item": [
                 {
+                    "name": "Companies (Company)",
+                    "item": [
+                        {
+                            "name": "GET List Companies",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/erp/tenants/companies/",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "erp",
+                                        "tenants",
+                                        "companies"
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "name": "POST Create Company",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    },
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"name\": \"Aniket Corp\",\n    \"code\": \"ANI\"\n}"
+                                },
+                                "url": {
+                                    "raw": "{{base_url}}/api/erp/tenants/companies/",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "erp",
+                                        "tenants",
+                                        "companies"
+                                    ]
+                                }
+                            }
+                        }
+                    ]
+                },
+                {
                     "name": "Cities (City)",
                     "item": [
                         {

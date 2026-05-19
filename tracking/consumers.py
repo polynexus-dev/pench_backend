@@ -75,11 +75,12 @@ class TrackingConsumer(AsyncWebsocketConsumer):
             data = json.loads(text_data)
             lat = data.get('lat')
             lng = data.get('lng')
+            accuracy = data.get('accuracy')
  
             if lat and lng:
-                print(f"[WS Receive] Driver {self.user.username}: Lat={lat}, Lng={lng}")
+                print(f"[WS Receive] Driver {self.user.username}: Lat={lat}, Lng={lng}, Acc={accuracy}")
                 # Update Database and get full trail + distance + planned route coordinates
-                trail_points, distance_km, planned_route = await self.update_driver_location(lat, lng)
+                trail_points, distance_km, planned_route = await self.update_driver_location(lat, lng, accuracy)
                 
                 # If safeguard triggered (ghost simulator), abort broadcast
                 if trail_points is None:
@@ -160,7 +161,7 @@ class TrackingConsumer(AsyncWebsocketConsumer):
             return unique_coords
 
     @database_sync_to_async
-    def update_driver_location(self, lat, lng):
+    def update_driver_location(self, lat, lng, accuracy=None):
         try:
             if not self.tenant or self.tenant.schema_name == 'public':
                 return None
@@ -212,6 +213,16 @@ class TrackingConsumer(AsyncWebsocketConsumer):
                             except Exception:
                                 pass
                 
+                # 0. Low Accuracy Filter
+                if accuracy is not None:
+                    try:
+                        if float(accuracy) > 40.0:
+                            print(f"[Tracking] Dropped point for {self.user.username}: Accuracy too low ({accuracy}m)")
+                            current_trail = self.get_current_trail(self.user.id, active_route)
+                            return current_trail, calculate_trail_distance(current_trail), planned_coords
+                    except (ValueError, TypeError):
+                        pass
+
                 # Check for GPS Jitter / Movement Filter (8 meters threshold)
                 prev_trail = DriverTrail.objects.filter(
                     user_id=self.user.id,
@@ -229,6 +240,17 @@ class TrackingConsumer(AsyncWebsocketConsumer):
                         
                     if prev_lng is not None and prev_lat is not None:
                         dist = calculate_distance(p_lng, p_lat, prev_lng, prev_lat)
+                        
+                        # Speed Outlier Filter (Reject impossible jumps)
+                        from django.utils import timezone
+                        time_diff = (timezone.now() - prev_trail.timestamp).total_seconds()
+                        if time_diff > 0:
+                            speed_kmh = (dist / time_diff) * 3.6
+                            if speed_kmh > 150.0:
+                                print(f"[Tracking] Dropped outlier point for {self.user.username}: Impossible speed {speed_kmh:.1f} km/h")
+                                current_trail = self.get_current_trail(self.user.id, active_route)
+                                return current_trail, calculate_trail_distance(current_trail), planned_coords
+
                         if dist < 8.0:
                             # STATIONARY GPS JITTER: Driver has not moved significantly.
                             # Skip creating a new DriverTrail point, but update live position.

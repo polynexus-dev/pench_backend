@@ -1,7 +1,7 @@
 from rest_framework import viewsets, status
 from rest_framework.response import Response
-from .models import City, HolidayCalendar, Domain
-from .serializers import CitySerializer, HolidayCalendarSerializer
+from .models import Company, City, HolidayCalendar, Domain
+from .serializers import CompanySerializer, CitySerializer, HolidayCalendarSerializer
 
 
 class CityViewSet(viewsets.ModelViewSet):
@@ -22,6 +22,15 @@ class CityViewSet(viewsets.ModelViewSet):
             tenant=city,
             defaults={'is_primary': True}
         )
+
+
+class CompanyViewSet(viewsets.ModelViewSet):
+    """
+    Public schema endpoint to fetch Companies and their associated Cities.
+    Used by the frontend to display a Company -> City selection flow.
+    """
+    queryset = Company.objects.prefetch_related('cities').filter(is_active=True)
+    serializer_class = CompanySerializer
 
 
 

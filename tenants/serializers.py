@@ -7,7 +7,7 @@ from rest_framework import serializers
 from rest_framework_gis.fields import GeometryField
 from django.contrib.gis.geos import GEOSGeometry, Polygon, MultiPolygon, LinearRing
 from django.contrib.gis.gdal import DataSource
-from .models import City, HolidayCalendar
+from .models import Company, City, HolidayCalendar
 
 def parse_geojson(content):
     """
@@ -132,7 +132,7 @@ class CitySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = City
-        fields = ['id', 'schema_name', 'name', 'state', 'code', 'boundary', 'boundary_file', 'is_active', 'timezone', 'created_at']
+        fields = ['id', 'company', 'schema_name', 'name', 'state', 'code', 'boundary', 'boundary_file', 'is_active', 'timezone', 'created_at']
         read_only_fields = ['id', 'created_at']
 
     def validate(self, data):
@@ -183,3 +183,11 @@ class HolidayCalendarSerializer(serializers.ModelSerializer):
     class Meta:
         model = HolidayCalendar
         fields = ['id', 'city', 'name', 'date', 'is_recurring', 'description']
+
+
+class CompanySerializer(serializers.ModelSerializer):
+    cities = CitySerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Company
+        fields = ['id', 'name', 'code', 'is_active', 'cities']

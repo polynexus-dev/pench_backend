@@ -9,13 +9,32 @@ try:
 except Exception:
     HAS_GIS = False
 
+class Company(BaseModel):
+    """
+    A logical grouping of Cities (Tenants) under one corporate entity.
+    This resides in the public schema.
+    """
+    name = models.CharField(max_length=200)
+    code = models.CharField(max_length=50, unique=True, help_text="Unique company code, e.g. RELIANCE")
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name = 'Company'
+        verbose_name_plural = 'Companies'
+        ordering = ['name']
+
+    def __str__(self):
+        return f"{self.name} ({self.code})"
+
+
 class City(TenantMixin):
     """
     The Tenant model. Each City will have its own schema in Postgres.
     """
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name='cities', null=True, blank=True)
     name = models.CharField(max_length=100)
     state = models.CharField(max_length=100)
-    code = models.CharField(max_length=20, unique=True, help_text='Unique city code, e.g. MUM, DEL.')
+    code = models.CharField(max_length=20, help_text='Unique city code, e.g. MUM, DEL.')
     is_active = models.BooleanField(default=True)
     timezone = models.CharField(max_length=50, default='UTC')
     require_pod = models.BooleanField(
@@ -36,6 +55,7 @@ class City(TenantMixin):
         ordering = ['name']
         verbose_name = 'City'
         verbose_name_plural = 'Cities'
+        unique_together = (('company', 'code'),)
 
     def __str__(self):
         return f'{self.name} ({self.code})'
