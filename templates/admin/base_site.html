@@ -1,0 +1,290 @@
+{% extends "admin/base.html" %}
+{% load i18n static %}
+
+{% block title %}{% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} | {{ site_title|default:_('Django site admin') }}{% endblock %}
+
+{% block branding %}
+<div id="site-name">
+    <a href="{% url 'admin:index' %}" style="display: flex; align-items: center; gap: 8px; text-decoration: none;">
+        <!-- Leaf/Drop mini-logo in gold -->
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="fill: #e8bc5a; width: 20px; height: 20px; margin-top: -2px;">
+            <path d="M12,2C12,2 6,8.59 6,13C6,16.31 8.69,19 12,19C15.31,19 18,16.31 18,13C18,8.59 12,2 12,2ZM12,17C9.79,17 8,15.21 8,13C8,11.08 10.42,7.4 12,5.39C13.58,7.4 16,11.07 16,13C16,15.21 14.21,17 12,17Z"/>
+        </svg>
+        <span style="font-family: 'Outfit', sans-serif; font-weight: 800; letter-spacing: 1.5px; color: #ffffff; font-size: 18px; text-transform: uppercase;">
+            Pench <span style="color: #e8bc5a;">Foods</span>
+        </span>
+        <span style="background: rgba(232, 188, 90, 0.15); color: #e8bc5a; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; letter-spacing: 0.5px; text-transform: uppercase; margin-left: 6px; border: 1px solid rgba(232, 188, 90, 0.3);">
+            Admin
+        </span>
+    </a>
+</div>
+{% endblock %}
+
+{% block nav-global %}{% endblock %}
+
+{% block extrastyle %}
+{{ block.super }}
+<!-- Google Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+
+<style>
+    /* Global CSS Variable Overrides for Django Admin Color Theme */
+    :root {
+        --primary: #01522d;                  /* Forest Green */
+        --primary-fg: #ffffff;
+        --secondary: #167a4a;                /* Light/Medium Green */
+        --secondary-fg: #ffffff;
+        --accent: #e8bc5a;                   /* Gold Accent */
+        --accent-fg: #1c3024;
+        --body-bg: #fbfaf7;                  /* Cream Background */
+        --body-fg: #1c3024;                  /* Dark Charcoal Green Text */
+        --border-color: #e2e8f0;
+        
+        --header-bg: #01522d;
+        --header-color: #ffffff;
+        --header-link-color: #ffffff;
+        
+        --breadcrumbs-bg: #f2f0ea;           /* Muted Cream Breadcrumb bar */
+        --breadcrumbs-link-fg: #01522d;
+        --breadcrumbs-fg: #1c3024;
+        
+        --link-fg: #01522d;                  /* Forest green links */
+        --link-hover-color: #167a4a;
+        --link-selected-fg: #01522d;
+        
+        --button-bg: #01522d;
+        --button-hover-bg: #003b20;
+        --button-fg: #ffffff;
+        
+        --default-button-bg: #e8bc5a;        /* Gold for default save button */
+        --default-button-hover-bg: #d0a33e;
+        --default-button-fg: #1c3024;
+        
+        --message-success-bg: #edf7ed;
+        --message-success-color: #1e4620;
+        --message-warning-bg: #fff8e1;
+        --message-warning-color: #b58100;
+        --message-error-bg: #fde8e8;
+        --message-error-color: #9b1c1c;
+    }
+
+    body {
+        font-family: 'Inter', sans-serif !important;
+        background-color: var(--body-bg) !important;
+        color: var(--body-fg) !important;
+    }
+
+    h1, h2, h3, h4, h5, h6, .module h2, .caption, thead th {
+        font-family: 'Outfit', sans-serif !important;
+    }
+
+    /* Header styling */
+    #header {
+        background: linear-gradient(135deg, #003b20 0%, #01522d 100%) !important;
+        border-bottom: 4px solid var(--accent) !important;
+        padding: 14px 24px !important;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08) !important;
+    }
+
+    #branding h1 {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    #user-tools {
+        font-weight: 500 !important;
+        font-size: 13px !important;
+    }
+
+    #user-tools a {
+        border-bottom: 1px dotted rgba(255,255,255,0.4) !important;
+        text-decoration: none !important;
+        transition: color 0.2s ease;
+    }
+
+    #user-tools a:hover {
+        color: var(--accent) !important;
+        border-bottom-color: var(--accent) !important;
+    }
+
+    /* Modules (Dashboard Cards) */
+    .module {
+        border: 1px solid #e5e5e0 !important;
+        border-radius: 16px !important;
+        overflow: hidden !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02) !important;
+        background-color: #ffffff !important;
+        margin-bottom: 28px !important;
+    }
+
+    .module h2, .module caption {
+        background-color: var(--primary) !important;
+        color: #ffffff !important;
+        padding: 14px 20px !important;
+        font-size: 13.5px !important;
+        font-weight: 700 !important;
+        letter-spacing: 0.8px !important;
+        text-transform: uppercase !important;
+    }
+
+    .module h2 a {
+        color: #ffffff !important;
+    }
+
+    .module table {
+        border-collapse: collapse !important;
+        width: 100% !important;
+    }
+
+    /* Tables custom styling */
+    table thead th {
+        background: #f2f0ea !important;
+        border-bottom: 2px solid #e5e5e0 !important;
+        color: var(--body-fg) !important;
+        font-weight: 700 !important;
+        font-size: 13px !important;
+        padding: 12px 16px !important;
+        letter-spacing: 0.5px;
+    }
+
+    td, th {
+        padding: 12px 16px !important;
+        font-size: 13.5px !important;
+        border-bottom: 1px solid #f1eff0 !important;
+    }
+
+    tr:hover td {
+        background-color: #fbfbf9 !important;
+    }
+
+    /* Form and Action Buttons styling */
+    .button, input[type=submit], input[type=button], .submit-row input, a.button {
+        border-radius: 8px !important;
+        padding: 10px 20px !important;
+        font-weight: 600 !important;
+        font-size: 13.5px !important;
+        border: none !important;
+        cursor: pointer !important;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.04) !important;
+    }
+
+    .button.default, input[type=submit].default, .submit-row input.default {
+        background-color: var(--default-button-bg) !important;
+        color: var(--default-button-fg) !important;
+        box-shadow: 0 4px 10px rgba(232, 188, 90, 0.25) !important;
+    }
+
+    .button.default:hover, input[type=submit].default:hover, .submit-row input.default:hover {
+        background-color: var(--default-button-hover-bg) !important;
+        transform: translateY(-1.5px) !important;
+        box-shadow: 0 6px 14px rgba(232, 188, 90, 0.35) !important;
+    }
+
+    .button:hover, input[type=submit]:hover, input[type=button]:hover, .submit-row input:hover {
+        transform: translateY(-1.5px) !important;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.08) !important;
+    }
+
+    /* Breadcrumbs bar styling */
+    .breadcrumbs {
+        padding: 12px 24px !important;
+        border-bottom: 1px solid #e5e5e0 !important;
+        font-size: 13px !important;
+        background: #fdfdfb !important;
+        color: var(--breadcrumbs-fg) !important;
+    }
+
+    .breadcrumbs a {
+        font-weight: 600 !important;
+        color: var(--breadcrumbs-link-fg) !important;
+        text-decoration: none !important;
+        transition: color 0.2s ease;
+    }
+
+    .breadcrumbs a:hover {
+        color: var(--link-hover-color) !important;
+    }
+
+    /* Sidebar modules custom styling */
+    #nav-sidebar {
+        background-color: #ffffff !important;
+        border-right: 1px solid #e5e5e0 !important;
+    }
+
+    .sidebar-section h2 {
+        background-color: var(--primary) !important;
+        color: #ffffff !important;
+    }
+
+    /* Changelist filters and container */
+    #changelist {
+        background: #ffffff !important;
+        border-radius: 16px !important;
+        border: 1px solid #e5e5e0 !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02) !important;
+        overflow: hidden !important;
+    }
+
+    #changelist-filter {
+        border-left: 1px solid #e5e5e0 !important;
+        background: #fbfaf7 !important;
+    }
+
+    #changelist-filter h2 {
+        background: #f2f0ea !important;
+        color: var(--body-fg) !important;
+        font-weight: 700 !important;
+    }
+
+    /* Banner Success / Warning / Error messages */
+    ul.messagelist li {
+        border-radius: 10px !important;
+        padding: 12px 20px !important;
+        font-size: 13.5px !important;
+        font-weight: 500 !important;
+        margin-bottom: 16px !important;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.02) !important;
+    }
+
+    ul.messagelist li.success {
+        background: var(--message-success-bg) !important;
+        color: var(--message-success-color) !important;
+        border-left: 5px solid #2e7d32 !important;
+    }
+
+    ul.messagelist li.warning {
+        background: var(--message-warning-bg) !important;
+        color: var(--message-warning-color) !important;
+        border-left: 5px solid #f57c00 !important;
+    }
+
+    ul.messagelist li.error {
+        background: var(--message-error-bg) !important;
+        color: var(--message-error-color) !important;
+        border-left: 5px solid #d32f2f !important;
+    }
+
+    /* Footer styling */
+    #footer {
+        background: #ffffff !important;
+        border-top: 1px solid #e5e5e0 !important;
+        padding: 20px !important;
+        text-align: center !important;
+        color: #718096 !important;
+        font-size: 12px !important;
+        font-family: 'Inter', sans-serif !important;
+        margin-top: 40px !important;
+    }
+</style>
+{% endblock %}
+
+{% block footer %}
+<div id="footer">
+    Pench Foods Private Limited &copy; 2026. All rights reserved. 
+    <span style="margin: 0 10px; color: #cbd5e0;">|</span> 
+    Powered by <strong style="color: var(--primary);">Polynexus Technologies</strong>
+</div>
+{% endblock %}
