@@ -35,7 +35,7 @@ def optimize_route(route) -> bool:
             raise ValueError('Route has no orders assigned.')
 
         # Step 1: Geocode — depot (index 0) + delivery stops
-        depot_stop = _get_depot_stop()
+        depot_stop = _get_depot_stop(route)
         delivery_stops = geocode_orders(orders)
 
         if not delivery_stops:
@@ -82,12 +82,23 @@ def optimize_route(route) -> bool:
         return False
 
 
-def _get_depot_stop() -> dict:
+def _get_depot_stop(route=None) -> dict:
     """
     Returns the warehouse/depot location.
-    In production this should come from settings or a Warehouse model.
+    If route has an associated warehouse with coordinates, it uses those.
+    Otherwise it falls back to settings.
     """
     from django.conf import settings
+    
+    # Try route's associated warehouse
+    if route and route.warehouse and route.warehouse.latitude is not None and route.warehouse.longitude is not None:
+        return {
+            'order_id': None,
+            'address': route.warehouse.name or 'Warehouse',
+            'lat': float(route.warehouse.latitude),
+            'lon': float(route.warehouse.longitude),
+        }
+        
     depot = getattr(settings, 'DEPOT_LOCATION', {'lat': 19.0760, 'lon': 72.8777})
     return {
         'order_id': None,

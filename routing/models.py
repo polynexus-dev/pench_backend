@@ -72,6 +72,14 @@ class Route(BaseModel):
         on_delete=models.PROTECT,
         related_name='routes'
     )
+    warehouse = models.ForeignKey(
+        'inventory.Warehouse',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='routes',
+        help_text='The warehouse this route starts and ends at.'
+    )
     orders = models.ManyToManyField(
         'orders.Order',
         related_name='routes',

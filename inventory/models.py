@@ -5,6 +5,8 @@ from core.models import BaseModel
 class Warehouse(BaseModel):
     name = models.CharField(max_length=200)
     address = models.TextField()
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     is_active = models.BooleanField(default=True)
 
     def __str__(self):

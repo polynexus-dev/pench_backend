@@ -15,10 +15,16 @@ class DriverLocationSerializer(serializers.ModelSerializer):
     trail = serializers.SerializerMethodField()
     distance_km = serializers.SerializerMethodField()
     planned_route = serializers.SerializerMethodField()
+    delivery_status_summary = serializers.SerializerMethodField()
+    deliveries = serializers.SerializerMethodField()
 
     class Meta:
         model = DriverLocation
-        fields = ['id', 'user', 'driver_name', 'lat', 'lng', 'trail', 'distance_km', 'planned_route', 'updated_at']
+        fields = [
+            'id', 'user', 'driver_name', 'lat', 'lng', 'trail', 
+            'distance_km', 'planned_route', 'delivery_status_summary', 
+            'deliveries', 'updated_at'
+        ]
 
     def get_trail(self, obj):
         from routing.models import Route, RouteStatus
@@ -103,6 +109,67 @@ class DriverLocationSerializer(serializers.ModelSerializer):
             except Exception:
                 pass
         return []
+
+    def _get_active_route_orders(self, obj):
+        from routing.models import Route, RouteStatus
+        active_route = Route.objects.filter(
+            driver__user_id=obj.user.id,
+            status=RouteStatus.IN_PROGRESS
+        ).first()
+        if active_route:
+            return active_route.orders.all().select_related('customer')
+        return []
+
+    def get_delivery_status_summary(self, obj):
+        orders = self._get_active_route_orders(obj)
+        if not orders:
+            return None
+        
+        summary = {
+            "total": len(orders),
+            "pending": 0,
+            "delivered": 0,
+            "undelivered": 0,
+            "other": 0
+        }
+        for order in orders:
+            status = order.status.lower()
+            if status in ['pending', 'confirmed', 'dispatched', 'in_transit']:
+                summary["pending"] += 1
+            elif status == 'delivered':
+                summary["delivered"] += 1
+            elif status == 'undelivered':
+                summary["undelivered"] += 1
+            else:
+                summary["other"] += 1
+        return summary
+
+    def get_deliveries(self, obj):
+        orders = self._get_active_route_orders(obj)
+        if not orders:
+            return []
+            
+        result = []
+        for order in orders:
+            loc = order.customer.location
+            lat, lng = 0.0, 0.0
+            if loc:
+                if hasattr(loc, 'y') and hasattr(loc, 'x'):
+                    lat, lng = float(loc.y), float(loc.x)
+                elif isinstance(loc, dict):
+                    lat = float(loc.get('lat') or 0.0)
+                    lng = float(loc.get('lng') or 0.0)
+            
+            result.append({
+                "order_id": order.id,
+                "customer_name": order.customer.name,
+                "address": order.delivery_address,
+                "lat": lat,
+                "lng": lng,
+                "status": order.status,
+                "delivered_at": order.delivered_at.isoformat() if order.delivered_at else None
+            })
+        return result
 
 
 class DriverLocationViewSet(viewsets.ReadOnlyModelViewSet):
@@ -197,6 +264,50 @@ class DriverLocationViewSet(viewsets.ReadOnlyModelViewSet):
                     except Exception:
                         pass
 
+        # Extract delivery status summary and list of deliveries for the trail
+        delivery_status_summary = None
+        deliveries = []
+        if route_obj:
+            orders = route_obj.orders.all().select_related('customer')
+            if orders:
+                summary = {
+                    "total": len(orders),
+                    "pending": 0,
+                    "delivered": 0,
+                    "undelivered": 0,
+                    "other": 0
+                }
+                for order in orders:
+                    status = order.status.lower()
+                    if status in ['pending', 'confirmed', 'dispatched', 'in_transit']:
+                        summary["pending"] += 1
+                    elif status == 'delivered':
+                        summary["delivered"] += 1
+                    elif status == 'undelivered':
+                        summary["undelivered"] += 1
+                    else:
+                        summary["other"] += 1
+                    
+                    loc = order.customer.location
+                    lat, lng = 0.0, 0.0
+                    if loc:
+                        if hasattr(loc, 'y') and hasattr(loc, 'x'):
+                            lat, lng = float(loc.y), float(loc.x)
+                        elif isinstance(loc, dict):
+                            lat = float(loc.get('lat') or 0.0)
+                            lng = float(loc.get('lng') or 0.0)
+                            
+                    deliveries.append({
+                        "order_id": order.id,
+                        "customer_name": order.customer.name,
+                        "address": order.delivery_address,
+                        "lat": lat,
+                        "lng": lng,
+                        "status": order.status,
+                        "delivered_at": order.delivered_at.isoformat() if order.delivered_at else None
+                    })
+                delivery_status_summary = summary
+
         # Build coordinates using pre-cleaned data from DB
         coords = []
         for t in trails:
@@ -267,6 +378,8 @@ class DriverLocationViewSet(viewsets.ReadOnlyModelViewSet):
                 "info": route_info,
                 "point_count": len(coords),
                 "distance_km": distance_km,
-                "planned_route": planned_coords
+                "planned_route": planned_coords,
+                "delivery_status_summary": delivery_status_summary,
+                "deliveries": deliveries
             }
         })
