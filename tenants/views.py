@@ -5,8 +5,48 @@ from .serializers import CompanySerializer, CitySerializer, HolidayCalendarSeria
 
 
 class CityViewSet(viewsets.ModelViewSet):
-    queryset = City.objects.all()
+    queryset = City.objects.select_related('company').all()
     serializer_class = CitySerializer
+
+    def get_queryset(self):
+        queryset = self.queryset
+        
+        # Filter by company ID, code, or name if requested
+        company = self.request.query_params.get('company')
+        if company:
+            # Check if it is a valid UUID
+            import uuid
+            is_uuid = False
+            try:
+                uuid.UUID(str(company))
+                is_uuid = True
+            except ValueError:
+                pass
+
+            if is_uuid:
+                queryset = queryset.filter(company_id=company)
+            elif company.isdigit():
+                queryset = queryset.filter(company_id=company)
+            else:
+                from django.db.models import Q
+                queryset = queryset.filter(
+                    Q(company__code__iexact=company) |
+                    Q(company__name__icontains=company)
+                )
+                
+        company_id = self.request.query_params.get('company_id')
+        if company_id:
+            queryset = queryset.filter(company_id=company_id)
+            
+        company_code = self.request.query_params.get('company_code')
+        if company_code:
+            queryset = queryset.filter(company__code__iexact=company_code)
+            
+        company_name = self.request.query_params.get('company_name')
+        if company_name:
+            queryset = queryset.filter(company__name__icontains=company_name)
+            
+        return queryset
 
     def perform_create(self, serializer):
         # Save the city
