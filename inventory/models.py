@@ -125,3 +125,31 @@ class BottleTransaction(BaseModel):
 
     def __str__(self):
         return f"{self.transaction_type} of {self.quantity} for {self.bottle_type.name}"
+
+
+class CustomerProductPrice(BaseModel):
+    """
+    Defines a custom/discounted price for a product for a specific customer.
+    If a record exists, this price overrides the default Product.unit_price.
+    """
+    customer = models.ForeignKey(
+        'crm.Customer',
+        on_delete=models.CASCADE,
+        related_name='custom_prices'
+    )
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.CASCADE,
+        related_name='custom_prices'
+    )
+    discount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    custom_price = models.DecimalField(max_digits=10, decimal_places=2)
+
+    class Meta:
+        unique_together = ('customer', 'product')
+        verbose_name = 'Customer Product Price'
+        verbose_name_plural = 'Customer Product Prices'
+
+    def __str__(self):
+        return f"{self.customer.name} - {self.product.name}: Rs. {self.custom_price}"
+

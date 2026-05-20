@@ -77,12 +77,18 @@ class Route(BaseModel):
         related_name='routes',
         blank=True
     )
+    name = models.CharField(max_length=200, blank=True)
+    delivery_date = models.DateField(null=True, blank=True)
     status = models.CharField(
         max_length=20,
         choices=RouteStatus.choices,
         default=RouteStatus.PENDING
     )
-    
+    is_completed = models.BooleanField(default=False)
+    is_test_route = models.BooleanField(default=False, help_text='Auto-created dummy route for GPS tracking tests.')
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
     # Conditional GIS field
     if HAS_GIS:
         geometry = gis_models.LineStringField(srid=4326, null=True, blank=True)
@@ -98,7 +104,8 @@ class Route(BaseModel):
         ordering = ['-created_at']
 
     def __str__(self):
-        return f'Route #{self.id} — {self.driver} [{self.status}]'
+        label = self.name or f'Route #{str(self.id)[:8]}'
+        return f'{label} — {self.driver} [{self.status}]'
 
 class CollectionMethod(models.TextChoices):
     CASH = 'cash', 'Cash'

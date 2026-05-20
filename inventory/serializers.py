@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import (
     Product, Stock, Warehouse, BottleType, 
-    CustomerBottleBalance, BottleTransaction
+    CustomerBottleBalance, BottleTransaction, CustomerProductPrice
 )
 
 
@@ -60,3 +60,13 @@ class CustomerBottleBalanceSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomerBottleBalance
         fields = ['id', 'customer', 'customer_name', 'bottle_type', 'bottle_type_name', 'balance']
+
+
+class CustomerProductPriceSerializer(serializers.ModelSerializer):
+    customer_name = serializers.CharField(source='customer.name', read_only=True)
+    product_name = serializers.CharField(source='product.name', read_only=True)
+
+    class Meta:
+        model = CustomerProductPrice
+        fields = ['id', 'customer', 'customer_name', 'product', 'product_name', 'custom_price']
+

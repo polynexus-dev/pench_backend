@@ -16,6 +16,7 @@ class OrderStatus(models.TextChoices):
     IN_TRANSIT = 'in_transit', 'In Transit'
     DELIVERED = 'delivered', 'Delivered'
     CANCELLED = 'cancelled', 'Cancelled'
+    UNDELIVERED = 'undelivered', 'Undelivered'
 
 class Order(BaseModel):
     customer = models.ForeignKey('crm.Customer', on_delete=models.PROTECT, related_name='orders')

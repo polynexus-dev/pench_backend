@@ -15,7 +15,8 @@ class CityViewSet(viewsets.ModelViewSet):
         # Automatically create a domain for the city
         import os
         base_domain = os.environ.get('PUBLIC_DOMAIN', 'localhost')
-        domain_name = f"{city.schema_name}.{base_domain}"
+        subdomain = city.schema_name.replace('_', '-')
+        domain_name = f"{subdomain}.{base_domain}"
         
         Domain.objects.get_or_create(
             domain=domain_name,
