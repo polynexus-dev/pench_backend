@@ -23,7 +23,7 @@ class Product(BaseModel):
 
     # Dairy-specific: bottle tracking
     bottle_type = models.ForeignKey(
-        'BottleType',
+        'BottleType', 
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
