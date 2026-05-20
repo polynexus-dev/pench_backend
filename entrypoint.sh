@@ -43,15 +43,6 @@ try:
             defaults={'is_primary': True}
         )
 
-        public_domain = os.environ.get('PUBLIC_DOMAIN')
-        if public_domain and public_domain != 'localhost':
-            Domain.objects.get_or_create(
-                domain=public_domain,
-                tenant=c,
-                defaults={'is_primary': False}
-            )
-            print(f"Registered Domain: {public_domain}")
-
         if not User.objects.filter(username='admin').exists():
             User.objects.create_superuser('admin', 'admin@dairy.com', 'admin')
             print("Created superuser: admin/admin")
@@ -60,6 +51,11 @@ try:
 except Exception as e:
     print(f"Bootstrapping failed (non-fatal): {e}")
 PYEOF
+
+    if [ -n "$PUBLIC_DOMAIN" ]; then
+        echo "[*] Dynamically updating all tenant domains for PUBLIC_DOMAIN: $PUBLIC_DOMAIN"
+        python manage.py update_domains "$PUBLIC_DOMAIN"
+    fi
 
     echo "[*] Setting up System Groups..."
     python manage.py setup_groups || echo "setup_groups failed — skipping"
