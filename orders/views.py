@@ -10,7 +10,7 @@ import datetime
 
 
 class OrderViewSet(viewsets.ModelViewSet):
-    queryset = Order.objects.select_related('customer').prefetch_related('items')
+    queryset = Order.objects.select_related('customer__zone__assigned_driver', 'route_stop__route__driver').prefetch_related('items')
     serializer_class = OrderSerializer
     permission_classes = [IsAuthenticated] # Base permission is just authenticated
     filterset_fields = ['status', 'customer', 'scheduled_delivery_date']
@@ -57,6 +57,119 @@ class OrderViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['post'], url_path='sync')
+    def sync(self, request):
+        """
+        Master sync endpoint that:
+        1. Auto-assigns zones to customers based on spatial location.
+        2. Re-assigns pending/confirmed orders to zone drivers (creates optimized routes).
+        3. Returns the refreshed, serialized order list.
+        """
+        import datetime as dt
+        from routing.models import Zone
+        from crm.models import Customer, HAS_GIS, _parse_coordinates, _point_in_polygon
+        from orders.services import create_optimized_route
+
+        # ---------- STEP 1: Auto-assign zones to customers ----------
+        customers = Customer.objects.filter(is_active=True).exclude(location=None)
+        zones_qs = Zone.objects.filter(is_active=True)
+        zones_list = list(zones_qs)
+
+        zone_updated = 0
+        for customer in customers:
+            loc = customer.location
+            if not loc:
+                continue
+
+            assigned_zone = None
+            if HAS_GIS:
+                from django.contrib.gis.geos import Point
+                if not isinstance(loc, Point):
+                    coords = _parse_coordinates(loc)
+                    if coords:
+                        loc = Point(coords[0], coords[1])
+                    else:
+                        continue
+                assigned_zone = Zone.objects.filter(boundary__contains=loc, is_active=True).first()
+            else:
+                coords = _parse_coordinates(loc)
+                if coords:
+                    lng, lat = coords
+                    for zone in zones_list:
+                        if zone.boundary:
+                            poly_coords = None
+                            if isinstance(zone.boundary, dict):
+                                geom_type = zone.boundary.get('type')
+                                if geom_type == 'Polygon':
+                                    poly_coords = zone.boundary.get('coordinates')
+                                elif geom_type == 'MultiPolygon':
+                                    for sub_poly in zone.boundary.get('coordinates', []):
+                                        if _point_in_polygon(lng, lat, sub_poly):
+                                            assigned_zone = zone
+                                            break
+                            if assigned_zone:
+                                break
+                            if poly_coords and _point_in_polygon(lng, lat, poly_coords):
+                                assigned_zone = zone
+                                break
+
+            if assigned_zone and customer.zone != assigned_zone:
+                customer.zone = assigned_zone
+                customer.save(update_fields=['zone'])
+                zone_updated += 1
+
+        # ---------- STEP 2: Re-assign pending orders to zone drivers ----------
+        date_str = request.data.get('date') or dt.date.today().isoformat()
+
+        pending_orders = Order.objects.filter(
+            scheduled_delivery_date=date_str,
+            status__in=[OrderStatus.PENDING, OrderStatus.CONFIRMED],
+            customer__zone__isnull=False,
+        ).select_related('customer__zone', 'customer__zone__assigned_driver')
+
+        # Group orders by zone
+        zone_orders = {}
+        for order in pending_orders:
+            zone = order.customer.zone
+            if zone:
+                zone_orders.setdefault(zone, []).append(order)
+
+        routes_created = 0
+        route_errors = []
+        for zone, z_orders in zone_orders.items():
+            driver = zone.assigned_driver
+            if not driver:
+                route_errors.append({
+                    'zone': zone.name,
+                    'error': 'No primary driver assigned.'
+                })
+                continue
+
+            order_ids = [str(o.id) for o in z_orders]
+            route_name = f"{zone.name} - {date_str}"
+
+            try:
+                create_optimized_route(route_name, driver, date_str, order_ids)
+                routes_created += 1
+            except Exception as e:
+                route_errors.append({
+                    'zone': zone.name,
+                    'error': str(e)
+                })
+
+        # ---------- STEP 3: Return refreshed order list ----------
+        qs = self.get_queryset()
+        serializer = self.get_serializer(qs, many=True)
+
+        return Response({
+            'orders': serializer.data,
+            'sync_summary': {
+                'customers_zone_updated': zone_updated,
+                'routes_created': routes_created,
+                'route_errors': route_errors,
+            }
+        }, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['patch', 'put'])
     def bulk_update(self, request):

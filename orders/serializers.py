@@ -20,14 +20,57 @@ class OrderSerializer(serializers.ModelSerializer):
     
     latitude = serializers.SerializerMethodField()
     longitude = serializers.SerializerMethodField()
+    driver_name = serializers.SerializerMethodField()
+    zone_name = serializers.SerializerMethodField()
 
     class Meta:
         model = Order
         fields = [
             'id', 'customer', 'customer_name', 'status', 'status_display',
             'scheduled_delivery_date', 'total', 'items', 'delivery_address',
-            'latitude', 'longitude'
+            'latitude', 'longitude', 'driver_name', 'zone_name'
         ]
+
+    def get_driver_name(self, obj):
+        driver = None
+        
+        # 1. Try to get driver from route stop if assigned
+        try:
+            if hasattr(obj, 'route_stop'):
+                route_stop = obj.route_stop
+                if route_stop and route_stop.route:
+                    driver = route_stop.route.driver
+        except Exception:
+            # Catch django.core.exceptions.ObjectDoesNotExist for unassigned reverse OneToOne
+            pass
+
+        # 2. If no driver from route, try fallback to customer zone driver
+        if not driver:
+            try:
+                if obj.customer and obj.customer.zone and obj.customer.zone.assigned_driver:
+                    driver = obj.customer.zone.assigned_driver
+            except Exception:
+                pass
+
+        # 3. Format driver name if found
+        if driver:
+            try:
+                full_name = driver.get_full_name()
+                if full_name.strip():
+                    return full_name
+                return driver.username
+            except Exception:
+                pass
+
+        return None
+
+    def get_zone_name(self, obj):
+        try:
+            if obj.customer and obj.customer.zone:
+                return obj.customer.zone.name
+        except Exception:
+            pass
+        return None
 
     def get_latitude(self, obj):
         loc = obj.customer.location

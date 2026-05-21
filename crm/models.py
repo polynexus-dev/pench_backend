@@ -153,7 +153,36 @@ def sync_customer_user_role(sender, instance, created, **kwargs):
 def auto_assign_customer_zone(sender, instance, **kwargs):
     """
     Automatically assign customer to zone based on coordinates when Customer is saved.
+    Only recalculates if location has changed or if it's a new instance without a zone.
     """
+    is_new = instance._state.adding
+    location_changed = False
+    zone_changed = False
+    
+    if not is_new:
+        try:
+            old_instance = Customer.objects.get(pk=instance.pk)
+            old_loc = old_instance.location
+            old_zone = old_instance.zone
+            
+            # Compare locations
+            location_changed = (old_loc != instance.location)
+            # Compare zones
+            zone_changed = (old_zone != instance.zone)
+        except Customer.DoesNotExist:
+            pass
+
+    should_auto_assign = False
+    if is_new:
+        if instance.zone is None:
+            should_auto_assign = True
+    else:
+        if location_changed and not zone_changed:
+            should_auto_assign = True
+
+    if not should_auto_assign:
+        return
+
     loc = instance.location
     if not loc:
         instance.zone = None
@@ -195,8 +224,7 @@ def auto_assign_customer_zone(sender, instance, **kwargs):
                         assigned_zone = zone
                         break
 
-    if assigned_zone:
-        instance.zone = assigned_zone
+    instance.zone = assigned_zone
 
 
 # Import here to avoid early module loading of Zone which is in TENANT_APPS

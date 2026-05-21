@@ -236,3 +236,52 @@ class CustomerAutoAssignZonesTestCase(TenantTestCase):
         # to the new zone (since it lies inside it and the Zone was saved/created)
         self.customer_inside.refresh_from_db()
         self.assertEqual(self.customer_inside.zone, new_zone)
+
+    def test_manual_zone_override_preserves(self):
+        """
+        Verify that manually assigning a zone (at creation or during update)
+        is respected and not overwritten by coordinates calculation.
+        """
+        # Reconnect pre-save signal
+        pre_save.connect(auto_assign_customer_zone, sender=Customer)
+        connection.set_tenant(self.tenant)
+
+        # 1. Test creation with explicit zone
+        # Create a test customer with location inside self.zone, but manually assign a different zone
+        other_zone = Zone.objects.create(
+            name='Other Zone',
+            description='Other zone description',
+            boundary=self.zone.boundary,
+            is_active=True
+        )
+
+        if HAS_GIS and Point:
+            loc = Point(79.6, 21.6)
+        else:
+            loc = {"longitude": 79.6, "latitude": 21.6}
+
+        customer_manual = Customer.objects.create(
+            name='Customer Manual Creation',
+            email='manual_create@example.com',
+            location=loc,
+            zone=other_zone,
+            is_active=True
+        )
+
+        # The manually set other_zone should be preserved and NOT auto-assigned to self.zone
+        self.assertEqual(customer_manual.zone, other_zone)
+
+        # 2. Test manual zone override patch on existing customer
+        # Update zone of customer_inside to other_zone
+        self.customer_inside.zone = other_zone
+        self.customer_inside.save()
+
+        self.customer_inside.refresh_from_db()
+        self.assertEqual(self.customer_inside.zone, other_zone)
+
+        # 3. Test that updating other fields does not clear or override the manually set zone
+        self.customer_inside.name = "Updated Name"
+        self.customer_inside.save()
+
+        self.customer_inside.refresh_from_db()
+        self.assertEqual(self.customer_inside.zone, other_zone)
