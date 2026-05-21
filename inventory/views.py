@@ -2,10 +2,11 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from core.permissions import IsERPUser, HasGroupPermission
-from .models import Product, Stock, Warehouse, BottleType, CustomerBottleBalance, BottleTransaction
+from .models import Product, Stock, Warehouse, BottleType, CustomerBottleBalance, BottleTransaction, CustomerProductPrice
 from .serializers import (
     ProductSerializer, StockSerializer, WarehouseSerializer,
-    BottleTypeSerializer, BottleTransactionSerializer
+    BottleTypeSerializer, BottleTransactionSerializer, CustomerBottleBalanceSerializer,
+    CustomerProductPriceSerializer
 )
 
 
@@ -122,5 +123,14 @@ class BottleTransactionViewSet(viewsets.ModelViewSet):
 
 class CustomerBottleBalanceViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = CustomerBottleBalance.objects.select_related('customer', 'bottle_type')
+    serializer_class = CustomerBottleBalanceSerializer
     permission_classes = [IsERPUser]
     filterset_fields = ['customer', 'bottle_type']
+
+
+class CustomerProductPriceViewSet(viewsets.ModelViewSet):
+    queryset = CustomerProductPrice.objects.select_related('customer', 'product')
+    serializer_class = CustomerProductPriceSerializer
+    permission_classes = [IsERPUser]
+    filterset_fields = ['customer', 'product']
+

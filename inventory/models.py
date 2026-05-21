@@ -5,6 +5,8 @@ from core.models import BaseModel
 class Warehouse(BaseModel):
     name = models.CharField(max_length=200)
     address = models.TextField()
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     is_active = models.BooleanField(default=True)
 
     def __str__(self):
@@ -21,7 +23,7 @@ class Product(BaseModel):
 
     # Dairy-specific: bottle tracking
     bottle_type = models.ForeignKey(
-        'BottleType',
+        'BottleType', 
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
@@ -125,3 +127,31 @@ class BottleTransaction(BaseModel):
 
     def __str__(self):
         return f"{self.transaction_type} of {self.quantity} for {self.bottle_type.name}"
+
+
+class CustomerProductPrice(BaseModel):
+    """
+    Defines a custom/discounted price for a product for a specific customer.
+    If a record exists, this price overrides the default Product.unit_price.
+    """
+    customer = models.ForeignKey(
+        'crm.Customer',
+        on_delete=models.CASCADE,
+        related_name='custom_prices'
+    )
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.CASCADE,
+        related_name='custom_prices'
+    )
+    discount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    custom_price = models.DecimalField(max_digits=10, decimal_places=2)
+
+    class Meta:
+        unique_together = ('customer', 'product')
+        verbose_name = 'Customer Product Price'
+        verbose_name_plural = 'Customer Product Prices'
+
+    def __str__(self):
+        return f"{self.customer.name} - {self.product.name}: Rs. {self.custom_price}"
+

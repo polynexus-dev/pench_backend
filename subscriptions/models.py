@@ -46,6 +46,13 @@ class Subscription(BaseModel):
     is_paused = models.BooleanField(default=False)
     pause_start = models.DateField(null=True, blank=True)
     pause_end = models.DateField(null=True, blank=True)
+    pause_updated_by = models.ForeignKey(
+        'accounts.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='paused_subscriptions'
+    )
     
     delivery_address = models.TextField(blank=True)
     special_instructions = models.TextField(blank=True)

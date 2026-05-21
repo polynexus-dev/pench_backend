@@ -83,14 +83,18 @@ def generate_city_orders(target_date):
             )
             
             total_amount = 0
+            from inventory.models import CustomerProductPrice
             for item in sub.items.all():
+                custom_price_obj = CustomerProductPrice.objects.filter(customer=sub.customer, product=item.product).first()
+                price = custom_price_obj.custom_price if custom_price_obj else item.product.unit_price
+                
                 OrderItem.objects.create(
                     order=order,
                     product=item.product,
                     quantity=item.quantity,
-                    unit_price=item.product.unit_price
+                    unit_price=price
                 )
-                total_amount += (item.product.unit_price * item.quantity)
+                total_amount += (price * item.quantity)
                 
             order.total = total_amount
             order.save(update_fields=['total'])

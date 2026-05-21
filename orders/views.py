@@ -36,7 +36,13 @@ class OrderViewSet(viewsets.ModelViewSet):
         if hasattr(user, 'customer_profile'):
             return qs.filter(customer=user.customer_profile)
             
-        # Fallback for drivers or other roles: no orders unless they are ERP users
+        # Allow drivers to access orders assigned to their routes
+        from .models import RouteStop
+        assigned_order_ids = RouteStop.objects.filter(route__driver=user).values_list('order_id', flat=True)
+        if assigned_order_ids.exists() or getattr(user, 'is_driver', False):
+            return qs.filter(id__in=assigned_order_ids)
+            
+        # Fallback for other roles: no orders unless they are ERP users
         return qs.none()
 
     def create(self, request, *args, **kwargs):
@@ -79,6 +85,13 @@ class OrderViewSet(viewsets.ModelViewSet):
     def mark_delivered(self, request, pk=None):
         order = self.get_object()
         bottles_returned = int(request.data.get('bottles_returned', 0))
+        bottles_issued = request.data.get('bottles_issued')
+        if bottles_issued is not None:
+            try:
+                bottles_issued = int(bottles_issued)
+            except (ValueError, TypeError):
+                bottles_issued = None
+                
         pod_image = request.FILES.get('pod_image')
         pod_lat = request.data.get('pod_latitude')
         pod_lon = request.data.get('pod_longitude')
@@ -109,9 +122,10 @@ class OrderViewSet(viewsets.ModelViewSet):
             from inventory.models import BottleTransactionType
             for item in order.items.all():
                 if item.product.is_returnable and item.product.bottle_type:
+                    qty = bottles_issued if bottles_issued is not None else item.quantity
                     record_bottle_transaction(
                         bottle_type=item.product.bottle_type,
-                        quantity=item.quantity,
+                        quantity=qty,
                         transaction_type=BottleTransactionType.ISSUED,
                         customer=order.customer,
                         order=order,
@@ -132,9 +146,36 @@ class OrderViewSet(viewsets.ModelViewSet):
         
         return Response(OrderSerializer(order).data)
 
+    @action(detail=True, methods=['post'], url_path='mark-undelivered')
+    def mark_undelivered(self, request, pk=None):
+        order = self.get_object()
+        pod_image = request.FILES.get('pod_image')
+        pod_lat = request.data.get('pod_latitude')
+        pod_lon = request.data.get('pod_longitude')
+        
+        if not pod_image:
+            return Response(
+                {'detail': 'Proof of Attempt (photo) is required to mark an order as undelivered.'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        from django.db import transaction
+        from django.utils import timezone
+        with transaction.atomic():
+            order.status = OrderStatus.UNDELIVERED
+            order.delivered_at = timezone.now()
+            order.pod_image = pod_image
+            if pod_lat:
+                order.pod_latitude = pod_lat
+            if pod_lon:
+                order.pod_longitude = pod_lon
+            order.save(update_fields=['status', 'delivered_at', 'pod_image', 'pod_latitude', 'pod_longitude'])
+            
+        return Response(OrderSerializer(order).data)
+
     @action(detail=False, methods=['post'], url_path='mark-all-delivered')
     def mark_all_delivered(self, request):
-        orders = Order.objects.exclude(status__in=[OrderStatus.DELIVERED, OrderStatus.CANCELLED])
+        orders = Order.objects.exclude(status__in=[OrderStatus.DELIVERED, OrderStatus.CANCELLED, OrderStatus.UNDELIVERED])
         count = orders.update(status=OrderStatus.DELIVERED)
         return Response({'detail': f'Marked {count} orders as delivered.'})
 
@@ -153,6 +194,32 @@ class RouteViewSet(viewsets.ModelViewSet):
         date = request.data.get('date') or request.data.get('delivery_date')
         order_ids = request.data.get('order_ids', [])
         driver_id = request.data.get('driver_id')
+        zone_id = request.data.get('zone')
+
+        # If a zone is provided, resolve order_ids, name, and driver automatically
+        if zone_id:
+            from routing.models import Zone
+            zone = Zone.objects.filter(id=zone_id).first()
+            if not zone:
+                return Response({'detail': f"Zone with ID {zone_id} not found."}, status=status.HTTP_404_NOT_FOUND)
+            
+            # Fetch all pending or confirmed orders for this zone and date
+            orders = Order.objects.filter(
+                customer__zone_id=zone_id,
+                scheduled_delivery_date=date,
+                status__in=[OrderStatus.PENDING, OrderStatus.CONFIRMED]
+            )
+            
+            if not orders.exists():
+                return Response({
+                    'detail': f"No pending or confirmed orders found in zone '{zone.name}' for date {date}."
+                }, status=status.HTTP_400_BAD_REQUEST)
+                
+            order_ids = list(orders.values_list('id', flat=True))
+            if not name:
+                name = f"{zone.name} - {date}"
+            if not driver_id and zone.assigned_driver:
+                driver_id = zone.assigned_driver.id
         
         # Validation with descriptive errors
         missing_fields = []
@@ -260,6 +327,152 @@ class DriverViewSet(viewsets.ViewSet):
                 
             return Response(RouteSerializer(route).data)
 
+    @action(detail=False, methods=['post'], url_path='start-tracking',
+            permission_classes=[IsAuthenticated])
+    def start_tracking(self, request):
+        """
+        Starts a GPS tracking session for the driver.
+        Only requires a valid JWT — no group membership needed.
+        Auto-creates a Driver profile and Drivers group membership if missing.
+        If no route is assigned today, auto-creates a dummy test route
+        so WebSocket trail recording works without real orders.
+        Returns the route_id to use for the WebSocket session.
+        """
+        from django_tenants.utils import schema_context
+        from django.db import connection
+        from django.utils import timezone
+        from django.contrib.auth.models import Group
+        import datetime
+
+        user = request.user
+
+        # Auto-assign user to Drivers group so future driver endpoints also work
+        drivers_group, _ = Group.objects.get_or_create(name='Drivers')
+        if not user.groups.filter(name='Drivers').exists():
+            user.groups.add(drivers_group)
+
+        # Mark user as driver if not already
+        if not user.is_driver:
+            user.is_driver = True
+            user.save(update_fields=['is_driver'])
+
+        schema = user.tenant_schema
+        context_schema = schema if connection.schema_name == 'public' and schema else connection.schema_name
+
+        with schema_context(context_schema):
+            from routing.models import Driver, Route, RouteStatus
+
+            # Step 1: Ensure a Driver profile exists for this user
+            driver_profile, created_profile = Driver.objects.get_or_create(
+                user=user,
+                defaults={
+                    'vehicle_plate': f'TEST-{user.username[:6].upper()}',
+                    'vehicle_type': 'van',
+                    'is_available': True,
+                    'on_trip': False,
+                }
+            )
+
+            # Step 2: Check if there's already an active/in-progress route today
+            today = datetime.date.today()
+            existing_route = Route.objects.filter(
+                driver=driver_profile,
+                is_completed=False,
+                delivery_date=today
+            ).order_by('-created_at').first()
+
+            if existing_route:
+                # Already has a route - just mark it as started if not yet
+                if existing_route.status != RouteStatus.IN_PROGRESS:
+                    existing_route.status = RouteStatus.IN_PROGRESS
+                    existing_route.started_at = timezone.now()
+                    existing_route.save(update_fields=['status', 'started_at'])
+                driver_profile.is_available = False
+                driver_profile.on_trip = True
+                driver_profile.save(update_fields=['is_available', 'on_trip'])
+                return Response({
+                    'detail': 'Tracking session started on existing route.',
+                    'route_id': str(existing_route.id),
+                    'route_name': existing_route.name,
+                    'is_test_route': False,
+                    'started_at': existing_route.started_at
+                })
+
+            # Step 3: No route today — auto-create a dummy tracking test route
+            dummy_route = Route.objects.create(
+                driver=driver_profile,
+                name=f'GPS Test — {user.get_full_name() or user.username} — {today.strftime("%d %b %Y")}',
+                delivery_date=today,
+                status=RouteStatus.IN_PROGRESS,
+                started_at=timezone.now(),
+                is_test_route=True,
+            )
+
+            driver_profile.is_available = False
+            driver_profile.on_trip = True
+            driver_profile.save(update_fields=['is_available', 'on_trip'])
+
+            return Response({
+                'detail': 'Dummy tracking route created and trip started. Connect WebSocket and send GPS coordinates.',
+                'route_id': str(dummy_route.id),
+                'route_name': dummy_route.name,
+                'is_test_route': True,
+                'started_at': dummy_route.started_at,
+                'instructions': 'Connect WebSocket: ws://<server>/ws/tracking/?token=<jwt_token> and send {"lat": 21.14, "lng": 79.08}'
+            })
+
+    @action(detail=False, methods=['post'], url_path='stop-tracking',
+            permission_classes=[IsAuthenticated])
+    def stop_tracking(self, request):
+        """
+        Stops the active GPS tracking session for the driver.
+        Marks the active route as completed and frees the driver.
+        """
+        from django_tenants.utils import schema_context
+        from django.db import connection
+        from django.utils import timezone
+        import datetime
+
+        user = request.user
+        schema = user.tenant_schema
+        context_schema = schema if connection.schema_name == 'public' and schema else connection.schema_name
+
+        with schema_context(context_schema):
+            from routing.models import Driver, Route, RouteStatus
+
+            driver_profile = Driver.objects.filter(user=user).first()
+            if not driver_profile:
+                return Response({'detail': 'No driver profile found.'}, status=404)
+
+            today = datetime.date.today()
+            active_route = Route.objects.filter(
+                driver=driver_profile,
+                is_completed=False,
+                delivery_date=today,
+                status=RouteStatus.IN_PROGRESS
+            ).order_by('-created_at').first()
+
+            if not active_route:
+                return Response({'detail': 'No active tracking session found.'}, status=404)
+
+            active_route.is_completed = True
+            active_route.completed_at = timezone.now()
+            active_route.status = RouteStatus.COMPLETED
+            active_route.save(update_fields=['is_completed', 'completed_at', 'status'])
+
+            driver_profile.is_available = True
+            driver_profile.on_trip = False
+            driver_profile.save(update_fields=['is_available', 'on_trip'])
+
+            return Response({
+                'detail': 'Tracking session stopped.',
+                'route_id': str(active_route.id),
+                'route_name': active_route.name,
+                'is_test_route': getattr(active_route, 'is_test_route', False),
+                'completed_at': active_route.completed_at,
+            })
+
+
     @action(detail=True, methods=['post'], url_path='start-trip')
     def start_trip(self, request, pk=None):
         """
@@ -363,8 +576,31 @@ class DriverViewSet(viewsets.ViewSet):
             # Logic is similar to OrderViewSet.mark_delivered but optimized for driver context
             order_viewset = OrderViewSet()
             order_viewset.request = request
+            order_viewset.action = 'submit_delivery'
+            order_viewset.get_permissions = lambda: [IsAuthenticated()]
             order_viewset.kwargs = {'pk': pk}
             return order_viewset.mark_delivered(request, pk=pk)
+
+    @action(detail=True, methods=['post'], url_path='submit-undelivered')
+    def submit_undelivered(self, request, pk=None):
+        """
+        Submission for driver to mark order as undelivered (proof of attempt required).
+        pk is the Order ID.
+        """
+        from django_tenants.utils import schema_context
+        from django.db import connection
+        
+        user = request.user
+        schema = user.tenant_schema
+        context_schema = schema if connection.schema_name == 'public' and schema else connection.schema_name
+        
+        with schema_context(context_schema):
+            order_viewset = OrderViewSet()
+            order_viewset.request = request
+            order_viewset.action = 'submit_undelivered'
+            order_viewset.get_permissions = lambda: [IsAuthenticated()]
+            order_viewset.kwargs = {'pk': pk}
+            return order_viewset.mark_undelivered(request, pk=pk)
 
     @action(detail=False, methods=['get'], url_path='resolve-qr/(?P<qr_id>[^/.]+)')
     def resolve_qr(self, request, qr_id=None):

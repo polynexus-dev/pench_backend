@@ -1,0 +1,56 @@
+[
+    {
+        "path": "09. Subscriptions / Subscriptions (Subscription) / GET List Subscriptions",
+        "url": "{{city_url}}/api/erp/subs/",
+        "method": "GET",
+        "body": ""
+    },
+    {
+        "path": "09. Subscriptions / Subscriptions (Subscription) / POST Create Subscription",
+        "url": "{{city_url}}/api/erp/subs/",
+        "method": "POST",
+        "body": "{\n    \"customer\": \"CUSTOMER_UUID\",\n    \"frequency\": \"daily\",\n    \"start_date\": \"2026-05-01\",\n    \"delivery_address\": \"123 Main Street, Nagpur\",\n    \"special_instructions\": \"Leave at gate\",\n    \"items\": [\n        {\n            \"product\": \"PRODUCT_UUID\",\n            \"quantity\": 2\n        }\n    ]\n}"
+    },
+    {
+        "path": "09. Subscriptions / Subscriptions (Subscription) / GET Single Subscription",
+        "url": "{{city_url}}/api/erp/subs/{{last_id}}/",
+        "method": "GET",
+        "body": ""
+    },
+    {
+        "path": "09. Subscriptions / Subscriptions (Subscription) / PATCH Update Subscription",
+        "url": "{{city_url}}/api/erp/subs/{{last_id}}/",
+        "method": "PATCH",
+        "body": "{\n    \"customer\": \"CUSTOMER_UUID\",\n    \"frequency\": \"daily\",\n    \"start_date\": \"2026-05-01\",\n    \"delivery_address\": \"123 Main Street, Nagpur\",\n    \"special_instructions\": \"Leave at gate\",\n    \"items\": [\n        {\n            \"product\": \"PRODUCT_UUID\",\n            \"quantity\": 2\n        }\n    ]\n}"
+    },
+    {
+        "path": "09. Subscriptions / Subscriptions (Subscription) / DELETE Subscription",
+        "url": "{{city_url}}/api/erp/subs/{{last_id}}/",
+        "method": "DELETE",
+        "body": ""
+    },
+    {
+        "path": "09. Subscriptions / POST Resume Subscription",
+        "url": "{{city_url}}/api/erp/subs/{{last_id}}/resume/",
+        "method": "POST",
+        "body": "{}"
+    },
+    {
+        "path": "09. Subscriptions / PATCH Bulk Update Subscriptions",
+        "url": "{{city_url}}/api/erp/subs/bulk-update/",
+        "method": "PATCH",
+        "body": "[\n    {\n        \"id\": \"SUB_UUID_1\",\n        \"status\": \"paused\"\n    },\n    {\n        \"id\": \"SUB_UUID_2\",\n        \"frequency\": \"alternate\"\n    }\n]"
+    },
+    {
+        "path": "09. Subscriptions / \ud83c\udd95 GET Monthly Delivery Calendar (Single Subscription)",
+        "url": "{{city_url}}/api/erp/subs/{{last_id}}/monthly-summary/?year=2026&month=5",
+        "method": "GET",
+        "body": ""
+    },
+    {
+        "path": "09. Subscriptions / \ud83c\udd95 GET Monthly Delivery Calendar (All Subscriptions of Customer)",
+        "url": "{{city_url}}/api/erp/subs/customer-monthly-summary/?customer_id={{last_id}}&year=2026&month=5",
+        "method": "GET",
+        "body": ""
+    }
+]

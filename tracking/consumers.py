@@ -45,30 +45,49 @@ class TrackingConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         self.user = self.scope["user"]
         self.tenant = self.scope.get("tenant")
+        self.driver_id = self.scope.get("url_route", {}).get("kwargs", {}).get("driver_id")
         
-        print(f"[WS Connect] User: {self.user}, Tenant: {self.tenant}")
+        print(f"[WS Connect] User: {self.user}, Tenant: {self.tenant}, Driver ID: {self.driver_id}")
         
         if self.user.is_anonymous or not self.tenant:
             print("[WS Connect] REJECTED: Anonymous or No Tenant")
             await self.close()
             return
+
+        # Ensure only staff/admins can track/receive broadcasts
+        if not self.user.is_staff and self.driver_id:
+            print("[WS Connect] REJECTED: Non-staff trying to track individual driver")
+            await self.close()
+            return
  
         if self.user.is_staff:
-            await self.channel_layer.group_add("admins", self.channel_name)
+            if self.driver_id:
+                await self.channel_layer.group_add(f"driver_tracking_{self.driver_id}", self.channel_name)
+            else:
+                await self.channel_layer.group_add("admins", self.channel_name)
         
         await self.accept()
         print("[WS Connect] ACCEPTED")
  
         if self.user.is_staff:
-            initial_state = await self.get_initial_state()
-            await self.send(text_data=json.dumps({
-                "type": "initial_state",
-                "drivers": initial_state
-            }))
+            if self.driver_id:
+                initial_state = await self.get_initial_driver_state(self.driver_id)
+                await self.send(text_data=json.dumps({
+                    "type": "initial_state",
+                    "driver": initial_state
+                }))
+            else:
+                initial_state = await self.get_initial_state()
+                await self.send(text_data=json.dumps({
+                    "type": "initial_state",
+                    "drivers": initial_state
+                }))
  
     async def disconnect(self, close_code):
         if hasattr(self, 'user') and self.user.is_staff:
             await self.channel_layer.group_discard("admins", self.channel_name)
+            if hasattr(self, 'driver_id') and self.driver_id:
+                await self.channel_layer.group_discard(f"driver_tracking_{self.driver_id}", self.channel_name)
  
     async def receive(self, text_data):
         try:
@@ -86,20 +105,22 @@ class TrackingConsumer(AsyncWebsocketConsumer):
                 if trail_points is None:
                     return
  
-                # Broadcast to Admins
-                await self.channel_layer.group_send(
-                    "admins",
-                    {
-                        "type": "broadcast_location",
-                        "driver_id": str(self.user.id),
-                        "driver_name": self.user.get_full_name(),
-                        "lat": lat,
-                        "lng": lng,
-                        "trail": trail_points, # Snapped historical trail array of [lng, lat]
-                        "distance_km": distance_km, # Distance traveled in KM
-                        "planned_route": planned_route # Original planned road map coordinates
-                    }
-                )
+                payload = {
+                    "type": "broadcast_location",
+                    "driver_id": str(self.user.id),
+                    "driver_name": self.user.get_full_name(),
+                    "lat": lat,
+                    "lng": lng,
+                    "trail": trail_points, # Snapped historical trail array of [lng, lat]
+                    "distance_km": distance_km, # Distance traveled in KM
+                    "planned_route": planned_route # Original planned road map coordinates
+                }
+
+                # Broadcast to global Admins
+                await self.channel_layer.group_send("admins", payload)
+
+                # Broadcast to individual driver group
+                await self.channel_layer.group_send(f"driver_tracking_{self.user.id}", payload)
  
                 # Also send back to the sender (direct acknowledgment with trail)
                 await self.send(text_data=json.dumps({
@@ -359,3 +380,81 @@ class TrackingConsumer(AsyncWebsocketConsumer):
             print(f"[Initial State Error] {str(e)}")
             traceback.print_exc()
             return []
+
+    @database_sync_to_async
+    def get_initial_driver_state(self, driver_id):
+        try:
+            if not self.tenant or self.tenant.schema_name == 'public':
+                return None
+ 
+            with schema_context(self.tenant.schema_name):
+                from django.utils import timezone
+                from datetime import timedelta
+                
+                time_threshold = timezone.now() - timedelta(hours=12)
+                
+                # Fetch active driver location updated in the last 12 hours
+                loc = DriverLocation.objects.select_related('user').filter(
+                    user_id=driver_id,
+                    updated_at__gte=time_threshold
+                ).first()
+                
+                if not loc:
+                    from accounts.models import User
+                    driver = User.objects.filter(id=driver_id).first()
+                    if not driver:
+                        return None
+                    return {
+                        "driver_id": str(driver.id),
+                        "driver_name": driver.get_full_name() or driver.username,
+                        "lat": None,
+                        "lng": None,
+                        "trail": [],
+                        "distance_km": 0.0,
+                        "planned_route": []
+                    }
+                
+                driver = loc.user
+                
+                # Get active route
+                from routing.models import Route, RouteStatus
+                active_route = Route.objects.filter(
+                    driver__user_id=driver.id,
+                    status=RouteStatus.IN_PROGRESS
+                ).first()
+                
+                # Fetch clean snapped trail
+                trail_points = self.get_current_trail(driver.id, active_route)
+                distance_km = calculate_trail_distance(trail_points)
+                
+                # Planned route coordinates extraction
+                planned_coords = []
+                if active_route and active_route.geometry:
+                    geom = active_route.geometry
+                    if hasattr(geom, 'coords'):
+                        planned_coords = list(geom.coords)
+                    elif isinstance(geom, str):
+                        try:
+                            import json
+                            parsed = json.loads(geom)
+                            if isinstance(parsed, dict) and 'coordinates' in parsed:
+                                planned_coords = parsed['coordinates']
+                        except Exception:
+                            pass
+                
+                current_lat = loc.location.y if hasattr(loc.location, 'y') else loc.location.get('lat')
+                current_lng = loc.location.x if hasattr(loc.location, 'x') else loc.location.get('lng')
+                
+                return {
+                    "driver_id": str(driver.id),
+                    "driver_name": driver.get_full_name() or driver.username,
+                    "lat": current_lat,
+                    "lng": current_lng,
+                    "trail": trail_points,
+                    "distance_km": distance_km,
+                    "planned_route": planned_coords
+                }
+        except Exception as e:
+            print(f"[Initial Driver State Error] {str(e)}")
+            traceback.print_exc()
+            return None

@@ -105,7 +105,7 @@ Before running requests, create a Postman Environment (e.g., **Pench Local**) wi
 ### 7. Initialize Warehouse and Stock
 - **Request**: `04. Inventory & Warehousing / Warehouses (Warehouse) / POST Create Warehouse`
   - **Method**: `POST`
-  - **Payload**: `{"name": "Dharampeth Depot", "code": "WH-DHP"}`
+  - **Payload**: `{"name": "Dharampeth Depot", "address": "Dharampeth, Nagpur"}`
   - *Result*: Save the `id` to `warehouse_id`.
 - **Request**: `04. Inventory & Warehousing / Stock Levels (Stock) / POST Create Stock`
   - **Method**: `POST`
@@ -270,14 +270,17 @@ Before running requests, create a Postman Environment (e.g., **Pench Local**) wi
     }
     ```
 
-### 18. Generate Invoices
-- **Request**: `08. Finance & Billing / Invoices (Invoice) / POST Create Invoice`
+### 18. Generate Monthly Bills
+- **Request**: `08. Finance & Billing / Monthly Bills (MonthlyBill) / POST Trigger Billing Generation`
   - **Method**: `POST`
+  - **URL**: `{{city_url}}/api/erp/finance/bills/trigger-generation/`
   - **Payload**:
     ```json
     {
-      "customer": "{{customer_profile_id}}",
-      "billing_period_start": "2026-05-01",
-      "billing_period_end": "2026-05-31"
+      "year": 2026,
+      "month": 5
     }
     ```
+- **Request**: `08. Finance & Billing / Monthly Bills (MonthlyBill) / GET List Bills`
+  - **Method**: `GET`
+  - **URL**: `{{city_url}}/api/erp/finance/bills/` (You can also filter by customer: `?customer={{customer_id}}` or status: `?status=unpaid`)

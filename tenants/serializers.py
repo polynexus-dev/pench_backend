@@ -129,10 +129,12 @@ class CitySerializer(serializers.ModelSerializer):
     schema_name = serializers.CharField(required=False)
     boundary = GeometryField(required=False, allow_null=True)
     boundary_file = serializers.FileField(required=False, write_only=True, help_text="Upload a .geojson, .kml, or zipped shapefile (.zip) to set the city geofencing limits.")
+    company_name = serializers.CharField(source='company.name', read_only=True)
+    company_code = serializers.CharField(source='company.code', read_only=True)
 
     class Meta:
         model = City
-        fields = ['id', 'company', 'schema_name', 'name', 'state', 'code', 'boundary', 'boundary_file', 'is_active', 'timezone', 'created_at']
+        fields = ['id', 'company', 'company_name', 'company_code', 'schema_name', 'name', 'state', 'code', 'boundary', 'boundary_file', 'is_active', 'timezone', 'created_at']
         read_only_fields = ['id', 'created_at']
 
     def validate(self, data):
@@ -171,11 +173,29 @@ class CitySerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         if not validated_data.get('schema_name'):
-            name = validated_data.get('name', '').lower().replace(' ', '_')
-            if name:
-                validated_data['schema_name'] = name
+            company = validated_data.get('company')
+            city_name = validated_data.get('name', '')
+            
+            import re
+            def clean_name(val):
+                if not val:
+                    return ""
+                val = val.lower()
+                val = re.sub(r'[^a-z0-9_]', '_', val)
+                val = re.sub(r'_+', '_', val)
+                return val.strip('_')
+
+            clean_city = clean_name(city_name)
+            
+            if company and clean_city:
+                clean_company = clean_name(company.code)
+                schema_name = f"{clean_company}_{clean_city}"
+            elif clean_city:
+                schema_name = clean_city
             else:
-                validated_data['schema_name'] = validated_data.get('code', '').lower()
+                schema_name = clean_name(validated_data.get('code', ''))
+
+            validated_data['schema_name'] = schema_name[:63]
         return super().create(validated_data)
 
 

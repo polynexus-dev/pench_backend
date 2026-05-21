@@ -87,6 +87,20 @@ class UserSerializer(serializers.ModelSerializer):
             for p in obj.user_permissions.all()
         ]
 
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        company_id = None
+        company_name = None
+        if instance.tenant_schema and instance.tenant_schema != 'public':
+            from tenants.models import City
+            city = City.objects.filter(schema_name=instance.tenant_schema).select_related('company').first()
+            if city and city.company:
+                company_id = str(city.company.id)
+                company_name = city.company.name
+        ret['company_id'] = company_id
+        ret['company_name'] = company_name
+        return ret
+
 
 class UserCreateSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)
@@ -105,6 +119,12 @@ class UserCreateSerializer(serializers.ModelSerializer):
     address = serializers.CharField(required=False, allow_blank=True)
     company = serializers.CharField(required=False, allow_blank=True)
     notes = serializers.CharField(required=False, allow_blank=True)
+    
+    # Driver and Customer profile-specific fields
+    zone = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    vehicle_plate = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    vehicle_type = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    max_capacity_kg = serializers.DecimalField(required=False, max_digits=8, decimal_places=2, write_only=True)
 
     class Meta:
         model = User
@@ -112,7 +132,8 @@ class UserCreateSerializer(serializers.ModelSerializer):
             'id', 'username', 'email', 'first_name', 'last_name', 'password', 
             'phone', 'is_driver', 'is_erp_user', 'is_customer', 'groups', 
             'tenant_schema', 'role', 'latitude', 'longitude', 
-            'address', 'company', 'notes'
+            'address', 'company', 'notes', 'zone', 'vehicle_plate',
+            'vehicle_type', 'max_capacity_kg'
         ]
         read_only_fields = ['id']
 
@@ -121,6 +142,25 @@ class UserCreateSerializer(serializers.ModelSerializer):
         role_name = validated_data.pop('role', None)
         password = validated_data.pop('password')
         
+        # Resolve tenant_schema to the correct schema name if provided
+        tenant_schema = validated_data.get('tenant_schema', None)
+        if tenant_schema:
+            from tenants.models import City
+            from django.db.models import Q
+            city = City.objects.filter(
+                Q(schema_name__iexact=tenant_schema) |
+                Q(schema_name__iexact=tenant_schema.replace('-', '_')) |
+                Q(code__iexact=tenant_schema) |
+                Q(name__iexact=tenant_schema)
+            ).first()
+            
+            if city:
+                validated_data['tenant_schema'] = city.schema_name
+            else:
+                raise serializers.ValidationError({
+                    "tenant_schema": f"Tenant schema or city '{tenant_schema}' does not exist."
+                })
+
         # 1. Set Boolean Flags based on role name
         if role_name:
             if role_name == 'Drivers':
@@ -136,9 +176,15 @@ class UserCreateSerializer(serializers.ModelSerializer):
         addr = validated_data.pop('address', None)
         comp = validated_data.pop('company', None)
         nts = validated_data.pop('notes', None)
+        
+        # Profile-specific fields
+        zone = validated_data.pop('zone', None)
+        plate = validated_data.pop('vehicle_plate', None)
+        v_type = validated_data.pop('vehicle_type', None)
+        cap = validated_data.pop('max_capacity_kg', None)
 
-        # 3. Create the User object
-        user = User.objects.create(**validated_data)
+        # 3. Instantiate the User object (do not save to DB yet)
+        user = User(**validated_data)
         user.set_password(password)
         
         # Attach temporary attributes for the signal to catch
@@ -147,7 +193,12 @@ class UserCreateSerializer(serializers.ModelSerializer):
         user.address = addr
         user.company = comp
         user.notes = nts
+        user.zone = zone
+        user.vehicle_plate = plate
+        user.vehicle_type = v_type
+        user.max_capacity_kg = cap
         
+        # Save to DB (this triggers post_save signal exactly once, with all attributes populated)
         user.save()
         
         # 3. Assign to Groups
@@ -160,6 +211,24 @@ class UserCreateSerializer(serializers.ModelSerializer):
             user.groups.set(final_groups)
         
         return user
+
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        if not instance.is_customer:
+            ret.pop('latitude', None)
+            ret.pop('longitude', None)
+        
+        company_id = None
+        company_name = None
+        if instance.tenant_schema and instance.tenant_schema != 'public':
+            from tenants.models import City
+            city = City.objects.filter(schema_name=instance.tenant_schema).select_related('company').first()
+            if city and city.company:
+                company_id = str(city.company.id)
+                company_name = city.company.name
+        ret['company_id'] = company_id
+        ret['company_name'] = company_name
+        return ret
 
 
 class RequestOTPSerializer(serializers.Serializer):

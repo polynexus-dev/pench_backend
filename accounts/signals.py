@@ -27,15 +27,26 @@ def sync_user_groups(sender, instance, created, **kwargs):
                         else:
                             location = {"latitude": float(lat), "longitude": float(lon)}
 
+                    comp_name = getattr(instance, 'company', "") or ""
+                    if not comp_name:
+                        from tenants.models import City
+                        city = City.objects.filter(schema_name=instance.tenant_schema).select_related('company').first()
+                        if city and city.company:
+                            comp_name = city.company.name
+
+                    zone_val = getattr(instance, 'zone', None)
+                    zone_id = zone_val if zone_val and zone_val != "" else None
+
                     Customer.objects.create(
                         user=instance,
                         name=f"{instance.first_name} {instance.last_name}".strip() or instance.username,
-                        company=getattr(instance, 'company', "") or "",
+                        company=comp_name,
                         email=instance.email or f"{instance.username}_{instance.id}@penchfoods.in",
                         phone=getattr(instance, 'phone', "") or "",
                         address=getattr(instance, 'address', "") or "",
                         notes=getattr(instance, 'notes', "") or "",
-                        location=location
+                        location=location,
+                        zone_id=zone_id
                     )
 
         # 2. Handle Driver Profile Auto-Creation
@@ -43,11 +54,18 @@ def sync_user_groups(sender, instance, created, **kwargs):
             from routing.models import Driver
             with schema_context(instance.tenant_schema):
                 if not Driver.objects.filter(user=instance).exists():
+                    zone_val = getattr(instance, 'zone', None)
+                    zone_id = zone_val if zone_val and zone_val != "" else None
                     Driver.objects.create(
                         user=instance,
-                        vehicle_plate=f"NEW-{instance.id}", # Placeholder plate
-                        vehicle_type="van"
+                        vehicle_plate=getattr(instance, 'vehicle_plate', None) or f"NEW-{instance.id}",
+                        vehicle_type=getattr(instance, 'vehicle_type', None) or "van",
+                        max_capacity_kg=getattr(instance, 'max_capacity_kg', None) or 500,
+                        zone_id=zone_id
                     )
+                    if zone_id:
+                        from routing.models import Zone
+                        Zone.objects.filter(id=zone_id).update(assigned_driver=instance)
 
         # 3. Handle HR Employee Auto-Creation (For both Staff and Drivers)
         if (instance.is_erp_user or instance.is_driver) and hasattr(instance, 'tenant_schema') and instance.tenant_schema and instance.tenant_schema != 'public':

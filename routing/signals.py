@@ -33,8 +33,6 @@ def on_tracking_event_saved(sender, instance, created, **kwargs):
     try:
         with transaction.atomic():
             from inventory.services import deduct_stock_on_delivery
-            from finance.services import auto_invoice_on_delivery
-            from finance.services.wallet_service import process_delivery_payment
             from inventory.services.bottle_service import issue_bottles
             from routing.services.reconciliation_service import generate_daily_reconciliation
             from orders.models import OrderStatus
@@ -42,25 +40,19 @@ def on_tracking_event_saved(sender, instance, created, **kwargs):
             # 1. Deduct stock
             deduct_stock_on_delivery(order)
 
-            # 2. Generate invoice (includes GST breakdown)
-            invoice, created_now = auto_invoice_on_delivery(order)
-
-            # 3. Issue bottles (dairy specific asset tracking)
+            # 2. Issue bottles (dairy specific asset tracking)
             issue_bottles(order)
 
-            # 4. Process payment from wallet
-            process_delivery_payment(order)
-
-            # 5. Update order status
+            # 3. Update order status
             order.status = OrderStatus.DELIVERED
             order.save(update_fields=['status'])
 
-            # 6. Update/Generate daily reconciliation for the route
+            # 4. Update/Generate daily reconciliation for the route
             generate_daily_reconciliation(instance.route.id)
 
             logger.info(
-                'Delivery complete hooks processed for order %s. Invoice: %s, Route: %s',
-                order.id, invoice.invoice_number, instance.route.id
+                'Delivery complete hooks processed for order %s. Route: %s',
+                order.id, instance.route.id
             )
 
     except Exception as exc:

@@ -60,6 +60,28 @@ class City(TenantMixin):
     def __str__(self):
         return f'{self.name} ({self.code})'
 
+    def save(self, *args, **kwargs):
+        if not self.schema_name:
+            import re
+            def clean_name(val):
+                if not val:
+                    return ""
+                val = val.lower()
+                val = re.sub(r'[^a-z0-9_]', '_', val)
+                val = re.sub(r'_+', '_', val)
+                return val.strip('_')
+
+            clean_city = clean_name(self.name)
+            if self.company and clean_city:
+                clean_company = clean_name(self.company.code)
+                schema_name = f"{clean_company}_{clean_city}"
+            elif clean_city:
+                schema_name = clean_city
+            else:
+                schema_name = clean_name(self.code)
+            self.schema_name = schema_name[:63]
+        super().save(*args, **kwargs)
+
 
 class Domain(DomainMixin):
     """

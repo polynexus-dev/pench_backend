@@ -66,6 +66,7 @@ class SubscriptionViewSet(viewsets.ModelViewSet):
         subscription.is_paused = True
         subscription.pause_start = pause_start
         subscription.pause_end = pause_end
+        subscription.pause_updated_by = request.user
         subscription.save()
 
         return Response(SubscriptionSerializer(subscription).data)
@@ -81,6 +82,7 @@ class SubscriptionViewSet(viewsets.ModelViewSet):
         subscription.is_paused = False
         subscription.pause_start = None
         subscription.pause_end = None
+        subscription.pause_updated_by = request.user
         subscription.save()
         return Response(SubscriptionSerializer(subscription).data)
 
@@ -272,7 +274,7 @@ class SubscriptionViewSet(viewsets.ModelViewSet):
                 if order_info['order_status'] == OrderStatus.DELIVERED:
                     entry['status'] = 'delivered'
                     counts['total_delivered'] += 1
-                elif order_info['order_status'] == OrderStatus.CANCELLED:
+                elif order_info['order_status'] in [OrderStatus.CANCELLED, OrderStatus.UNDELIVERED]:
                     entry['status'] = 'undelivered'
                     counts['total_undelivered'] += 1
                 elif order_info['order_status'] == OrderStatus.IN_TRANSIT:
@@ -464,7 +466,7 @@ class SubscriptionViewSet(viewsets.ModelViewSet):
                         entry['status'] = 'delivered'
                         sub_counts['total_delivered'] += 1
                         overall_counts['total_delivered'] += 1
-                    elif order_info['order_status'] == OrderStatus.CANCELLED:
+                    elif order_info['order_status'] in [OrderStatus.CANCELLED, OrderStatus.UNDELIVERED]:
                         entry['status'] = 'undelivered'
                         sub_counts['total_undelivered'] += 1
                         overall_counts['total_undelivered'] += 1

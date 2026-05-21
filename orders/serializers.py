@@ -56,11 +56,17 @@ class OrderSerializer(serializers.ModelSerializer):
         
         total_amount = 0
         for item_data in items_data:
-            # Auto-fill unit price from product if not provided
+            # Auto-fill unit price from product/custom overrides if not provided
             if not item_data.get('unit_price'):
                 product = item_data.get('product')
+                customer = validated_data.get('customer')
                 if product:
-                    item_data['unit_price'] = product.unit_price
+                    from inventory.models import CustomerProductPrice
+                    custom_price_obj = CustomerProductPrice.objects.filter(customer=customer, product=product).first()
+                    if custom_price_obj:
+                        item_data['unit_price'] = custom_price_obj.custom_price
+                    else:
+                        item_data['unit_price'] = product.unit_price
             
             item = OrderItem.objects.create(order=order, **item_data)
             total_amount += item.line_total
@@ -77,10 +83,11 @@ class RouteStopSerializer(serializers.ModelSerializer):
     address = serializers.CharField(source='order.delivery_address', read_only=True)
     latitude = serializers.SerializerMethodField()
     longitude = serializers.SerializerMethodField()
+    order_status = serializers.CharField(source='order.status', read_only=True)
 
     class Meta:
         model = RouteStop
-        fields = ['id', 'sequence_number', 'order', 'customer_name', 'address', 'latitude', 'longitude']
+        fields = ['id', 'sequence_number', 'order', 'customer_name', 'address', 'latitude', 'longitude', 'order_status']
 
     def get_latitude(self, obj):
         loc = obj.order.customer.location
