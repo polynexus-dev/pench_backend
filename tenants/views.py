@@ -12,10 +12,10 @@ class CityViewSet(viewsets.ModelViewSet):
         # Save the city
         city = serializer.save()
         
-        # Automatically create a domain for the city
+        # Automatically create a domain for the city (replacing underscores with hyphens for DNS compliance)
         import os
         base_domain = os.environ.get('PUBLIC_DOMAIN', 'localhost')
-        domain_name = f"{city.schema_name}.{base_domain}"
+        domain_name = f"{city.schema_name.replace('_', '-')}.{base_domain}"
         
         Domain.objects.get_or_create(
             domain=domain_name,

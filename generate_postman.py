@@ -260,6 +260,936 @@ def generate_collection():
                         }
                         print(f"[-] Injected formdata and key/values to {req.get('name')} in collection.")
 
+    # 6. Programmatically inject/enrich all missing endpoints and CRUD sets
+    print("[-] Injecting complete CRUD coverage for all Django REST ViewSets...")
+    
+    def find_folder(item_list, name_part):
+        for item in item_list:
+            if name_part.lower() in item.get("name", "").lower():
+                return item
+        return None
+
+    def make_crud_folder(folder_name, singular_name, plural_name, path_list, url_var, create_body=None, update_body=None, extra_requests=None):
+        if update_body is None:
+            update_body = create_body
+        items = []
+        host_val = [f"{{{{{url_var}}}}}"]
+        raw_list_url = f"{{{{{url_var}}}}}/" + "/".join(path_list) + "/"
+        raw_detail_url = f"{{{{{url_var}}}}}/" + "/".join(path_list) + "/{{last_id}}/"
+        
+        # 1. GET List
+        items.append({
+            "name": f"GET List {plural_name}",
+            "request": {
+                "method": "GET",
+                "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+                "url": {
+                    "raw": raw_list_url,
+                    "host": host_val,
+                    "path": path_list + [""]
+                }
+            }
+        })
+        # 2. POST Create
+        c_req = {
+            "method": "POST",
+            "header": [
+                {"key": "Authorization", "value": "Bearer {{access_token}}"},
+                {"key": "Content-Type", "value": "application/json"}
+            ],
+            "url": {
+                "raw": raw_list_url,
+                "host": host_val,
+                "path": path_list + [""]
+            }
+        }
+        if create_body is not None:
+            c_req["body"] = {"mode": "raw", "raw": json.dumps(create_body, indent=4)}
+        items.append({
+            "name": f"POST Create {singular_name}",
+            "request": c_req
+        })
+        # 3. GET Single
+        items.append({
+            "name": f"GET Single {singular_name}",
+            "request": {
+                "method": "GET",
+                "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+                "url": {
+                    "raw": raw_detail_url,
+                    "host": host_val,
+                    "path": path_list + ["{{last_id}}", ""]
+                }
+            }
+        })
+        # 4. PATCH Update
+        u_req = {
+            "method": "PATCH",
+            "header": [
+                {"key": "Authorization", "value": "Bearer {{access_token}}"},
+                {"key": "Content-Type", "value": "application/json"}
+            ],
+            "url": {
+                "raw": raw_detail_url,
+                "host": host_val,
+                "path": path_list + ["{{last_id}}", ""]
+            }
+        }
+        if update_body is not None:
+            u_req["body"] = {"mode": "raw", "raw": json.dumps(update_body, indent=4)}
+        items.append({
+            "name": f"PATCH Update {singular_name}",
+            "request": u_req
+        })
+        # 5. DELETE Delete
+        items.append({
+            "name": f"DELETE Delete {singular_name}",
+            "request": {
+                "method": "DELETE",
+                "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+                "url": {
+                    "raw": raw_detail_url,
+                    "host": host_val,
+                    "path": path_list + ["{{last_id}}", ""]
+                }
+            }
+        })
+        if extra_requests:
+            items.extend(extra_requests)
+        return {"name": folder_name, "item": items}
+
+    # --- Auth & Registration ---
+    auth_folder = find_folder(coll["item"], "01. Auth & Registration")
+    if auth_folder:
+        set_pw = {
+            "name": "POST Set Password",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {"key": "Content-Type", "value": "application/json"}
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n    \"token\": \"SET_PASSWORD_TOKEN_HERE\",\n    \"password\": \"new_secure_password\"\n}"
+                },
+                "url": {
+                    "raw": "{{base_url}}/api/accounts/set-password/",
+                    "host": ["{{base_url}}"],
+                    "path": ["api", "accounts", "set-password", ""]
+                }
+            }
+        }
+        patch_me = {
+            "name": "PATCH Update My Profile",
+            "request": {
+                "method": "PATCH",
+                "header": [
+                    {"key": "Authorization", "value": "Bearer {{access_token}}"},
+                    {"key": "Content-Type", "value": "application/json"}
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n    \"first_name\": \"John\",\n    \"last_name\": \"Doe\"\n}"
+                },
+                "url": {
+                    "raw": "{{base_url}}/api/accounts/me/",
+                    "host": ["{{base_url}}"],
+                    "path": ["api", "accounts", "me", ""]
+                }
+            }
+        }
+        auth_folder["item"] = [item for item in auth_folder.get("item", []) if "Set Password" not in item.get("name", "") and "Update My Profile" not in item.get("name", "")]
+        auth_folder["item"].append(set_pw)
+        auth_folder["item"].append(patch_me)
+
+    # --- Platform & Tenants ---
+    plat = find_folder(coll["item"], "02. Platform & Tenants")
+    if plat:
+        company_crud = make_crud_folder(
+            "Companies (Company)", "Company", "Companies",
+            ["api", "erp", "tenants", "companies"], "base_url",
+            create_body={"name": "Aniket Corp", "code": "ANI"}
+        )
+        for idx, item in enumerate(plat.get("item", [])):
+            if "Companies" in item.get("name", ""):
+                plat["item"][idx] = company_crud
+                break
+        else:
+            plat["item"].insert(0, company_crud)
+
+        holiday_crud = make_crud_folder(
+            "Holidays (Holiday)", "Holiday", "Holidays",
+            ["api", "erp", "tenants", "holidays"], "city_url",
+            create_body={
+                "city": 1,
+                "name": "Diwali",
+                "date": "2026-10-24",
+                "is_recurring": False,
+                "description": "Festival of lights"
+            }
+        )
+        for idx, item in enumerate(plat.get("item", [])):
+            if "Holidays" in item.get("name", ""):
+                plat["item"][idx] = holiday_crud
+                break
+        else:
+            plat["item"].append(holiday_crud)
+
+        plat["item"] = [item for item in plat.get("item", []) if "Domains" not in item.get("name", "")]
+
+        zone_crud = make_crud_folder(
+            "Zones (Zone)", "Zone", "Zones",
+            ["api", "ems", "zones"], "city_url",
+            create_body={
+                "name": "Nagpur Inside Sector 1",
+                "description": "High-priority residential delivery sector",
+                "assigned_driver": None,
+                "is_active": True
+            }
+        )
+        for req in zone_crud["item"]:
+            if req.get("name") in ["POST Create Zone", "PATCH Update Zone"]:
+                req["request"]["body"] = {
+                    "mode": "formdata",
+                    "formdata": [
+                        {"key": "name", "value": "Nagpur Inside Sector 1", "type": "text"},
+                        {"key": "description", "value": "High-priority residential delivery sector", "type": "text"},
+                        {"key": "assigned_driver", "value": "", "type": "text"},
+                        {"key": "is_active", "value": "true", "type": "text"},
+                        {
+                            "key": "boundary",
+                            "value": json.dumps({
+                                "type": "Polygon",
+                                "coordinates": [[[79.05, 21.05], [79.15, 21.05], [79.15, 21.15], [79.05, 21.15], [79.05, 21.05]]]
+                            }),
+                            "type": "text",
+                            "description": "Optional: raw GeoJSON string for zone boundaries."
+                        },
+                        {
+                            "key": "boundary_file",
+                            "type": "file",
+                            "description": "Select .geojson, .kml, or .zip shapefile to upload zone boundaries."
+                        }
+                    ]
+                }
+        for idx, item in enumerate(plat.get("item", [])):
+            if "Zones" in item.get("name", ""):
+                plat["item"][idx] = zone_crud
+                break
+
+    # --- CRM & Customers ---
+    crm = find_folder(coll["item"], "03. CRM & Customers")
+    if crm:
+        lead_crud = make_crud_folder(
+            "Leads (Lead)", "Lead", "Leads",
+            ["api", "erp", "leads"], "city_url",
+            create_body={
+                "name": "John Doe",
+                "phone": "918000000201",
+                "email": "john.doe@example.com",
+                "notes": "Interested in premium whole milk subscription."
+            }
+        )
+        for idx, item in enumerate(crm.get("item", [])):
+            if "Leads" in item.get("name", ""):
+                crm["item"][idx] = lead_crud
+                break
+        else:
+            crm["item"].insert(0, lead_crud)
+
+        # Inject QR Resolve to Customers
+        cust_folder = find_folder(crm.get("item", []), "Customers")
+        if cust_folder:
+            qr_resolve_req = {
+                "name": "GET Resolve Customer QR",
+                "request": {
+                    "method": "GET",
+                    "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+                    "url": {
+                        "raw": "{{city_url}}/api/erp/customers/qr-resolve/{{qr_id}}/",
+                        "host": ["{{city_url}}"],
+                        "path": ["api", "erp", "customers", "qr-resolve", "{{qr_id}}", ""]
+                    }
+                }
+            }
+            # Avoid duplicate
+            cust_folder["item"] = [item for item in cust_folder.get("item", []) if "Resolve Customer QR" not in item.get("name", "")]
+            cust_folder["item"].append(qr_resolve_req)
+
+    # --- Inventory & Warehousing ---
+    inv = find_folder(coll["item"], "04. Inventory & Warehousing")
+    if inv:
+        # Rebuild Bottle Balances
+        bottle_bal_item = {
+            "name": "Bottle Balances (BottleBalance)",
+            "item": [
+                {
+                    "name": "GET List Bottle Balances",
+                    "request": {
+                        "method": "GET",
+                        "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+                        "url": {
+                            "raw": "{{city_url}}/api/erp/inventory/bottle-balances/",
+                            "host": ["{{city_url}}"],
+                            "path": ["api", "erp", "inventory", "bottle-balances", ""]
+                        }
+                    }
+                },
+                {
+                    "name": "GET Single Bottle Balance",
+                    "request": {
+                        "method": "GET",
+                        "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+                        "url": {
+                            "raw": "{{city_url}}/api/erp/inventory/bottle-balances/{{last_id}}/",
+                            "host": ["{{city_url}}"],
+                            "path": ["api", "erp", "inventory", "bottle-balances", "{{last_id}}", ""]
+                        }
+                    }
+                }
+            ]
+        }
+        new_items = []
+        for item in inv.get("item", []):
+            if "Bottle Balances" in item.get("name", "") or "bottle balances" in json.dumps(item).lower():
+                continue
+            new_items.append(item)
+        new_items.append(bottle_bal_item)
+        inv["item"] = new_items
+
+    # --- Logistics & Route Optimization ---
+    logis = find_folder(coll["item"], "05. Logistics & Route Optimization")
+    if logis:
+        # Rebuild Reconciliations
+        recon_extra = [{
+            "name": "POST Reconcile",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {"key": "Authorization", "value": "Bearer {{access_token}}"},
+                    {"key": "Content-Type", "value": "application/json"}
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n    \"actual_total\": 500.00,\n    \"notes\": \"All match\"\n}"
+                },
+                "url": {
+                    "raw": "{{city_url}}/api/ems/reconciliations/{{last_id}}/reconcile/",
+                    "host": ["{{city_url}}"],
+                    "path": ["api", "ems", "reconciliations", "{{last_id}}", "reconcile", ""]
+                }
+            }
+        }]
+        recon_crud = make_crud_folder(
+            "Reconciliations (Reconciliation)", "Reconciliation", "Reconciliations",
+            ["api", "ems", "reconciliations"], "city_url",
+            create_body={
+                "driver": 1,
+                "route": 1,
+                "date": "2026-05-15"
+            },
+            extra_requests=recon_extra
+        )
+        for idx, item in enumerate(logis.get("item", [])):
+            if "Reconciliations" in item.get("name", ""):
+                logis["item"][idx] = recon_crud
+                break
+        else:
+            logis["item"].append(recon_crud)
+
+        track_crud = make_crud_folder(
+            "Tracking Events (TrackingEvent)", "Tracking Event", "Tracking Events",
+            ["api", "ems", "tracking"], "city_url",
+            create_body={
+                "route": 1,
+                "status": "in_transit",
+                "latitude": 18.5204,
+                "longitude": 73.8567,
+                "speed": 25.5
+            }
+        )
+        for idx, item in enumerate(logis.get("item", [])):
+            if "Tracking Events" in item.get("name", ""):
+                logis["item"][idx] = track_crud
+                break
+        else:
+            logis["item"].append(track_crud)
+
+        # Rebuild/clean Routes (Route) folder to contain EMS Routes and ERP Routes separately
+        ems_routes_extra = [
+            {
+                "name": "POST Optimize EMS Route",
+                "request": {
+                    "method": "POST",
+                    "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+                    "url": {
+                        "raw": "{{city_url}}/api/ems/routes/{{last_id}}/optimize/",
+                        "host": ["{{city_url}}"],
+                        "path": ["api", "ems", "routes", "{{last_id}}", "optimize", ""]
+                    }
+                }
+            },
+            {
+                "name": "GET EMS Route Tracking",
+                "request": {
+                    "method": "GET",
+                    "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+                    "url": {
+                        "raw": "{{city_url}}/api/ems/routes/{{last_id}}/tracking/",
+                        "host": ["{{city_url}}"],
+                        "path": ["api", "ems", "routes", "{{last_id}}", "tracking", ""]
+                    }
+                }
+            },
+            {
+                "name": "POST Generate Reconciliation",
+                "request": {
+                    "method": "POST",
+                    "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+                    "url": {
+                        "raw": "{{city_url}}/api/ems/routes/{{last_id}}/generate-reconciliation/",
+                        "host": ["{{city_url}}"],
+                        "path": ["api", "ems", "routes", "{{last_id}}", "generate-reconciliation", ""]
+                    }
+                }
+            },
+            {
+                "name": "GET EMS Route GeoJSON",
+                "request": {
+                    "method": "GET",
+                    "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+                    "url": {
+                        "raw": "{{city_url}}/api/ems/routes/{{last_id}}/geojson/",
+                        "host": ["{{city_url}}"],
+                        "path": ["api", "ems", "routes", "{{last_id}}", "geojson", ""]
+                    }
+                }
+            }
+        ]
+        
+        ems_routes_crud = make_crud_folder(
+            "EMS Routes", "EMS Route", "EMS Routes",
+            ["api", "ems", "routes"], "city_url",
+            create_body={
+                "name": "EMS Route A",
+                "driver": 1,
+                "status": "pending"
+            },
+            extra_requests=ems_routes_extra
+        )
+        
+        erp_routes_extra = [
+            {
+                "name": "GET Single ERP Route GeoJSON",
+                "request": {
+                    "method": "GET",
+                    "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+                    "url": {
+                        "raw": "{{city_url}}/api/erp/orders/routes/{{last_id}}/geojson/",
+                        "host": ["{{city_url}}"],
+                        "path": ["api", "erp", "orders", "routes", "{{last_id}}", "geojson", ""]
+                    }
+                }
+            },
+            {
+                "name": "POST Create Optimized ERP Route",
+                "request": {
+                    "method": "POST",
+                    "header": [
+                        {"key": "Authorization", "value": "Bearer {{access_token}}"},
+                        {"key": "Content-Type", "value": "application/json"}
+                    ],
+                    "body": {
+                        "mode": "raw",
+                        "raw": "{\n    \"date\": \"2026-05-15\",\n    \"driver_ids\": [1, 2]\n}"
+                    },
+                    "url": {
+                        "raw": "{{city_url}}/api/erp/orders/routes/create-optimized/",
+                        "host": ["{{city_url}}"],
+                        "path": ["api", "erp", "orders", "routes", "create-optimized", ""]
+                    }
+                }
+            }
+        ]
+        
+        erp_routes_crud = make_crud_folder(
+            "ERP Routes", "ERP Route", "ERP Routes",
+            ["api", "erp", "orders", "routes"], "city_url",
+            create_body={
+                "name": "ERP Route 1",
+                "delivery_date": "2026-05-15",
+                "driver": 1
+            },
+            extra_requests=erp_routes_extra
+        )
+
+        routes_folder = find_folder(logis.get("item", []), "Routes")
+        if routes_folder:
+            routes_folder["item"] = [ems_routes_crud, erp_routes_crud]
+
+        # Inject Bulk Update to Orders (which is in Logistics)
+        ord_folder = find_folder(logis.get("item", []), "Orders")
+        if ord_folder:
+            bulk_update_req = {
+                "name": "PATCH Bulk Update Orders",
+                "request": {
+                    "method": "PATCH",
+                    "header": [
+                        {"key": "Authorization", "value": "Bearer {{access_token}}"},
+                        {"key": "Content-Type", "value": "application/json"}
+                    ],
+                    "body": {
+                        "mode": "raw",
+                        "raw": "{\n    \"orders\": [1, 2],\n    \"status\": \"completed\"\n}"
+                    },
+                    "url": {
+                        "raw": "{{city_url}}/api/erp/orders/bulk_update/",
+                        "host": ["{{city_url}}"],
+                        "path": ["api", "erp", "orders", "bulk_update", ""]
+                    }
+                }
+            }
+            ord_folder["item"] = [item for item in ord_folder.get("item", []) if "Bulk Update Orders" not in item.get("name", "")]
+            ord_folder["item"].append(bulk_update_req)
+
+    # --- Fleet & Driver Management ---
+    fleet = find_folder(coll["item"], "06. Fleet & Driver Management")
+    if fleet:
+        # Add ERP Drivers CRUD (DriverViewSet from orders app)
+        erp_driver_crud = {
+            "name": "ERP Drivers (Driver)",
+            "item": [
+                {
+                    "name": "POST Create ERP Driver",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {"key": "Authorization", "value": "Bearer {{access_token}}"},
+                            {"key": "Content-Type", "value": "application/json"}
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name\": \"John Driver\",\n    \"phone\": \"9876543210\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{city_url}}/api/erp/orders/driver/",
+                            "host": ["{{city_url}}"],
+                            "path": ["api", "erp", "orders", "driver", ""]
+                        }
+                    }
+                },
+                {
+                    "name": "GET Single ERP Driver",
+                    "request": {
+                        "method": "GET",
+                        "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+                        "url": {
+                            "raw": "{{city_url}}/api/erp/orders/driver/{{last_id}}/",
+                            "host": ["{{city_url}}"],
+                            "path": ["api", "erp", "orders", "driver", "{{last_id}}", ""]
+                        }
+                    }
+                },
+                {
+                    "name": "GET Resolve Driver QR",
+                    "request": {
+                        "method": "GET",
+                        "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+                        "url": {
+                            "raw": "{{city_url}}/api/erp/orders/driver/resolve-qr/{{qr_id}}/",
+                            "host": ["{{city_url}}"],
+                            "path": ["api", "erp", "orders", "driver", "resolve-qr", "{{qr_id}}", ""]
+                        }
+                    }
+                }
+            ]
+        }
+        fleet["item"] = [item for item in fleet.get("item", []) if "ERP Drivers" not in item.get("name", "")]
+        fleet["item"].append(erp_driver_crud)
+
+    # --- HR & Attendance ---
+    hr = find_folder(coll["item"], "07. HR & Attendance")
+    if hr:
+        dept_crud = make_crud_folder("Departments (Department)", "Department", "Departments", ["api", "erp", "hr", "departments"], "city_url", {"name": "Logistics & Delivery", "description": "Logistics and fleet management division"})
+        salary_crud = make_crud_folder("Salary Structures (SalaryStructure)", "Salary Structure", "Salary Structures", ["api", "erp", "hr", "salary-structures"], "city_url", {"employee": 1, "base_salary": "25000.00", "allowances": "3000.00", "deductions": "1500.00"})
+        
+        payroll_extra = [{
+            "name": "POST Generate Payroll",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {"key": "Authorization", "value": "Bearer {{access_token}}"},
+                    {"key": "Content-Type", "value": "application/json"}
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n    \"month\": 5,\n    \"year\": 2026\n}"
+                },
+                "url": {
+                    "raw": "{{city_url}}/api/erp/hr/payrolls/generate/",
+                    "host": ["{{city_url}}"],
+                    "path": ["api", "erp", "hr", "payrolls", "generate", ""]
+                }
+            }
+        }]
+        payroll_crud = make_crud_folder("Monthly Payrolls (Payroll)", "Payroll", "Payrolls", ["api", "erp", "hr", "payrolls"], "city_url", {"employee": 1, "month": 5, "year": 2026, "gross_salary": "28000.00", "net_salary": "26500.00", "payment_status": "unpaid"}, extra_requests=payroll_extra)
+        
+        doc_extra = [{
+            "name": "POST Verify Document",
+            "request": {
+                "method": "POST",
+                "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+                "url": {
+                    "raw": "{{city_url}}/api/erp/hr/documents/{{last_id}}/verify/",
+                    "host": ["{{city_url}}"],
+                    "path": ["api", "erp", "hr", "documents", "{{last_id}}", "verify", ""]
+                }
+            }
+        }]
+        doc_crud = make_crud_folder("Employee Documents (Document)", "Document", "Documents", ["api", "erp", "hr", "documents"], "city_url", {"employee": 1, "document_type": "driving_license", "document_number": "MH12-2026-0012345", "expiry_date": "2031-12-31"}, extra_requests=doc_extra)
+        
+        incentive_crud = make_crud_folder("Incentive Rules (IncentiveRule)", "Incentive Rule", "Incentive Rules", ["api", "erp", "hr", "incentive-rules"], "city_url", {"name": "Standard Delivery Incentive", "per_delivery_rate": "5.00", "minimum_deliveries": 20, "bonus_amount": "100.00"})
+        
+        # Inject Bulk Update to Employees
+        emp_folder = find_folder(hr.get("item", []), "Employees")
+        if emp_folder:
+            emp_bulk_req = {
+                "name": "PATCH Bulk Update Employees",
+                "request": {
+                    "method": "PATCH",
+                    "header": [
+                        {"key": "Authorization", "value": "Bearer {{access_token}}"},
+                        {"key": "Content-Type", "value": "application/json"}
+                    ],
+                    "body": {
+                        "mode": "raw",
+                        "raw": "{\n    \"employees\": [1, 2],\n    \"is_active\": true\n}"
+                    },
+                    "url": {
+                        "raw": "{{city_url}}/api/erp/hr/employees/bulk_update/",
+                        "host": ["{{city_url}}"],
+                        "path": ["api", "erp", "hr", "employees", "bulk_update", ""]
+                    }
+                }
+            }
+            emp_folder["item"] = [item for item in emp_folder.get("item", []) if "Bulk Update Employees" not in item.get("name", "")]
+            emp_folder["item"].append(emp_bulk_req)
+
+        for folder in [dept_crud, salary_crud, payroll_crud, doc_crud, incentive_crud]:
+            for idx, item in enumerate(hr.get("item", [])):
+                if folder["name"] == item.get("name"):
+                    hr["item"][idx] = folder
+                    break
+            else:
+                hr["item"].append(folder)
+
+    # --- Finance & Billing ---
+    fin = find_folder(coll["item"], "08. Finance & Billing")
+    if fin:
+        bill_extra = [{
+            "name": "POST Trigger Billing Generation",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {"key": "Authorization", "value": "Bearer {{access_token}}"},
+                    {"key": "Content-Type", "value": "application/json"}
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n    \"year\": 2026,\n    \"month\": 5\n}"
+                },
+                "url": {
+                    "raw": "{{city_url}}/api/erp/finance/bills/trigger-generation/",
+                    "host": ["{{city_url}}"],
+                    "path": ["api", "erp", "finance", "bills", "trigger-generation", ""]
+                }
+            }
+        }]
+        bill_crud = make_crud_folder(
+            "Monthly Bills (MonthlyBill)", "Bill", "Bills",
+            ["api", "erp", "finance", "bills"], "city_url",
+            create_body={
+                "customer": 1,
+                "billing_period_start": "2026-05-01",
+                "billing_period_end": "2026-05-31",
+                "total_amount": "1500.00"
+            },
+            extra_requests=bill_extra
+        )
+        fin["item"] = [bill_crud]
+
+    # --- Subscriptions ---
+    sub_folder = find_folder(coll["item"], "09. Subscriptions")
+    if sub_folder:
+        # Rebuild with correct "/subscriptions/" path instead of "/subs/"
+        sub_crud = make_crud_folder(
+            "Subscriptions (Subscription)", "Subscription", "Subscriptions",
+            ["api", "erp", "subscriptions"], "city_url",
+            create_body={
+                "customer": 1,
+                "product": 1,
+                "quantity": 1,
+                "frequency": "daily",
+                "start_date": "2026-05-01",
+                "status": "active"
+            }
+        )
+        
+        # Build custom action requests with correct paths
+        sub_custom_requests = [
+            {
+                "name": "POST Pause Subscription",
+                "request": {
+                    "method": "POST",
+                    "header": [
+                        {"key": "Authorization", "value": "Bearer {{access_token}}"},
+                        {"key": "Content-Type", "value": "application/json"}
+                    ],
+                    "body": {
+                        "mode": "raw",
+                        "raw": "{\n    \"vacation_start\": \"2026-05-20\",\n    \"vacation_end\": \"2026-05-25\"\n}"
+                    },
+                    "url": {
+                        "raw": "{{city_url}}/api/erp/subscriptions/{{last_id}}/pause/",
+                        "host": ["{{city_url}}"],
+                        "path": ["api", "erp", "subscriptions", "{{last_id}}", "pause", ""]
+                    }
+                }
+            },
+            {
+                "name": "POST Resume Subscription",
+                "request": {
+                    "method": "POST",
+                    "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+                    "url": {
+                        "raw": "{{city_url}}/api/erp/subscriptions/{{last_id}}/resume/",
+                        "host": ["{{city_url}}"],
+                        "path": ["api", "erp", "subscriptions", "{{last_id}}", "resume", ""]
+                    }
+                }
+            },
+            {
+                "name": "POST Update Product Quantity",
+                "request": {
+                    "method": "POST",
+                    "header": [
+                        {"key": "Authorization", "value": "Bearer {{access_token}}"},
+                        {"key": "Content-Type", "value": "application/json"}
+                    ],
+                    "body": {
+                        "mode": "raw",
+                        "raw": "{\n    \"quantity\": 2\n}"
+                    },
+                    "url": {
+                        "raw": "{{city_url}}/api/erp/subscriptions/{{last_id}}/update-quantity/",
+                        "host": ["{{city_url}}"],
+                        "path": ["api", "erp", "subscriptions", "{{last_id}}", "update-quantity", ""]
+                    }
+                }
+            },
+            {
+                "name": "POST Add Skip Date",
+                "request": {
+                    "method": "POST",
+                    "header": [
+                        {"key": "Authorization", "value": "Bearer {{access_token}}"},
+                        {"key": "Content-Type", "value": "application/json"}
+                    ],
+                    "body": {
+                        "mode": "raw",
+                        "raw": "{\n    \"skip_date\": \"2026-05-22\"\n}"
+                    },
+                    "url": {
+                        "raw": "{{city_url}}/api/erp/subscriptions/{{last_id}}/add-skip-date/",
+                        "host": ["{{city_url}}"],
+                        "path": ["api", "erp", "subscriptions", "{{last_id}}", "add-skip-date", ""]
+                    }
+                }
+            },
+            {
+                "name": "POST Vacation Mode",
+                "request": {
+                    "method": "POST",
+                    "header": [
+                        {"key": "Authorization", "value": "Bearer {{access_token}}"},
+                        {"key": "Content-Type", "value": "application/json"}
+                    ],
+                    "body": {
+                        "mode": "raw",
+                        "raw": "{\n    \"start_date\": \"2026-05-20\",\n    \"end_date\": \"2026-05-25\"\n}"
+                    },
+                    "url": {
+                        "raw": "{{city_url}}/api/erp/subscriptions/{{last_id}}/vacation/",
+                        "host": ["{{city_url}}"],
+                        "path": ["api", "erp", "subscriptions", "{{last_id}}", "vacation", ""]
+                    }
+                }
+            },
+            {
+                "name": "PATCH Bulk Update Subscriptions",
+                "request": {
+                    "method": "PATCH",
+                    "header": [
+                        {"key": "Authorization", "value": "Bearer {{access_token}}"},
+                        {"key": "Content-Type", "value": "application/json"}
+                    ],
+                    "body": {
+                        "mode": "raw",
+                        "raw": "{\n    \"subscriptions\": [1, 2],\n    \"quantity\": 3\n}"
+                    },
+                    "url": {
+                        "raw": "{{city_url}}/api/erp/subscriptions/bulk_update/",
+                        "host": ["{{city_url}}"],
+                        "path": ["api", "erp", "subscriptions", "bulk_update", ""]
+                    }
+                }
+            },
+            {
+                "name": "POST Trigger Order Generation",
+                "request": {
+                    "method": "POST",
+                    "header": [
+                        {"key": "Authorization", "value": "Bearer {{access_token}}"},
+                        {"key": "Content-Type", "value": "application/json"}
+                    ],
+                    "body": {
+                        "mode": "raw",
+                        "raw": "{\n    \"date\": \"2026-05-20\"\n}"
+                    },
+                    "url": {
+                        "raw": "{{city_url}}/api/erp/subscriptions/trigger-generation/",
+                        "host": ["{{city_url}}"],
+                        "path": ["api", "erp", "subscriptions", "trigger-generation", ""]
+                    }
+                }
+            },
+            {
+                "name": "GET Monthly Delivery Calendar (Single)",
+                "request": {
+                    "method": "GET",
+                    "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+                    "url": {
+                        "raw": "{{city_url}}/api/erp/subscriptions/{{last_id}}/monthly-summary/?year=2026&month=5",
+                        "host": ["{{city_url}}"],
+                        "path": ["api", "erp", "subscriptions", "{{last_id}}", "monthly-summary", ""],
+                        "query": [
+                            {"key": "year", "value": "2026"},
+                            {"key": "month", "value": "5"}
+                        ]
+                    }
+                }
+            },
+            {
+                "name": "GET Monthly Delivery Calendar (All Customer)",
+                "request": {
+                    "method": "GET",
+                    "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+                    "url": {
+                        "raw": "{{city_url}}/api/erp/subscriptions/customer-monthly-summary/?year=2026&month=5",
+                        "host": ["{{city_url}}"],
+                        "path": ["api", "erp", "subscriptions", "customer-monthly-summary", ""],
+                        "query": [
+                            {"key": "year", "value": "2026"},
+                            {"key": "month", "value": "5"}
+                        ]
+                    }
+                }
+            }
+        ]
+        sub_folder["item"] = [sub_crud] + sub_custom_requests
+
+    # --- Taxation ---
+    tax = find_folder(coll["item"], "10. Taxation")
+    if tax:
+        tax_cat_crud = make_crud_folder(
+            "Product Tax Categories (ProductTaxCategory)", "Product Tax Category", "Product Tax Categories",
+            ["api", "erp", "taxation", "product-categories"], "city_url",
+            create_body={
+                "name": "Fresh Dairy Products",
+                "description": "Tax category for fresh milk and dairy items"
+            }
+        )
+        for idx, item in enumerate(tax.get("item", [])):
+            if "Product Tax Categories" in item.get("name", ""):
+                tax["item"][idx] = tax_cat_crud
+                break
+        else:
+            tax["item"].insert(0, tax_cat_crud)
+
+        # Correct Tax Rules from "/taxes/" to "/rules/"
+        tax_rules_crud = make_crud_folder(
+            "Tax Rules (Tax)", "Tax Rule", "Tax Rules",
+            ["api", "erp", "taxation", "rules"], "city_url",
+            create_body={
+                "name": "Standard GST 18%",
+                "rate": "18.00",
+                "description": "Integrated Goods and Services Tax"
+            }
+        )
+        for idx, item in enumerate(tax.get("item", [])):
+            if "Tax Rules" in item.get("name", ""):
+                tax["item"][idx] = tax_rules_crud
+                break
+        else:
+            tax["item"].append(tax_rules_crud)
+
+    # --- Administration ---
+    admin_folder = find_folder(coll["item"], "11. Administration")
+    if admin_folder:
+        # Rebuild to add single/delete
+        config_crud = make_crud_folder(
+            "Admin Config (AdminConfiguration)", "Admin Config", "Admin Configs",
+            ["api", "erp", "administration", "config"], "city_url",
+            create_body={"maintenance_mode": False}
+        )
+        admin_folder["item"] = [config_crud]
+
+    # --- Live Tracking ---
+    live_folder = find_folder(coll["item"], "12. Live Tracking")
+    if live_folder:
+        live_reqs = [
+            {
+                "name": "GET List Live Locations",
+                "request": {
+                    "method": "GET",
+                    "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+                    "url": {
+                        "raw": "{{city_url}}/api/erp/tracking/live/",
+                        "host": ["{{city_url}}"],
+                        "path": ["api", "erp", "tracking", "live", ""]
+                    }
+                }
+            },
+            {
+                "name": "GET Single Live Location",
+                "request": {
+                    "method": "GET",
+                    "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+                    "url": {
+                        "raw": "{{city_url}}/api/erp/tracking/live/{{last_id}}/",
+                        "host": ["{{city_url}}"],
+                        "path": ["api", "erp", "tracking", "live", "{{last_id}}", ""]
+                    }
+                }
+            },
+            {
+                "name": "GET Live Location Trail",
+                "request": {
+                    "method": "GET",
+                    "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+                    "url": {
+                        "raw": "{{city_url}}/api/erp/tracking/live/{{last_id}}/trail/?date=2026-05-15",
+                        "host": ["{{city_url}}"],
+                        "path": ["api", "erp", "tracking", "live", "{{last_id}}", "trail", ""],
+                        "query": [
+                            {"key": "date", "value": "2026-05-15"}
+                        ]
+                    }
+                }
+            }
+        ]
+        live_folder["item"] = live_reqs
+
     with open("documentation/postman_collection.json", "w") as f:
         json.dump(coll, f, indent=4)
     print(f"Permanent Master Collection {collection_name} generated successfully.")
