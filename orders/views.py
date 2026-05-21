@@ -247,6 +247,66 @@ class RouteViewSet(viewsets.ModelViewSet):
         }
         return Response(response_data, status=status.HTTP_201_CREATED)
 
+    @action(detail=False, methods=['post'], url_path='assign-pending')
+    def assign_pending(self, request):
+        """
+        Bulk-assigns pending orders of customers to their primary zone drivers and creates optimized routes.
+        """
+        date = request.data.get('date') or request.data.get('delivery_date')
+        if not date:
+            import datetime
+            date = datetime.date.today().isoformat()
+            
+        from routing.models import Zone
+        from orders.services import create_optimized_route
+        
+        # Fetch pending or confirmed orders for this date that are in a zone
+        orders = Order.objects.filter(
+            scheduled_delivery_date=date,
+            status__in=[OrderStatus.PENDING, OrderStatus.CONFIRMED],
+            customer__zone__isnull=False
+        ).select_related('customer__zone', 'customer__zone__assigned_driver')
+        
+        # Group by zone
+        zone_orders = {}
+        for order in orders:
+            zone = order.customer.zone
+            if zone:
+                zone_orders.setdefault(zone, []).append(order)
+                
+        created_routes = []
+        errors = []
+        
+        for zone, z_orders in zone_orders.items():
+            driver = zone.assigned_driver
+            if not driver:
+                errors.append({
+                    'zone_id': str(zone.id),
+                    'zone_name': zone.name,
+                    'error': 'No primary driver assigned to this zone.'
+                })
+                continue
+                
+            order_ids = [str(o.id) for o in z_orders]
+            name = f"{zone.name} - {date}"
+            
+            try:
+                route = create_optimized_route(name, driver, date, order_ids)
+                created_routes.append(RouteSerializer(route).data)
+            except Exception as e:
+                errors.append({
+                    'zone_id': str(zone.id),
+                    'zone_name': zone.name,
+                    'error': str(e)
+                })
+                
+        return Response({
+            'date': date,
+            'total_zones_processed': len(zone_orders),
+            'created_routes': created_routes,
+            'errors': errors
+        }, status=status.HTTP_200_OK)
+
     @action(detail=True, methods=['get'], url_path='geojson')
     def geojson(self, request, pk=None):
         route = self.get_object()
@@ -328,7 +388,7 @@ class DriverViewSet(viewsets.ViewSet):
             return Response(RouteSerializer(route).data)
 
     @action(detail=False, methods=['post'], url_path='start-tracking',
-            permission_classes=[IsAuthenticated])
+           permission_classes=[IsAuthenticated])
     def start_tracking(self, request):
         """
         Starts a GPS tracking session for the driver.

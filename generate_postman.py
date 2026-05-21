@@ -722,12 +722,31 @@ def generate_collection():
                     ],
                     "body": {
                         "mode": "raw",
-                        "raw": "{\n    \"date\": \"2026-05-15\",\n    \"driver_ids\": [1, 2]\n}"
+                        "raw": "{\n    \"zone\": \"UUID_OF_ZONE\",\n    \"date\": \"2026-05-21\",\n    \"driver_id\": null,\n    \"name\": \"\"\n}"
                     },
                     "url": {
                         "raw": "{{city_url}}/api/erp/orders/routes/create-optimized/",
                         "host": ["{{city_url}}"],
                         "path": ["api", "erp", "orders", "routes", "create-optimized", ""]
+                    }
+                }
+            },
+            {
+                "name": "POST Bulk Assign Pending Orders",
+                "request": {
+                    "method": "POST",
+                    "header": [
+                        {"key": "Authorization", "value": "Bearer {{access_token}}"},
+                        {"key": "Content-Type", "value": "application/json"}
+                    ],
+                    "body": {
+                        "mode": "raw",
+                        "raw": "{\n    \"date\": \"2026-05-21\"\n}"
+                    },
+                    "url": {
+                        "raw": "{{city_url}}/api/erp/orders/routes/assign-pending/",
+                        "host": ["{{city_url}}"],
+                        "path": ["api", "erp", "orders", "routes", "assign-pending", ""]
                     }
                 }
             }
