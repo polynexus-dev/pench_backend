@@ -1,4 +1,7 @@
 from django.db import models
+from django.db.models import Sum
+from django.db.models.signals import post_save, post_delete
+from django.dispatch import receiver
 from core.models import BaseModel
 
 
@@ -43,6 +46,23 @@ class MonthlyBill(BaseModel):
     def remaining_amount(self):
         return self.total_amount - self.amount_paid
 
+    def reconcile(self):
+        """
+        Recalculates amount_paid from all linked transactions and updates status automatically.
+        Called after any Transaction is created or deleted.
+        """
+        total_paid = self.transactions.aggregate(total=Sum('amount'))['total'] or 0
+        self.amount_paid = total_paid
+
+        if total_paid <= 0:
+            self.status = BillStatus.UNPAID
+        elif total_paid >= self.total_amount:
+            self.status = BillStatus.PAID
+        else:
+            self.status = BillStatus.PARTIAL
+
+        self.save(update_fields=['amount_paid', 'status'])
+
 
 class Transaction(BaseModel):
     """
@@ -53,6 +73,21 @@ class Transaction(BaseModel):
     payment_method = models.CharField(max_length=50, default='online')
     transaction_id = models.CharField(max_length=100, blank=True)
     payment_date = models.DateTimeField(auto_now_add=True)
+    notes = models.TextField(blank=True, default='')
 
     def __str__(self):
         return f"Payment of {self.amount} for {self.bill.invoice_number}"
+
+
+# ───── Auto-Reconciliation signals ─────────────────────────────────────────
+
+@receiver(post_save, sender=Transaction)
+def reconcile_on_payment_save(sender, instance, **kwargs):
+    """Recalculate the parent bill totals whenever a payment is added or updated."""
+    instance.bill.reconcile()
+
+
+@receiver(post_delete, sender=Transaction)
+def reconcile_on_payment_delete(sender, instance, **kwargs):
+    """Re-open the parent bill when a payment record is deleted."""
+    instance.bill.reconcile()
