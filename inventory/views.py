@@ -120,6 +120,142 @@ class BottleTransactionViewSet(viewsets.ModelViewSet):
         self.perform_create(serializer)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
+    @action(detail=False, methods=['get'], url_path='summary')
+    def summary(self, request):
+        """
+        Returns a global summary of returnable bottles and a driver-wise breakdown.
+        """
+        import datetime
+        from django.db.models import Sum
+        from inventory.models import BottleType, CustomerBottleBalance, BottleTransaction, BottleTransactionType
+        from routing.models import Route, Driver
+        from orders.models import Order, OrderItem
+
+        # 1. Fetch active Bottle Types
+        bottle_types = BottleType.objects.filter(is_active=True)
+        
+        # 2. Resolve target date (default to today)
+        today = datetime.date.today()
+        date_str = request.query_params.get('date')
+        if date_str:
+            try:
+                today = datetime.datetime.strptime(date_str, '%Y-%m-%d').date()
+            except ValueError:
+                pass
+
+        # 3. Calculate Global Summary statistics
+        global_summary = []
+        for bt in bottle_types:
+            # Current with customers (sum of balances)
+            total_with_customers = CustomerBottleBalance.objects.filter(
+                bottle_type=bt
+            ).aggregate(total=Sum('balance'))['total'] or 0
+
+            # Total lost / broken
+            total_lost_broken = BottleTransaction.objects.filter(
+                bottle_type=bt,
+                transaction_type=BottleTransactionType.BROKEN
+            ).aggregate(total=Sum('quantity'))['total'] or 0
+
+            # Active routes for the day
+            routes_today = Route.objects.filter(delivery_date=today)
+            order_ids_today = []
+            for r in routes_today:
+                order_ids_today.extend(r.orders.values_list('id', flat=True))
+
+            # Dispatched (expected to be delivered today based on items)
+            total_dispatched_today = OrderItem.objects.filter(
+                order_id__in=order_ids_today,
+                product__is_returnable=True,
+                product__bottle_type=bt
+            ).aggregate(total=Sum('quantity'))['total'] or 0
+
+            # Returned today
+            total_returned_today = BottleTransaction.objects.filter(
+                bottle_type=bt,
+                transaction_type=BottleTransactionType.RETURNED,
+                order_id__in=order_ids_today
+            ).aggregate(total=Sum('quantity'))['total'] or 0
+
+            global_summary.append({
+                'bottle_type_id': str(bt.id),
+                'bottle_type_name': bt.name,
+                'total_with_customers': total_with_customers,
+                'total_lost_broken': total_lost_broken,
+                'total_dispatched_today': total_dispatched_today,
+                'total_returned_today': total_returned_today,
+            })
+
+        # 4. Calculate Driver Breakdown
+        driver_breakdown = []
+        routes_today = Route.objects.filter(delivery_date=today).select_related('driver__user')
+        
+        for route in routes_today:
+            driver_profile = route.driver
+            driver_user = driver_profile.user if driver_profile else None
+            driver_name = driver_user.get_full_name() if driver_user else (driver_user.username if driver_user else "Unassigned")
+            vehicle_plate = driver_profile.vehicle_plate if driver_profile else "N/A"
+            
+            route_order_ids = list(route.orders.values_list('id', flat=True))
+            
+            bottles_stats = []
+            for bt in bottle_types:
+                # Dispatched (loaded on truck)
+                dispatched = OrderItem.objects.filter(
+                    order_id__in=route_order_ids,
+                    product__is_returnable=True,
+                    product__bottle_type=bt
+                ).aggregate(total=Sum('quantity'))['total'] or 0
+                
+                # Delivered (issued to customers)
+                delivered = BottleTransaction.objects.filter(
+                    bottle_type=bt,
+                    transaction_type=BottleTransactionType.ISSUED,
+                    order_id__in=route_order_ids
+                ).aggregate(total=Sum('quantity'))['total'] or 0
+                
+                # Returned (collected empty)
+                returned = BottleTransaction.objects.filter(
+                    bottle_type=bt,
+                    transaction_type=BottleTransactionType.RETURNED,
+                    order_id__in=route_order_ids
+                ).aggregate(total=Sum('quantity'))['total'] or 0
+                
+                # Broken/lost on trip
+                broken = BottleTransaction.objects.filter(
+                    bottle_type=bt,
+                    transaction_type=BottleTransactionType.BROKEN,
+                    order_id__in=route_order_ids
+                ).aggregate(total=Sum('quantity'))['total'] or 0
+                
+                if dispatched > 0 or returned > 0 or broken > 0 or delivered > 0:
+                    bottles_stats.append({
+                        'bottle_type_id': str(bt.id),
+                        'bottle_type_name': bt.name,
+                        'dispatched': dispatched,
+                        'delivered': delivered,
+                        'returned': returned,
+                        'broken': broken,
+                        'remaining_full': max(0, dispatched - delivered),
+                    })
+            
+            driver_breakdown.append({
+                'route_id': str(route.id),
+                'route_name': route.name,
+                'route_status': route.status,
+                'route_status_display': route.get_status_display(),
+                'driver_name': driver_name,
+                'vehicle_plate': vehicle_plate,
+                'bottles': bottles_stats
+            })
+
+        return Response({
+            'date': today.isoformat(),
+            'global_summary': global_summary,
+            'driver_breakdown': driver_breakdown
+        })
+
+
 
 class CustomerBottleBalanceViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = CustomerBottleBalance.objects.select_related('customer', 'bottle_type')
