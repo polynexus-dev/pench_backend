@@ -25,19 +25,22 @@ def calculate_distance(lon1, lat1, lon2, lat2):
     r = 6371000  # Radius of earth in meters
     return c * r
 
-def calculate_trail_distance(coords):
+def calculate_trail_distance(segments):
     """
-    Calculate the total cumulative distance along a list of [lng, lat] coordinates in kilometers.
+    Calculate the total cumulative distance along a list of segments (each segment is a list of [lng, lat] coordinates) in kilometers.
     """
-    if not coords or len(coords) < 2:
+    if not segments:
         return 0.0
     
     total_dist = 0.0
-    for i in range(len(coords) - 1):
-        total_dist += calculate_distance(
-            coords[i][0], coords[i][1],
-            coords[i+1][0], coords[i+1][1]
-        )
+    for segment in segments:
+        if len(segment) < 2:
+            continue
+        for i in range(len(segment) - 1):
+            total_dist += calculate_distance(
+                segment[i][0], segment[i][1],
+                segment[i+1][0], segment[i+1][1]
+            )
     return round(total_dist / 1000.0, 2)
 
 
@@ -99,18 +102,20 @@ class TrackingConsumer(AsyncWebsocketConsumer):
             if lat and lng:
                 print(f"[WS Receive] Driver {self.user.username}: Lat={lat}, Lng={lng}, Acc={accuracy}")
                 # Update Database and get full trail + distance + planned route coordinates
-                trail_points, distance_km, planned_route = await self.update_driver_location(lat, lng, accuracy)
+                result = await self.update_driver_location(lat, lng, accuracy)
                 
                 # If safeguard triggered (ghost simulator), abort broadcast
-                if trail_points is None:
+                if result is None or result[2] is None:
                     return
+                
+                snapped_lat, snapped_lng, trail_points, distance_km, planned_route = result
  
                 payload = {
                     "type": "broadcast_location",
                     "driver_id": str(self.user.id),
                     "driver_name": self.user.get_full_name(),
-                    "lat": lat,
-                    "lng": lng,
+                    "lat": snapped_lat,
+                    "lng": snapped_lng,
                     "trail": trail_points, # Snapped historical trail array of [lng, lat]
                     "distance_km": distance_km, # Distance traveled in KM
                     "planned_route": planned_route # Original planned road map coordinates
@@ -126,8 +131,8 @@ class TrackingConsumer(AsyncWebsocketConsumer):
                 await self.send(text_data=json.dumps({
                     "type": "location_update_response",
                     "driver_id": str(self.user.id),
-                    "lat": lat,
-                    "lng": lng,
+                    "lat": snapped_lat,
+                    "lng": snapped_lng,
                     "trail": trail_points,
                     "distance_km": distance_km,
                     "planned_route": planned_route
@@ -162,30 +167,72 @@ class TrackingConsumer(AsyncWebsocketConsumer):
             
         def get_cleaned_coords(t):
             loc = t.cleaned_location or t.location
-            if hasattr(loc, 'x'): return [loc.x, loc.y]
-            if isinstance(loc, dict): return [loc.get('lng'), loc.get('lat')]
-            return [0, 0]
+            if not loc:
+                return None
+            if hasattr(loc, 'x'): 
+                return [loc.x, loc.y] if (loc.x != 0.0 or loc.y != 0.0) else None
+            if isinstance(loc, dict): 
+                lng = loc.get('lng') or 0.0
+                lat = loc.get('lat') or 0.0
+                return [lng, lat] if (lng != 0.0 or lat != 0.0) else None
+            return None
 
-        snapped_coords = [get_cleaned_coords(t) for t in historical_trails]
+        # Segment coordinates based on a 5-minute time gap threshold
+        segments = []
+        current_segment = []
+        last_timestamp = None
         
-        # Filter out consecutive duplicates to prevent redundant OSRM routing calls
-        unique_coords = []
-        for coord in snapped_coords:
-            if not unique_coords or unique_coords[-1] != coord:
-                unique_coords.append(coord)
+        for t in historical_trails:
+            coord = get_cleaned_coords(t)
+            if not coord:
+                continue
+            
+            if last_timestamp and (t.timestamp - last_timestamp).total_seconds() > 300:
+                if current_segment:
+                    segments.append(current_segment)
+                    current_segment = []
+                    
+            current_segment.append(coord)
+            last_timestamp = t.timestamp
+            
+        if current_segment:
+            segments.append(current_segment)
+
+        # Deduplicate and match/snap each segment individually
+        matched_segments = []
+        from routing.services.osrm_client import match_trail
+        
+        for segment in segments:
+            # Filter consecutive duplicates
+            unique_coords = []
+            for coord in segment:
+                if not unique_coords or unique_coords[-1] != coord:
+                    unique_coords.append(coord)
+            
+            if not unique_coords:
+                continue
                 
-        if len(unique_coords) >= 2:
-            # Use match_trail for high-fidelity road alignment to avoid straight jumps or routing loops
-            from routing.services.osrm_client import match_trail
-            return match_trail(unique_coords)
-        else:
-            return unique_coords
+            if len(unique_coords) < 2:
+                matched_segments.append(unique_coords)
+            else:
+                # Downsample if there are too many coordinates in this segment
+                if len(unique_coords) > 90:
+                    step = len(unique_coords) // 90 + 1
+                    sampled_coords = unique_coords[::step]
+                    if sampled_coords[-1] != unique_coords[-1]:
+                        sampled_coords.append(unique_coords[-1])
+                else:
+                    sampled_coords = unique_coords
+                
+                matched_segments.append(match_trail(sampled_coords))
+                
+        return matched_segments
 
     @database_sync_to_async
     def update_driver_location(self, lat, lng, accuracy=None):
         try:
             if not self.tenant or self.tenant.schema_name == 'public':
-                return None
+                return None, None, None, 0.0, []
  
             with schema_context(self.tenant.schema_name):
                 p_lng = float(lng)
@@ -239,8 +286,14 @@ class TrackingConsumer(AsyncWebsocketConsumer):
                     try:
                         if float(accuracy) > 40.0:
                             print(f"[Tracking] Dropped point for {self.user.username}: Accuracy too low ({accuracy}m)")
+                            last_loc = DriverLocation.objects.filter(user_id=self.user.id).first()
+                            if last_loc:
+                                last_lat = last_loc.location.y if hasattr(last_loc.location, 'y') else last_loc.location.get('lat')
+                                last_lng = last_loc.location.x if hasattr(last_loc.location, 'x') else last_loc.location.get('lng')
+                            else:
+                                last_lat, last_lng = snapped_lat, snapped_lng
                             current_trail = self.get_current_trail(self.user.id, active_route)
-                            return current_trail, calculate_trail_distance(current_trail), planned_coords
+                            return last_lat, last_lng, current_trail, calculate_trail_distance(current_trail), planned_coords
                     except (ValueError, TypeError):
                         pass
 
@@ -269,8 +322,14 @@ class TrackingConsumer(AsyncWebsocketConsumer):
                             speed_kmh = (dist / time_diff) * 3.6
                             if speed_kmh > 150.0:
                                 print(f"[Tracking] Dropped outlier point for {self.user.username}: Impossible speed {speed_kmh:.1f} km/h")
+                                last_loc = DriverLocation.objects.filter(user_id=self.user.id).first()
+                                if last_loc:
+                                    last_lat = last_loc.location.y if hasattr(last_loc.location, 'y') else last_loc.location.get('lat')
+                                    last_lng = last_loc.location.x if hasattr(last_loc.location, 'x') else last_loc.location.get('lng')
+                                else:
+                                    last_lat, last_lng = snapped_lat, snapped_lng
                                 current_trail = self.get_current_trail(self.user.id, active_route)
-                                return current_trail, calculate_trail_distance(current_trail), planned_coords
+                                return last_lat, last_lng, current_trail, calculate_trail_distance(current_trail), planned_coords
 
                         if dist < 8.0:
                             # STATIONARY GPS JITTER: Driver has not moved significantly.
@@ -280,7 +339,7 @@ class TrackingConsumer(AsyncWebsocketConsumer):
                                 defaults={'location': cleaned_location_data}
                             )
                             current_trail = self.get_current_trail(self.user.id, active_route)
-                            return current_trail, calculate_trail_distance(current_trail), planned_coords
+                            return snapped_lat, snapped_lng, current_trail, calculate_trail_distance(current_trail), planned_coords
                 
                 # 2. Update current live position (using snapped location for precision)
                 DriverLocation.objects.update_or_create(
@@ -298,7 +357,7 @@ class TrackingConsumer(AsyncWebsocketConsumer):
  
                 # 4. Fetch the clean snapping-routed trail and calculate cumulative distance
                 current_trail = self.get_current_trail(self.user.id, active_route)
-                return current_trail, calculate_trail_distance(current_trail), planned_coords
+                return snapped_lat, snapped_lng, current_trail, calculate_trail_distance(current_trail), planned_coords
  
         except Exception as e:
             print(f"[DB Sync Error] {str(e)}")
