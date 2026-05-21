@@ -13,13 +13,15 @@ class CustomerSerializer(serializers.ModelSerializer):
     longitude = serializers.FloatField(required=False, allow_null=True)
     dashboard = serializers.SerializerMethodField()
     product_rates = serializers.SerializerMethodField()
+    zone_name = serializers.CharField(source='zone.name', read_only=True)
 
     class Meta:
         model = Customer
         fields = [
             'id', 'name', 'company', 'email', 'phone', 'address',
             'latitude', 'longitude', 'notes', 'is_active', 
-            'qr_code_id', 'created_at', 'dashboard', 'product_rates'
+            'qr_code_id', 'created_at', 'dashboard', 'product_rates',
+            'zone', 'zone_name'
         ]
         read_only_fields = ['id', 'qr_code_id', 'created_at']
 

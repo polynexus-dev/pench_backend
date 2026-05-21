@@ -36,7 +36,7 @@ class City(TenantMixin):
     state = models.CharField(max_length=100)
     code = models.CharField(max_length=20, help_text='Unique city code, e.g. MUM, DEL.')
     is_active = models.BooleanField(default=True)
-    timezone = models.CharField(max_length=50, default='UTC')
+    timezone = models.CharField(max_length=50, default='Asia/Kolkata')
     require_pod = models.BooleanField(
         default=False, 
         help_text='If enabled, drivers must upload a photo to mark an order as delivered.'

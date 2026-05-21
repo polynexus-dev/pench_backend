@@ -3755,6 +3755,39 @@
                                     ]
                                 }
                             }
+                        },
+                        {
+                            "name": "POST Auto-Assign Zones",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    },
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{}"
+                                },
+                                "url": {
+                                    "raw": "{{city_url}}/api/erp/customers/auto-assign-zones/",
+                                    "host": [
+                                        "{{city_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "erp",
+                                        "customers",
+                                        "auto-assign-zones",
+                                        ""
+                                    ]
+                                }
+                            }
                         }
                     ]
                 },

@@ -497,7 +497,7 @@ def generate_collection():
         else:
             crm["item"].insert(0, lead_crud)
 
-        # Inject QR Resolve to Customers
+        # Inject QR Resolve and Auto-Assign Zones to Customers
         cust_folder = find_folder(crm.get("item", []), "Customers")
         if cust_folder:
             qr_resolve_req = {
@@ -512,9 +512,30 @@ def generate_collection():
                     }
                 }
             }
-            # Avoid duplicate
+            auto_assign_req = {
+                "name": "POST Auto-Assign Zones",
+                "request": {
+                    "method": "POST",
+                    "header": [
+                        {"key": "Authorization", "value": "Bearer {{access_token}}"},
+                        {"key": "Content-Type", "value": "application/json"}
+                    ],
+                    "body": {
+                        "mode": "raw",
+                        "raw": "{}"
+                    },
+                    "url": {
+                        "raw": "{{city_url}}/api/erp/customers/auto-assign-zones/",
+                        "host": ["{{city_url}}"],
+                        "path": ["api", "erp", "customers", "auto-assign-zones", ""]
+                    }
+                }
+            }
+            # Avoid duplicates
             cust_folder["item"] = [item for item in cust_folder.get("item", []) if "Resolve Customer QR" not in item.get("name", "")]
+            cust_folder["item"] = [item for item in cust_folder.get("item", []) if "Auto-Assign Zones" not in item.get("name", "")]
             cust_folder["item"].append(qr_resolve_req)
+            cust_folder["item"].append(auto_assign_req)
 
     # --- Inventory & Warehousing ---
     inv = find_folder(coll["item"], "04. Inventory & Warehousing")

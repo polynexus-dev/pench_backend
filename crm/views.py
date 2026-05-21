@@ -3,7 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from core.permissions import HasGroupPermission
-from .models import Customer, Lead
+from .models import Customer, Lead, HAS_GIS, _parse_coordinates, _point_in_polygon
 from .serializers import CustomerSerializer, LeadSerializer
 
 
@@ -336,6 +336,84 @@ class CustomerViewSet(viewsets.ModelViewSet):
         # Scenario 3: Guest / Stranger
         # Redirect guests directly to the website for marketing
         return HttpResponseRedirect("https://penchfoods.com")
+
+    @action(detail=False, methods=['post'], url_path='auto-assign-zones')
+    def auto_assign_zones(self, request):
+        """
+        Scans all active customers in the city and auto-assigns zones based on their location.
+        """
+        from routing.models import Zone
+        
+        # 1. Fetch active customers with coordinates
+        customers = Customer.objects.filter(is_active=True).exclude(location=None)
+        
+        # 2. Fetch active zones
+        zones = Zone.objects.filter(is_active=True)
+        
+        scanned = 0
+        updated = 0
+        assignments = []
+        
+        # Pre-load zones to list
+        zones_list = list(zones)
+        
+        for customer in customers:
+            loc = customer.location
+            if not loc:
+                continue
+            
+            scanned += 1
+            assigned_zone = None
+            
+            if HAS_GIS:
+                from django.contrib.gis.geos import Point
+                if not isinstance(loc, Point):
+                    coords = _parse_coordinates(loc)
+                    if coords:
+                        loc = Point(coords[0], coords[1])
+                    else:
+                        continue
+                assigned_zone = Zone.objects.filter(boundary__contains=loc, is_active=True).first()
+            else:
+                coords = _parse_coordinates(loc)
+                if coords:
+                    lng, lat = coords
+                    for zone in zones_list:
+                        if zone.boundary:
+                            poly_coords = None
+                            if isinstance(zone.boundary, dict):
+                                geom_type = zone.boundary.get('type')
+                                if geom_type == 'Polygon':
+                                    poly_coords = zone.boundary.get('coordinates')
+                                elif geom_type == 'MultiPolygon':
+                                    poly_coords_list = zone.boundary.get('coordinates', [])
+                                    for sub_poly in poly_coords_list:
+                                        if _point_in_polygon(lng, lat, sub_poly):
+                                            assigned_zone = zone
+                                            break
+                            if assigned_zone:
+                                break
+                            if poly_coords and _point_in_polygon(lng, lat, poly_coords):
+                                assigned_zone = zone
+                                break
+                                
+            if assigned_zone and customer.zone != assigned_zone:
+                customer.zone = assigned_zone
+                customer.save(update_fields=['zone'])
+                updated += 1
+                assignments.append({
+                    "customer_id": str(customer.id),
+                    "customer_name": customer.name,
+                    "zone_id": str(assigned_zone.id),
+                    "zone_name": assigned_zone.name
+                })
+                
+        return Response({
+            "message": "Auto-assignment completed successfully.",
+            "scanned": scanned,
+            "updated": updated,
+            "assignments": assignments
+        }, status=status.HTTP_200_OK)
 
 
 class LeadViewSet(viewsets.ModelViewSet):
