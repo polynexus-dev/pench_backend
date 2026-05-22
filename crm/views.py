@@ -201,18 +201,121 @@ class CustomerViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get'], url_path='download-qr')
     def download_qr(self, request, pk=None):
         """
-        Generates and returns a single Balanced, High-Impact Branded QR Label.
+        Generates and returns a single page A4 PDF containing the QR label at row 0, col 0, with full cutting lines.
         """
         customer = self.get_object()
         from io import BytesIO
         from django.http import HttpResponse
+        from PIL import Image, ImageDraw
         
         canvas = self._generate_qr_label_image(request, customer)
         
+        # A4 page at 300 DPI
+        page_width, page_height = 2480, 3508
+        cols, rows = 3, 3
+        # 600x850 aspect ratio stickers
+        sticker_width, sticker_height = 750, 1060
+        card_gap = 30  # Gap/gutter between stickers
+        
+        total_width = cols * sticker_width + (cols - 1) * card_gap
+        total_height = rows * sticker_height + (rows - 1) * card_gap
+        
+        # Calculate margins for centering 3x3 grid with gutters
+        margin_x = (page_width - total_width) // 2
+        margin_y = (page_height - total_height) // 2
+        
+        def draw_dashed_line(draw, pt1, pt2, fill, width=1, dash_length=20, gap_length=15):
+            x1, y1 = pt1
+            x2, y2 = pt2
+            dx = x2 - x1
+            dy = y2 - y1
+            distance = (dx**2 + dy**2)**0.5
+            if distance == 0:
+                return
+            
+            ux = dx / distance
+            uy = dy / distance
+            
+            current_dist = 0
+            while current_dist < distance:
+                sx = x1 + ux * current_dist
+                sy = y1 + uy * current_dist
+                
+                current_dist += dash_length
+                if current_dist > distance:
+                    current_dist = distance
+                ex = x1 + ux * current_dist
+                ey = y1 + uy * current_dist
+                
+                draw.line([(sx, sy), (ex, ey)], fill=fill, width=width)
+                current_dist += gap_length
+
+        def finalize_page(page):
+            draw_lines = ImageDraw.Draw(page)
+            line_color = (80, 80, 80)  # Visible dark gray
+            line_width = 4
+            
+            # Horizontal lines - drawn in the middle of gutters + outer borders
+            for r in range(rows + 1):
+                if r == 0:
+                    ly = margin_y
+                elif r == rows:
+                    ly = margin_y + rows * sticker_height + (rows - 1) * card_gap
+                else:
+                    ly = margin_y + r * sticker_height + (r - 1) * card_gap + card_gap // 2
+                    
+                draw_dashed_line(
+                    draw_lines,
+                    (margin_x - 60, ly),
+                    (margin_x + total_width + 60, ly),
+                    fill=line_color,
+                    width=line_width
+                )
+                
+            # Vertical lines - drawn in the middle of gutters + outer borders
+            for c in range(cols + 1):
+                if c == 0:
+                    lx = margin_x
+                elif c == cols:
+                    lx = margin_x + cols * sticker_width + (cols - 1) * card_gap
+                else:
+                    lx = margin_x + c * sticker_width + (c - 1) * card_gap + card_gap // 2
+                    
+                draw_dashed_line(
+                    draw_lines,
+                    (lx, margin_y - 60),
+                    (lx, margin_y + total_height + 60),
+                    fill=line_color,
+                    width=line_width
+                )
+
+        # Draw the single page PDF
+        page = Image.new('RGB', (page_width, page_height), 'white')
+        
+        # Resize the 600x850 sticker to larger 750x1060 to fit 3x3 layout
+        sticker_resized = canvas.resize((sticker_width, sticker_height), Image.Resampling.LANCZOS)
+        
+        # Paste at row 0, col 0 (top-left)
+        page.paste(sticker_resized, (margin_x, margin_y))
+        
+        # Finalize page by drawing the grid lines
+        finalize_page(page)
+        
+        # Save as PDF
         buffer = BytesIO()
-        canvas.save(buffer, format="PNG")
+        page.save(
+            buffer, 
+            format="PDF", 
+            resolution=300.0
+        )
         buffer.seek(0)
-        return HttpResponse(buffer, content_type="image/png")
+        
+        unique_num = str(customer.qr_code_id.int)[:6]
+        filename = f"qr_sticker_customer_PENCH-{unique_num}.pdf"
+        
+        response = HttpResponse(buffer, content_type="application/pdf")
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
 
     @action(detail=False, methods=['get', 'post'], url_path='bulk-download-qr')
     def bulk_download_qr(self, request):

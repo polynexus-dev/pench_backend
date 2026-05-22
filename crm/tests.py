@@ -444,3 +444,15 @@ class CustomerBulkQRTestCase(TenantTestCase):
         url = f'/api/erp/customers/bulk-download-qr/?ids={non_existent_id},{self.cust_inactive.id}'
         response = self.client.get(url, HTTP_HOST='tenant.test.com')
         self.assertEqual(response.status_code, 404)
+
+    def test_single_download_qr_pdf(self):
+        """
+        Verify that download-qr endpoint returns a single-page PDF containing the QR label.
+        """
+        connection.set_tenant(self.tenant)
+        url = f'/api/erp/customers/{self.cust1.id}/download-qr/'
+        response = self.client.get(url, HTTP_HOST='tenant.test.com')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'application/pdf')
+        self.assertTrue(response['Content-Disposition'].startswith('attachment; filename="qr_sticker_customer_PENCH-'))
+        self.assertTrue(response['Content-Disposition'].endswith('.pdf"'))
