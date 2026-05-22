@@ -37,6 +37,12 @@ class Order(BaseModel):
     def __str__(self):
         return f'Order #{self.id} — {self.customer.name}'
 
+    def save(self, *args, **kwargs):
+        if self.status in [OrderStatus.DELIVERED, OrderStatus.UNDELIVERED] and not self.delivered_at:
+            from django.utils import timezone
+            self.delivered_at = timezone.now()
+        super().save(*args, **kwargs)
+
 class OrderItem(BaseModel):
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='items')
     product = models.ForeignKey('inventory.Product', on_delete=models.PROTECT, related_name='order_items')

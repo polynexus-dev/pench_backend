@@ -28,7 +28,8 @@ class OrderSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'customer', 'customer_name', 'status', 'status_display',
             'scheduled_delivery_date', 'total', 'items', 'delivery_address',
-            'latitude', 'longitude', 'driver_name', 'zone_name'
+            'latitude', 'longitude', 'driver_name', 'zone_name',
+            'pod_image', 'pod_latitude', 'pod_longitude', 'delivered_at'
         ]
 
     def get_driver_name(self, obj):

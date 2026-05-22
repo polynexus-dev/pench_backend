@@ -16,6 +16,18 @@ class AdminConfiguration(BaseModel):
         help_text="If enabled, drivers must collect a signature on delivery."
     )
     
+    # Returnable Containers Settings
+    charge_bottle_penalty = models.BooleanField(
+        default=False,
+        help_text="Enable penalty charges for lost or broken empty bottles."
+    )
+    bottle_penalty_amount = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        default=0.00,
+        help_text="Default penalty charge per lost or broken bottle."
+    )
+    
     # Order Settings
     auto_assign_orders = models.BooleanField(
         default=True,

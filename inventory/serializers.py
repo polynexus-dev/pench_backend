@@ -52,6 +52,26 @@ class BottleTransactionSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'created_at']
 
+    def create(self, validated_data):
+        from .services.bottle_service import record_bottle_transaction
+        request = self.context.get('request')
+        user = request.user if request and not request.user.is_anonymous else None
+        
+        txn = record_bottle_transaction(
+            bottle_type=validated_data['bottle_type'],
+            quantity=validated_data['quantity'],
+            transaction_type=validated_data['transaction_type'],
+            customer=validated_data.get('customer'),
+            order=validated_data.get('order'),
+            user=user
+        )
+        
+        if validated_data.get('notes'):
+            txn.notes = validated_data['notes']
+            txn.save(update_fields=['notes'])
+            
+        return txn
+
 
 class CustomerBottleBalanceSerializer(serializers.ModelSerializer):
     customer_name = serializers.CharField(source='customer.name', read_only=True)

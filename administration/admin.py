@@ -12,6 +12,9 @@ class AdminConfigurationAdmin(admin.ModelAdmin):
         ('Delivery Settings', {
             'fields': ('enable_delivery_photo', 'require_signature', 'auto_assign_orders')
         }),
+        ('Returnable Containers Settings', {
+            'fields': ('charge_bottle_penalty', 'bottle_penalty_amount')
+        }),
         ('Order Constraints', {
             'fields': ('max_cancellation_time',)
         }),
