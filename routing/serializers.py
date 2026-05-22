@@ -268,6 +268,8 @@ class RouteSerializer(serializers.ModelSerializer):
     order_ids = serializers.PrimaryKeyRelatedField(
         source='orders', many=True, read_only=True
     )
+    dispatch_bottles_1L = serializers.SerializerMethodField()
+    dispatch_bottles_500ml = serializers.SerializerMethodField()
 
     class Meta:
         model = Route
@@ -276,12 +278,37 @@ class RouteSerializer(serializers.ModelSerializer):
             'geometry', 'waypoints', 'estimated_duration_minutes',
             'estimated_distance_km', 'optimization_error',
             'created_at', 'updated_at',
+            'dispatch_bottles_1L', 'dispatch_bottles_500ml'
         ]
         read_only_fields = [
             'id', 'status', 'geometry', 'waypoints',
             'estimated_duration_minutes', 'estimated_distance_km',
             'optimization_error', 'created_at', 'updated_at',
         ]
+
+    def get_dispatch_bottles_1L(self, obj):
+        total = 0
+        try:
+            for order in obj.orders.all():
+                for item in order.items.all():
+                    product = item.product
+                    if product.bottle_type and product.bottle_type.volume_ml == 1000:
+                        total += item.quantity
+        except Exception:
+            pass
+        return total
+
+    def get_dispatch_bottles_500ml(self, obj):
+        total = 0
+        try:
+            for order in obj.orders.all():
+                for item in order.items.all():
+                    product = item.product
+                    if product.bottle_type and product.bottle_type.volume_ml == 500:
+                        total += item.quantity
+        except Exception:
+            pass
+        return total
 
 
 class RouteGeoSerializer(GeoFeatureModelSerializer):

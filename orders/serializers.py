@@ -154,12 +154,15 @@ class RouteSerializer(serializers.ModelSerializer):
     
     # Return geometry as GeoJSON
     route_geometry = serializers.SerializerMethodField()
+    dispatch_bottles_1L = serializers.SerializerMethodField()
+    dispatch_bottles_500ml = serializers.SerializerMethodField()
 
     class Meta:
         model = Route
         fields = [
             'id', 'name', 'driver', 'driver_name', 'delivery_date', 
-            'is_completed', 'route_geometry', 'stops'
+            'is_completed', 'route_geometry', 'stops',
+            'dispatch_bottles_1L', 'dispatch_bottles_500ml'
         ]
 
     def get_route_geometry(self, obj):
@@ -167,3 +170,27 @@ class RouteSerializer(serializers.ModelSerializer):
             return None
         # Convert Point list to simple list of coords for frontend
         return [[p[0], p[1]] for p in obj.geometry.coords]
+
+    def get_dispatch_bottles_1L(self, obj):
+        total = 0
+        try:
+            for stop in obj.stops.all():
+                for item in stop.order.items.all():
+                    product = item.product
+                    if product.bottle_type and product.bottle_type.volume_ml == 1000:
+                        total += item.quantity
+        except Exception:
+            pass
+        return total
+
+    def get_dispatch_bottles_500ml(self, obj):
+        total = 0
+        try:
+            for stop in obj.stops.all():
+                for item in stop.order.items.all():
+                    product = item.product
+                    if product.bottle_type and product.bottle_type.volume_ml == 500:
+                        total += item.quantity
+        except Exception:
+            pass
+        return total
