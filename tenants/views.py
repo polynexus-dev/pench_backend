@@ -5,7 +5,7 @@ from .serializers import CompanySerializer, CitySerializer, HolidayCalendarSeria
 
 
 class CityViewSet(viewsets.ModelViewSet):
-    queryset = City.objects.select_related('company').all()
+    queryset = City.objects.select_related('company').exclude(schema_name='public')
     serializer_class = CitySerializer
 
     def get_queryset(self):

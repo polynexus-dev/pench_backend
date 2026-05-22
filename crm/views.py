@@ -218,14 +218,14 @@ class CustomerViewSet(viewsets.ModelViewSet):
     def bulk_download_qr(self, request):
         """
         Generates a ZIP archive containing:
-        1. A multi-page A4 PDF with all customer QR stickers in a 3x4 grid.
+        1. A multi-page A4 PDF with all customer QR stickers in a 3x3 grid.
         2. A CSV mapping file (opens in Excel) matching the Sticker IDs to customer details.
         """
         import csv
         import zipfile
         from io import BytesIO, StringIO
         from django.http import HttpResponse
-        from PIL import Image
+        from PIL import Image, ImageDraw
         
         customers = self.get_queryset()
         if not customers.exists():
@@ -234,12 +234,35 @@ class CustomerViewSet(viewsets.ModelViewSet):
         # --- 1. GENERATE PDF STICKERS ---
         # A4 page at 300 DPI
         page_width, page_height = 2480, 3508
-        cols, rows = 3, 4
-        sticker_width, sticker_height = 600, 750
+        cols, rows = 3, 3
+        sticker_width, sticker_height = 760, 950
         
-        # Calculate padding
-        pad_x = (page_width - (cols * sticker_width)) // (cols + 1)
-        pad_y = (page_height - (rows * sticker_height)) // (rows + 1)
+        # Calculate margins for centering 3x3 joined grid (no padding/gap)
+        margin_x = (page_width - (cols * sticker_width)) // 2
+        margin_y = (page_height - (rows * sticker_height)) // 2
+        
+        def finalize_page(page):
+            draw_lines = ImageDraw.Draw(page)
+            line_color = (180, 180, 180)  # Medium-light gray
+            line_width = 3
+            
+            # Horizontal lines (including outer boundaries)
+            for r in range(rows + 1):
+                ly = margin_y + r * sticker_height
+                draw_lines.line(
+                    [(margin_x, ly), (margin_x + cols * sticker_width, ly)],
+                    fill=line_color,
+                    width=line_width
+                )
+                
+            # Vertical lines (including outer boundaries)
+            for c in range(cols + 1):
+                lx = margin_x + c * sticker_width
+                draw_lines.line(
+                    [(lx, margin_y), (lx, margin_y + rows * sticker_height)],
+                    fill=line_color,
+                    width=line_width
+                )
         
         pdf_pages = []
         current_page = Image.new('RGB', (page_width, page_height), 'white')
@@ -247,24 +270,28 @@ class CustomerViewSet(viewsets.ModelViewSet):
         
         for customer in customers:
             sticker = self._generate_qr_label_image(request, customer)
+            # Resize the 600x750 sticker to larger 760x950 to fit 3x3 layout
+            sticker_resized = sticker.resize((sticker_width, sticker_height), Image.Resampling.LANCZOS)
             
             # Calculate grid position
             col = current_count % cols
             row = (current_count // cols) % rows
             
-            x = pad_x + col * (sticker_width + pad_x)
-            y = pad_y + row * (sticker_height + pad_y)
+            x = margin_x + col * sticker_width
+            y = margin_y + row * sticker_height
             
-            current_page.paste(sticker, (x, y))
+            current_page.paste(sticker_resized, (x, y))
             current_count += 1
             
             # If page is full, save it and create a new one
             if current_count % (cols * rows) == 0:
+                finalize_page(current_page)
                 pdf_pages.append(current_page)
                 current_page = Image.new('RGB', (page_width, page_height), 'white')
                 
         # Append the last page if it has any stickers
         if current_count % (cols * rows) != 0:
+            finalize_page(current_page)
             pdf_pages.append(current_page)
             
         pdf_data = b""

@@ -609,11 +609,25 @@ def generate_collection():
                     }
                 }
             }
+            bulk_download_qr_req = {
+                "name": "GET Bulk Download QR",
+                "request": {
+                    "method": "GET",
+                    "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+                    "url": {
+                        "raw": "{{city_url}}/api/erp/customers/bulk-download-qr/",
+                        "host": ["{{city_url}}"],
+                        "path": ["api", "erp", "customers", "bulk-download-qr", ""]
+                    }
+                }
+            }
             # Avoid duplicates
             cust_folder["item"] = [item for item in cust_folder.get("item", []) if "Resolve Customer QR" not in item.get("name", "")]
             cust_folder["item"] = [item for item in cust_folder.get("item", []) if "Auto-Assign Zones" not in item.get("name", "")]
+            cust_folder["item"] = [item for item in cust_folder.get("item", []) if "Bulk Download QR" not in item.get("name", "")]
             cust_folder["item"].append(qr_resolve_req)
             cust_folder["item"].append(auto_assign_req)
+            cust_folder["item"].append(bulk_download_qr_req)
 
     # --- Inventory & Warehousing ---
     inv = find_folder(coll["item"], "04. Inventory & Warehousing")

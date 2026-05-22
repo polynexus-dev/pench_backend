@@ -3855,6 +3855,31 @@
                                     ]
                                 }
                             }
+                        },
+                        {
+                            "name": "GET Bulk Download QR",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{city_url}}/api/erp/customers/bulk-download-qr/",
+                                    "host": [
+                                        "{{city_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "erp",
+                                        "customers",
+                                        "bulk-download-qr",
+                                        ""
+                                    ]
+                                }
+                            }
                         }
                     ]
                 },
