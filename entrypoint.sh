@@ -37,11 +37,27 @@ try:
         if created:
             print("Created Public Tenant")
 
-        Domain.objects.get_or_create(
-            domain='localhost',
-            tenant=c,
-            defaults={'is_primary': True}
-        )
+        # Auto-register all public/base domains
+        base_domains = ['localhost', 'pench.api.polynexus.in', 'pench.dev.api.polynexus.in']
+        for dom in base_domains:
+            Domain.objects.get_or_create(
+                domain=dom,
+                tenant=c,
+                defaults={'is_primary': (dom == 'localhost')}
+            )
+            print(f"Ensured domain mapping: {dom} -> public")
+
+        # Auto-register tenant subdomains for other schemas
+        other_cities = City.objects.exclude(schema_name='public')
+        for city in other_cities:
+            for base_dom in ['pench.api.polynexus.in', 'pench.dev.api.polynexus.in']:
+                subdomain = f"{city.schema_name}.{base_dom}"
+                Domain.objects.get_or_create(
+                    domain=subdomain,
+                    tenant=city,
+                    defaults={'is_primary': False}
+                )
+                print(f"Ensured subdomain mapping: {subdomain} -> {city.schema_name}")
 
         if not User.objects.filter(username='admin').exists():
             User.objects.create_superuser('admin', 'admin@dairy.com', 'admin')
