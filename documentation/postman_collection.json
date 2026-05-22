@@ -184,6 +184,73 @@
                     ]
                 },
                 {
+                    "name": "GET Trip Status",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{city_url}}/api/erp/orders/driver/trip-status/",
+                            "host": [
+                                "{{city_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "erp",
+                                "orders",
+                                "driver",
+                                "trip-status",
+                                ""
+                            ],
+                            "query": []
+                        }
+                    },
+                    "response": [
+                        {
+                            "name": "Default Success",
+                            "originalRequest": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{city_url}}/api/erp/orders/driver/trip-status/",
+                                    "host": [
+                                        "{{city_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "erp",
+                                        "orders",
+                                        "driver",
+                                        "trip-status",
+                                        ""
+                                    ],
+                                    "query": []
+                                }
+                            },
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "cookie": [],
+                            "body": "{\n    \"on_trip\": true,\n    \"active_route\": {\n        \"id\": \"1\",\n        \"name\": \"Route A\",\n        \"delivery_date\": \"2026-05-22\",\n        \"started_at\": \"2026-05-22T10:00:00Z\",\n        \"is_started\": true\n    }\n}"
+                        }
+                    ]
+                },
+                {
                     "name": "POST Start Trip",
                     "request": {
                         "method": "POST",

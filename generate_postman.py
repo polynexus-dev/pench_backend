@@ -358,6 +358,84 @@ def generate_collection():
             items.extend(extra_requests)
         return {"name": folder_name, "item": items}
 
+    # --- Driver Mobile App ---
+    driver_app_folder = find_folder(coll["item"], "00. SPECIAL: Driver Mobile App")
+    if driver_app_folder:
+        driver_app_folder["item"] = [item for item in driver_app_folder.get("item", []) if "GET Trip Status" not in item.get("name", "")]
+        trip_status_req = {
+            "name": "GET Trip Status",
+            "request": {
+                "method": "GET",
+                "header": [
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{access_token}}"
+                    }
+                ],
+                "url": {
+                    "raw": "{{city_url}}/api/erp/orders/driver/trip-status/",
+                    "host": [
+                        "{{city_url}}"
+                    ],
+                    "path": [
+                        "api",
+                        "erp",
+                        "orders",
+                        "driver",
+                        "trip-status",
+                        ""
+                    ],
+                    "query": []
+                }
+            },
+            "response": [
+                {
+                    "name": "Default Success",
+                    "originalRequest": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{city_url}}/api/erp/orders/driver/trip-status/",
+                            "host": [
+                                "{{city_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "erp",
+                                "orders",
+                                "driver",
+                                "trip-status",
+                                ""
+                            ],
+                            "query": []
+                        }
+                    },
+                    "status": "OK",
+                    "code": 200,
+                    "_postman_previewlanguage": "json",
+                    "header": [
+                        {
+                            "key": "Content-Type",
+                            "value": "application/json"
+                        }
+                    ],
+                    "cookie": [],
+                    "body": "{\n    \"on_trip\": true,\n    \"active_route\": {\n        \"id\": \"1\",\n        \"name\": \"Route A\",\n        \"delivery_date\": \"2026-05-22\",\n        \"started_at\": \"2026-05-22T10:00:00Z\",\n        \"is_started\": true\n    }\n}"
+                }
+            ]
+        }
+        insert_idx = len(driver_app_folder["item"])
+        for idx, item in enumerate(driver_app_folder.get("item", [])):
+            if "GET My Active Route" in item.get("name", ""):
+                insert_idx = idx + 1
+                break
+        driver_app_folder["item"].insert(insert_idx, trip_status_req)
+
     # --- Auth & Registration ---
     auth_folder = find_folder(coll["item"], "01. Auth & Registration")
     if auth_folder:

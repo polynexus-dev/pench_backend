@@ -474,6 +474,49 @@ class DriverViewSet(viewsets.ViewSet):
     def retrieve(self, request, pk=None):
         return Response({"detail": "Use specific actions like start-trip"})
 
+    @action(detail=False, methods=['get'], url_path='trip-status')
+    def trip_status(self, request):
+        """
+        Checks if the logged-in driver's trip is started or not.
+        Returns the on_trip status and information about the active route.
+        """
+        from django_tenants.utils import schema_context
+        from django.db import connection
+        
+        user = request.user
+        schema = user.tenant_schema
+        context_schema = schema if connection.schema_name == 'public' and schema else connection.schema_name
+        
+        with schema_context(context_schema):
+            from routing.models import Driver
+            
+            driver_profile = Driver.objects.filter(user=user).first()
+            on_trip = driver_profile.on_trip if driver_profile else False
+            
+            # Find any active route (not completed) assigned to the driver
+            active_route = Route.objects.filter(
+                driver=user,
+                is_completed=False
+            ).order_by('delivery_date').first()
+            
+            route_data = None
+            if active_route:
+                route_data = {
+                    'id': str(active_route.id),
+                    'name': active_route.name,
+                    'delivery_date': active_route.delivery_date,
+                    'started_at': active_route.started_at,
+                    'is_started': active_route.started_at is not None
+                }
+                # If they have an active route that has started, they are on a trip
+                if active_route.started_at is not None:
+                    on_trip = True
+                    
+            return Response({
+                'on_trip': on_trip,
+                'active_route': route_data
+            })
+
     @action(detail=False, methods=['get'], url_path='my-route')
     def my_route(self, request):
         """

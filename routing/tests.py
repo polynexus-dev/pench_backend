@@ -259,3 +259,101 @@ class TestSubmitUndelivered(TenantTestCase):
         self.assertEqual(float(self.order.pod_latitude), 21.123456)
         self.assertEqual(float(self.order.pod_longitude), 79.123456)
 
+
+class TestDriverTripStatus(TenantTestCase):
+    """Unit tests for the trip-status endpoint."""
+
+    @classmethod
+    def setup_tenant(cls, tenant):
+        tenant.name = 'Test City'
+        tenant.state = 'Test State'
+        tenant.code = 'TST'
+
+    def setUp(self):
+        super().setUp()
+        from django.contrib.auth import get_user_model
+        from django.contrib.auth.models import Group
+        from routing.models import Zone, Driver
+        from rest_framework.test import APIClient
+        import datetime
+
+        User = get_user_model()
+        self.driver_user = User.objects.create_user(
+            username='test_driver_status',
+            email='driver_status@example.com',
+            password='testpassword',
+            is_driver=True,
+            tenant_schema='test'
+        )
+        drivers_group, _ = Group.objects.get_or_create(name='Drivers')
+        self.driver_user.groups.add(drivers_group)
+
+        self.driver_profile, _ = Driver.objects.get_or_create(
+            user=self.driver_user,
+            defaults={
+                'vehicle_plate': 'TEST-5678',
+                'is_available': True,
+                'on_trip': False
+            }
+        )
+        self.driver_profile.vehicle_plate = 'TEST-5678'
+        self.driver_profile.is_available = True
+        self.driver_profile.on_trip = False
+        self.driver_profile.save()
+
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.driver_user)
+
+    def test_trip_status_not_on_trip(self):
+        url = '/api/erp/orders/driver/trip-status/'
+        response = self.client.get(url, HTTP_HOST='tenant.test.com')
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.data['on_trip'])
+        self.assertIsNone(response.data['active_route'])
+
+    def test_trip_status_on_trip_no_route(self):
+        self.driver_profile.on_trip = True
+        self.driver_profile.save()
+
+        url = '/api/erp/orders/driver/trip-status/'
+        response = self.client.get(url, HTTP_HOST='tenant.test.com')
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data['on_trip'])
+        self.assertIsNone(response.data['active_route'])
+
+    def test_trip_status_with_active_route_not_started(self):
+        from orders.models import Route
+        import datetime
+        route = Route.objects.create(
+            name='Test Route',
+            driver=self.driver_user,
+            delivery_date=datetime.date.today()
+        )
+
+        url = '/api/erp/orders/driver/trip-status/'
+        response = self.client.get(url, HTTP_HOST='tenant.test.com')
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.data['on_trip'])
+        self.assertIsNotNone(response.data['active_route'])
+        self.assertEqual(response.data['active_route']['id'], str(route.id))
+        self.assertFalse(response.data['active_route']['is_started'])
+
+    def test_trip_status_with_active_route_started(self):
+        from orders.models import Route
+        from django.utils import timezone
+        import datetime
+        route = Route.objects.create(
+            name='Test Route',
+            driver=self.driver_user,
+            delivery_date=datetime.date.today(),
+            started_at=timezone.now()
+        )
+
+        url = '/api/erp/orders/driver/trip-status/'
+        response = self.client.get(url, HTTP_HOST='tenant.test.com')
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data['on_trip'])
+        self.assertIsNotNone(response.data['active_route'])
+        self.assertTrue(response.data['active_route']['is_started'])
+
+
