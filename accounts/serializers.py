@@ -17,9 +17,9 @@ class UserSerializer(serializers.ModelSerializer):
             'id', 'username', 'email', 'first_name', 'last_name',
             'is_erp_user', 'is_driver', 'is_customer', 'portal', 'phone',
             'tenant_schema', 'groups', 'role', 'customer_dashboard',
-            'user_permissions',
+            'user_permissions', 'is_superuser', 'is_staff',
         ]
-        read_only_fields = ['id', 'is_erp_user', 'is_driver', 'is_customer', 'portal', 'tenant_schema']
+        read_only_fields = ['id', 'is_erp_user', 'is_driver', 'is_customer', 'portal', 'tenant_schema', 'is_superuser', 'is_staff']
 
     def get_customer_dashboard(self, obj):
         """
