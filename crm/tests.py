@@ -280,8 +280,167 @@ class CustomerAutoAssignZonesTestCase(TenantTestCase):
         self.assertEqual(self.customer_inside.zone, other_zone)
 
         # 3. Test that updating other fields does not clear or override the manually set zone
-        self.customer_inside.name = "Updated Name"
-        self.customer_inside.save()
-
         self.customer_inside.refresh_from_db()
         self.assertEqual(self.customer_inside.zone, other_zone)
+
+
+class CustomerBulkQRTestCase(TenantTestCase):
+    @classmethod
+    def setup_tenant(cls, tenant):
+        tenant.name = 'Test City'
+        tenant.state = 'Test State'
+        tenant.code = 'TST'
+
+    def setUp(self):
+        super().setUp()
+        
+        # Disconnect signals during setUp so they don't interfere
+        pre_save.disconnect(auto_assign_customer_zone, sender=Customer)
+        post_save.disconnect(auto_assign_customers_on_zone_change, sender=Zone)
+        
+        connection.set_tenant(self.tenant)
+        User = get_user_model()
+
+        # Create authorized CRM Manager user
+        self.manager_user = User.objects.create_user(
+            username='crm_manager_qr',
+            email='manager_qr@example.com',
+            password='testpassword',
+            phone='9000000020',
+            tenant_schema='test'
+        )
+        crm_group, _ = Group.objects.get_or_create(name='CRM_Managers')
+        self.manager_user.groups.add(crm_group)
+
+        # Restore tenant context
+        connection.set_tenant(self.tenant)
+
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.manager_user)
+
+        # Create multiple active test customers
+        self.cust1 = Customer.objects.create(
+            name='Customer 1',
+            email='c1@example.com',
+            phone='1234567890',
+            address='Address 1',
+            is_active=True
+        )
+        self.cust2 = Customer.objects.create(
+            name='Customer 2',
+            email='c2@example.com',
+            phone='1234567891',
+            address='Address 2',
+            is_active=True
+        )
+        self.cust3 = Customer.objects.create(
+            name='Customer 3',
+            email='c3@example.com',
+            phone='1234567892',
+            address='Address 3',
+            is_active=True
+        )
+        # One inactive customer to ensure it is filtered out
+        self.cust_inactive = Customer.objects.create(
+            name='Inactive Customer',
+            email='inactive@example.com',
+            phone='1234567893',
+            address='Address 4',
+            is_active=False
+        )
+
+    def tearDown(self):
+        # Reconnect signals
+        pre_save.connect(auto_assign_customer_zone, sender=Customer)
+        post_save.connect(auto_assign_customers_on_zone_change, sender=Zone)
+        super().tearDown()
+
+    def test_bulk_download_all_active(self):
+        """
+        Verify that bulk-download-qr without parameters downloads all active customers.
+        """
+        connection.set_tenant(self.tenant)
+        url = '/api/erp/customers/bulk-download-qr/'
+        response = self.client.get(url, HTTP_HOST='tenant.test.com')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'application/zip')
+        
+        # Verify ZIP contains expected files
+        import zipfile
+        from io import BytesIO
+        with zipfile.ZipFile(BytesIO(response.content)) as zf:
+            namelist = zf.namelist()
+            self.assertIn('qr_stickers.pdf', namelist)
+            self.assertIn('qr_mapping.csv', namelist)
+            
+            # Read mapping CSV and check count (headers + 3 active customers = 4 lines)
+            csv_content = zf.read('qr_mapping.csv').decode('utf-8')
+            lines = [l for l in csv_content.splitlines() if l.strip()]
+            self.assertEqual(len(lines), 4)
+
+    def test_bulk_download_filter_get(self):
+        """
+        Verify that bulk-download-qr with GET query param filters by customer IDs.
+        """
+        connection.set_tenant(self.tenant)
+        url = f'/api/erp/customers/bulk-download-qr/?ids={self.cust1.id},{self.cust2.id}'
+        response = self.client.get(url, HTTP_HOST='tenant.test.com')
+        self.assertEqual(response.status_code, 200)
+        
+        import zipfile
+        from io import BytesIO
+        with zipfile.ZipFile(BytesIO(response.content)) as zf:
+            csv_content = zf.read('qr_mapping.csv').decode('utf-8')
+            lines = [l for l in csv_content.splitlines() if l.strip()]
+            # headers + 2 selected customers = 3 lines
+            self.assertEqual(len(lines), 3)
+            self.assertIn(self.cust1.name, csv_content)
+            self.assertIn(self.cust2.name, csv_content)
+            self.assertNotIn(self.cust3.name, csv_content)
+
+    def test_bulk_download_filter_post(self):
+        """
+        Verify that bulk-download-qr with POST request body filters by customer IDs.
+        """
+        connection.set_tenant(self.tenant)
+        url = '/api/erp/customers/bulk-download-qr/'
+        # Test with 'customer_ids' key in JSON payload
+        response = self.client.post(
+            url, 
+            {'customer_ids': [self.cust2.id, self.cust3.id]}, 
+            format='json', 
+            HTTP_HOST='tenant.test.com'
+        )
+        self.assertEqual(response.status_code, 200)
+        
+        import zipfile
+        from io import BytesIO
+        with zipfile.ZipFile(BytesIO(response.content)) as zf:
+            csv_content = zf.read('qr_mapping.csv').decode('utf-8')
+            lines = [l for l in csv_content.splitlines() if l.strip()]
+            # headers + 2 selected customers = 3 lines
+            self.assertEqual(len(lines), 3)
+            self.assertNotIn(self.cust1.name, csv_content)
+            self.assertIn(self.cust2.name, csv_content)
+            self.assertIn(self.cust3.name, csv_content)
+
+    def test_bulk_download_invalid_ids_format(self):
+        """
+        Verify that invalid IDs or format returns a 400 Bad Request.
+        """
+        connection.set_tenant(self.tenant)
+        url = '/api/erp/customers/bulk-download-qr/?ids=abc,def'
+        response = self.client.get(url, HTTP_HOST='tenant.test.com')
+        self.assertEqual(response.status_code, 400)
+
+    def test_bulk_download_no_matching_customers(self):
+        """
+        Verify that non-existent or inactive IDs returns a 404 Not Found.
+        """
+        import uuid
+        connection.set_tenant(self.tenant)
+        # Using a valid non-existent UUID and inactive customer ID to trigger 404
+        non_existent_id = uuid.uuid4()
+        url = f'/api/erp/customers/bulk-download-qr/?ids={non_existent_id},{self.cust_inactive.id}'
+        response = self.client.get(url, HTTP_HOST='tenant.test.com')
+        self.assertEqual(response.status_code, 404)

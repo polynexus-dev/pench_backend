@@ -3867,6 +3867,46 @@
                                     }
                                 ],
                                 "url": {
+                                    "raw": "{{city_url}}/api/erp/customers/bulk-download-qr/?ids=UUID1,UUID2",
+                                    "host": [
+                                        "{{city_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "erp",
+                                        "customers",
+                                        "bulk-download-qr",
+                                        ""
+                                    ],
+                                    "query": [
+                                        {
+                                            "key": "ids",
+                                            "value": "UUID1,UUID2",
+                                            "description": "Optional comma-separated list of Customer UUIDs to download"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "name": "POST Bulk Download QR (Filtered)",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    },
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"customer_ids\": [\n        \"UUID1\",\n        \"UUID2\"\n    ]\n}"
+                                },
+                                "url": {
                                     "raw": "{{city_url}}/api/erp/customers/bulk-download-qr/",
                                     "host": [
                                         "{{city_url}}"

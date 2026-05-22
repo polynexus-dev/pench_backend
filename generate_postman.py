@@ -615,6 +615,32 @@ def generate_collection():
                     "method": "GET",
                     "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
                     "url": {
+                        "raw": "{{city_url}}/api/erp/customers/bulk-download-qr/?ids=UUID1,UUID2",
+                        "host": ["{{city_url}}"],
+                        "path": ["api", "erp", "customers", "bulk-download-qr", ""],
+                        "query": [
+                            {
+                                "key": "ids",
+                                "value": "UUID1,UUID2",
+                                "description": "Optional comma-separated list of Customer UUIDs to download"
+                            }
+                        ]
+                    }
+                }
+            }
+            bulk_download_qr_post_req = {
+                "name": "POST Bulk Download QR (Filtered)",
+                "request": {
+                    "method": "POST",
+                    "header": [
+                        {"key": "Authorization", "value": "Bearer {{access_token}}"},
+                        {"key": "Content-Type", "value": "application/json"}
+                    ],
+                    "body": {
+                        "mode": "raw",
+                        "raw": "{\n    \"customer_ids\": [\n        \"UUID1\",\n        \"UUID2\"\n    ]\n}"
+                    },
+                    "url": {
                         "raw": "{{city_url}}/api/erp/customers/bulk-download-qr/",
                         "host": ["{{city_url}}"],
                         "path": ["api", "erp", "customers", "bulk-download-qr", ""]
@@ -628,6 +654,7 @@ def generate_collection():
             cust_folder["item"].append(qr_resolve_req)
             cust_folder["item"].append(auto_assign_req)
             cust_folder["item"].append(bulk_download_qr_req)
+            cust_folder["item"].append(bulk_download_qr_post_req)
 
     # --- Inventory & Warehousing ---
     inv = find_folder(coll["item"], "04. Inventory & Warehousing")
