@@ -71,44 +71,60 @@ class TenantMiddleware:
 
 class LocalDomainAutoRegisterMiddleware:
     """
-    Middleware for local development that automatically registers the current
-    hostname in the Public Tenant domains if it doesn't exist.
-    Fixes the 'No tenant for hostname' error automatically.
+    Middleware that automatically registers hostnames in the Tenant Domain table
+    if they do not exist but a corresponding tenant schema exists.
+    Acts as an on-the-fly self-healing router across staging/dev environments.
     """
     def __init__(self, get_response):
         self.get_response = get_response
 
     def __call__(self, request):
-        from django.conf import settings
         from tenants.models import City, Domain
+        from django.db import connection
         
-        # Only run this logic if we are in DEBUG mode (local dev)
-        if settings.DEBUG:
-            from django.db import connection
-            host = request.get_host().split(':')[0]
-            print(f"[Debug] Host: {host}, Current Schema: {connection.schema_name}")
-            if connection.schema_name == 'public' and '.' in host and not host.endswith('.nip.io') and host != 'localhost':
-                 # This might be a city subdomain that failed to switch
-                 pass
-            
-            if connection.schema_name == 'public' and 'nagpur' in host:
-                print(f"[Debug] CRITICAL: Nagpur request but schema is PUBLIC! Check Domain table.")
-            
-            # Base IP/Domain logic: Only auto-register the primary entry points to Public
-            # Don't auto-register subdomains (which belong to cities)
-            is_potential_subdomain = host.count('.') > (4 if 'nip.io' in host else 1)
-            
-            if host and not is_potential_subdomain and not Domain.objects.filter(domain=host).exists():
+        host = request.get_host().split(':')[0]
+        
+        # 1. On-the-fly self-healing for city subdomains
+        if host and not Domain.objects.filter(domain=host).exists():
+            parts = host.split('.')
+            if len(parts) > 1:
+                subdomain_candidate = parts[0]
+                # Replace hyphens back to underscores to match schema conventions
+                schema_name_candidate = subdomain_candidate.replace('-', '_')
+                
                 try:
-                    public_tenant = City.objects.get(schema_name='public')
-                    Domain.objects.create(
-                        domain=host,
-                        tenant=public_tenant,
-                        is_primary=False
-                    )
-                    print(f"[Auto-Register] Automatically registered local domain: {host}")
+                    # Query for a matching City tenant
+                    city = City.objects.filter(schema_name=schema_name_candidate).first()
+                    if not city:
+                        # Try exact match as fallback
+                        city = City.objects.filter(schema_name=subdomain_candidate).first()
+                        
+                    if city:
+                        Domain.objects.create(
+                            domain=host,
+                            tenant=city,
+                            is_primary=False
+                        )
+                        print(f"[Self-Healing Auto-Register] Dynamically registered city domain: {host} for schema {city.schema_name}")
                 except Exception as e:
+                    print(f"[Self-Healing Auto-Register Error] Failed to auto-register subdomain {host}: {e}")
                     pass
+
+        # 2. Base IP/Domain logic: Only auto-register the primary entry points to Public
+        # Don't auto-register subdomains (which belong to cities)
+        is_potential_subdomain = host.count('.') > (4 if 'nip.io' in host else 1)
+        
+        if host and not is_potential_subdomain and not Domain.objects.filter(domain=host).exists():
+            try:
+                public_tenant = City.objects.get(schema_name='public')
+                Domain.objects.create(
+                    domain=host,
+                    tenant=public_tenant,
+                    is_primary=False
+                )
+                print(f"[Auto-Register] Automatically registered public host domain: {host}")
+            except Exception as e:
+                pass
         
         return self.get_response(request)
 
