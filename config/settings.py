@@ -8,6 +8,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = config('SECRET_KEY')
 DEBUG = config('DEBUG', default=False, cast=bool)
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='').split(',')
+if DEBUG:
+    ALLOWED_HOSTS += ['localhost', '127.0.0.1', '.localhost', 'nagpur.localhost', 'pune.localhost']
 
 # ──────────────────────────────────────────────
 # django-tenants Configuration
@@ -36,6 +38,7 @@ SHARED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django_celery_beat',
 ]
 
 if HAS_GDAL:
@@ -231,8 +234,8 @@ PAYTM_MERCHANT_ID = config('PAYTM_MERCHANT_ID', default='')
 PAYTM_MERCHANT_KEY = config('PAYTM_MERCHANT_KEY', default='')
 
 # CORS Settings
-# CORS Settings
-CORS_ALLOW_ALL_ORIGINS = config('CORS_ALLOW_ALL_ORIGINS', default=config('CORS_ORIGIN_ALLOW_ALL', default=False, cast=bool), cast=bool)
+CORS_ALLOW_ALL_ORIGINS = config('CORS_ALLOW_ALL_ORIGINS', default=DEBUG, cast=bool)
+CORS_ALLOW_CREDENTIALS = True
 # CORS and CSRF Origins (Robust parsing of comma/space separated lists)
 CORS_ALLOWED_ORIGINS = [o.strip() for o in config('CORS_ALLOWED_ORIGINS', default='').replace(' ', ',').split(',') if o.strip()]
 CSRF_TRUSTED_ORIGINS = [o.strip() for o in config('CSRF_TRUSTED_ORIGINS', default='').replace(' ', ',').split(',') if o.strip()]

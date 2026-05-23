@@ -133,9 +133,9 @@ class UserCreateSerializer(serializers.ModelSerializer):
             'phone', 'is_driver', 'is_erp_user', 'is_customer', 'groups', 
             'tenant_schema', 'role', 'latitude', 'longitude', 
             'address', 'company', 'notes', 'zone', 'vehicle_plate',
-            'vehicle_type', 'max_capacity_kg'
+            'vehicle_type', 'max_capacity_kg', 'is_superuser', 'is_staff'
         ]
-        read_only_fields = ['id']
+        read_only_fields = ['id', 'is_superuser', 'is_staff']
 
     def create(self, validated_data):
         groups_data = validated_data.pop('groups', [])
@@ -169,6 +169,11 @@ class UserCreateSerializer(serializers.ModelSerializer):
                 validated_data['is_customer'] = True
             elif role_name in ['Managers', 'SuperAdmin', 'Staff', 'ERP_Admins']:
                 validated_data['is_erp_user'] = True
+                if role_name == 'SuperAdmin':
+                    validated_data['is_superuser'] = True
+                    validated_data['is_staff'] = True
+                elif role_name == 'Staff':
+                    validated_data['is_staff'] = True
 
         # 2. Extract CRM fields so they don't crash User creation
         lat = validated_data.pop('latitude', None)
@@ -257,7 +262,7 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
                 public_domain = Domain.objects.filter(tenant__schema_name='public').first()
                 
             if public_domain:
-                data['domain_name'] = public_domain.domain
+                data['domain_name'] = public_domain.domain.replace('_', '-')
             else:
                 data['domain_name'] = 'localhost' # Fallback for local testing
                 
@@ -291,8 +296,8 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
                     domain = Domain.objects.filter(tenant=city, domain__icontains=base_domain).first()
                     if not domain:
                         domain = Domain.objects.filter(tenant=city).first()
-                        
-                    data['domain_name'] = domain.domain if domain else None
+                    
+                    data['domain_name'] = domain.domain.replace('_', '-') if domain and domain.domain else f"{schema.replace('_', '-')}.{base_domain}"
                     
                     # If driver, find their active route
                     if self.user.is_driver:

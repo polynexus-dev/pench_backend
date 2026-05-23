@@ -60,59 +60,39 @@ class DriverLocationSerializer(serializers.ModelSerializer):
                 return [lng, lat] if (lng != 0.0 or lat != 0.0) else None
             return None
             
-        segments = []
-        current_segment = []
-        last_timestamp = None
-        
+        coords = []
         for t in trails:
             coord = get_coords(t)
-            if not coord:
-                continue
-            
-            if last_timestamp and (t.timestamp - last_timestamp).total_seconds() > 300:
-                if current_segment:
-                    segments.append(current_segment)
-                    current_segment = []
-                    
-            current_segment.append(coord)
-            last_timestamp = t.timestamp
-            
-        if current_segment:
-            segments.append(current_segment)
+            if coord:
+                coords.append(coord)
 
-        # Deduplicate and match/snap each segment individually
-        matched_segments = []
+        # Deduplicate consecutive duplicates
+        unique_coords = []
+        for coord in coords:
+            if not unique_coords or unique_coords[-1] != coord:
+                unique_coords.append(coord)
+
+        if not unique_coords:
+            return []
+
+        if len(unique_coords) < 2:
+            return unique_coords
+
+        # Downsample if there are too many coordinates (e.g. > 120 points)
+        if len(unique_coords) > 120:
+            step = len(unique_coords) // 120 + 1
+            sampled_coords = unique_coords[::step]
+            if sampled_coords[-1] != unique_coords[-1]:
+                sampled_coords.append(unique_coords[-1])
+        else:
+            sampled_coords = unique_coords
+
         from routing.services.osrm_client import match_trail
-        
-        for segment in segments:
-            # Filter consecutive duplicates
-            unique_coords = []
-            for coord in segment:
-                if not unique_coords or unique_coords[-1] != coord:
-                    unique_coords.append(coord)
-            
-            if not unique_coords:
-                continue
-                
-            if len(unique_coords) < 2:
-                matched_segments.append(unique_coords)
-            else:
-                # Downsample if there are too many coordinates in this segment
-                if len(unique_coords) > 90:
-                    step = len(unique_coords) // 90 + 1
-                    sampled_coords = unique_coords[::step]
-                    if sampled_coords[-1] != unique_coords[-1]:
-                        sampled_coords.append(unique_coords[-1])
-                else:
-                    sampled_coords = unique_coords
-                
-                matched_segments.append(match_trail(sampled_coords))
-                
-        return matched_segments
+        return match_trail(sampled_coords)
 
     def get_distance_km(self, obj):
-        segments = self.get_trail(obj)
-        if not segments:
+        trail = self.get_trail(obj)
+        if not trail or len(trail) < 2:
             return 0.0
         
         import math
@@ -125,14 +105,11 @@ class DriverLocationSerializer(serializers.ModelSerializer):
             return c * 6371000
 
         total_dist = 0.0
-        for segment in segments:
-            if len(segment) < 2:
-                continue
-            for i in range(len(segment) - 1):
-                total_dist += calc_dist(
-                    segment[i][0], segment[i][1],
-                    segment[i+1][0], segment[i+1][1]
-                )
+        for i in range(len(trail) - 1):
+            total_dist += calc_dist(
+                trail[i][0], trail[i][1],
+                trail[i+1][0], trail[i+1][1]
+            )
         return round(total_dist / 1000.0, 2)
 
     def get_planned_route(self, obj):
@@ -293,7 +270,11 @@ class DriverLocationViewSet(viewsets.ReadOnlyModelViewSet):
             return Response({
                 "type": "Feature",
                 "geometry": None,
-                "properties": {"message": "No trail found.", "info": route_info}
+                "properties": {
+                    "message": "No trail found.",
+                    "info": route_info,
+                    "distance_km": 0.0
+                }
             })
 
         # Planned route coordinates extraction
@@ -378,53 +359,33 @@ class DriverLocationViewSet(viewsets.ReadOnlyModelViewSet):
                 return [lng, lat] if (lng != 0.0 or lat != 0.0) else None
             return None
 
-        segments = []
-        current_segment = []
-        last_timestamp = None
-        
+        coords = []
         for t in trails:
             coord = get_coords(t)
-            if not coord:
-                continue
-            
-            if last_timestamp and (t.timestamp - last_timestamp).total_seconds() > 300:
-                if current_segment:
-                    segments.append(current_segment)
-                    current_segment = []
-                    
-            current_segment.append(coord)
-            last_timestamp = t.timestamp
-            
-        if current_segment:
-            segments.append(current_segment)
+            if coord:
+                coords.append(coord)
 
-        # Deduplicate and match/snap each segment individually
-        matched_segments = []
+        # Deduplicate consecutive duplicates
+        unique_coords = []
+        for coord in coords:
+            if not unique_coords or unique_coords[-1] != coord:
+                unique_coords.append(coord)
+
+        # Get the OSRM matched trail
         from routing.services.osrm_client import match_trail
-        
-        for segment in segments:
-            # Filter consecutive duplicates
-            unique_coords = []
-            for coord in segment:
-                if not unique_coords or unique_coords[-1] != coord:
-                    unique_coords.append(coord)
-            
-            if not unique_coords:
-                continue
-                
-            if len(unique_coords) < 2:
-                matched_segments.append(unique_coords)
+        if len(unique_coords) < 2:
+            routed_trail = unique_coords
+        else:
+            # Downsample if there are too many coordinates (e.g. > 120 points)
+            if len(unique_coords) > 120:
+                step = len(unique_coords) // 120 + 1
+                sampled_coords = unique_coords[::step]
+                if sampled_coords[-1] != unique_coords[-1]:
+                    sampled_coords.append(unique_coords[-1])
             else:
-                # Downsample if there are too many coordinates in this segment
-                if len(unique_coords) > 90:
-                    step = len(unique_coords) // 90 + 1
-                    sampled_coords = unique_coords[::step]
-                    if sampled_coords[-1] != unique_coords[-1]:
-                        sampled_coords.append(unique_coords[-1])
-                else:
-                    sampled_coords = unique_coords
-                
-                matched_segments.append(match_trail(sampled_coords))
+                sampled_coords = unique_coords
+
+            routed_trail = match_trail(sampled_coords)
 
         # Calculate final snapped distance
         import math
@@ -437,47 +398,29 @@ class DriverLocationViewSet(viewsets.ReadOnlyModelViewSet):
             return c * 6371000
 
         total_dist = 0.0
-        for segment in matched_segments:
-            if len(segment) < 2:
-                continue
-            for i in range(len(segment) - 1):
+        if len(routed_trail) >= 2:
+            for i in range(len(routed_trail) - 1):
                 total_dist += calc_dist(
-                    segment[i][0], segment[i][1],
-                    segment[i+1][0], segment[i+1][1]
+                    routed_trail[i][0], routed_trail[i][1],
+                    routed_trail[i+1][0], routed_trail[i+1][1]
                 )
         distance_km = round(total_dist / 1000.0, 2)
 
-        # Prepare processed segments for LineString/MultiLineString (at least 2 points per segment)
-        processed_segments = []
-        for segment in matched_segments:
-            if not segment:
-                continue
-            if len(segment) == 1:
-                processed_segments.append([segment[0], segment[0]])
-            else:
-                processed_segments.append(segment)
-
         # Generate appropriate GeoJSON geometry type
-        if not processed_segments:
+        if not routed_trail:
             geometry = None
-        elif len(processed_segments) == 1:
-            if len(matched_segments[0]) == 1:
-                geometry = {
-                    "type": "Point",
-                    "coordinates": matched_segments[0][0]
-                }
-            else:
-                geometry = {
-                    "type": "LineString",
-                    "coordinates": processed_segments[0]
-                }
+        elif len(routed_trail) == 1:
+            geometry = {
+                "type": "Point",
+                "coordinates": routed_trail[0]
+            }
         else:
             geometry = {
-                "type": "MultiLineString",
-                "coordinates": processed_segments
+                "type": "LineString",
+                "coordinates": routed_trail
             }
 
-        total_points_count = sum(len(segment) for segment in segments)
+        total_points_count = len(coords)
 
         return Response({
             "type": "Feature",

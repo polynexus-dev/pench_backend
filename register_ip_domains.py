@@ -19,6 +19,12 @@ domains_to_register = [
     ("pench-nagpur.192.168.1.196.nip.io", pench_nagpur_tenant),
     ("nagpur.192.168.1.196.nip.io", nagpur_tenant),
     ("pune.192.168.1.196.nip.io", pune_tenant),
+    
+    # Dev api domains
+    ("pench.dev.api.polynexus.in", public_tenant),
+    ("nagpur.pench.dev.api.polynexus.in", nagpur_tenant),
+    ("pench-nagpur.pench.dev.api.polynexus.in", pench_nagpur_tenant),
+    ("pune.pench.dev.api.polynexus.in", pune_tenant),
 ]
 
 print("Registering local IP domains:")

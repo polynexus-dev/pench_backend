@@ -5,7 +5,7 @@ from .serializers import CompanySerializer, CitySerializer, HolidayCalendarSeria
 
 
 class CityViewSet(viewsets.ModelViewSet):
-    queryset = City.objects.select_related('company').all()
+    queryset = City.objects.select_related('company').exclude(schema_name='public')
     serializer_class = CitySerializer
 
     def get_queryset(self):
@@ -48,21 +48,68 @@ class CityViewSet(viewsets.ModelViewSet):
             
         return queryset
 
-    def perform_create(self, serializer):
-        # Save the city
-        city = serializer.save()
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        city = self.perform_create_async(serializer)
+        response_serializer = self.get_serializer(city)
+        return Response({
+            "detail": "City provisioning started successfully in the background.",
+            "status": "provisioning",
+            "city": response_serializer.data
+        }, status=status.HTTP_202_ACCEPTED)
+
+    def perform_create_async(self, serializer):
+        # 1. Save with is_active=False
+        city = serializer.save(is_active=False)
         
-        # Automatically create a domain for the city (replacing underscores with hyphens for DNS compliance)
+        # 2. Automatically create domains for the city (replacing underscores with hyphens for DNS compliance)
         import os
-        base_domain = os.environ.get('PUBLIC_DOMAIN', 'localhost')
         subdomain = city.schema_name.replace('_', '-')
-        domain_name = f"{subdomain}.{base_domain}"
         
-        Domain.objects.get_or_create(
-            domain=domain_name,
-            tenant=city,
-            defaults={'is_primary': True}
-        )
+        base_domain_env = os.environ.get('PUBLIC_DOMAIN')
+        created_domains = set()
+
+        # 2a. Domain from environment PUBLIC_DOMAIN
+        if base_domain_env:
+            domain_name_env = f"{subdomain}.{base_domain_env}"
+            Domain.objects.get_or_create(
+                domain=domain_name_env,
+                tenant=city,
+                defaults={'is_primary': True}
+            )
+            created_domains.add(domain_name_env)
+        
+        # 2b. Domain dynamically extracted from the request host (e.g. pench.dev.api.polynexus.in)
+        if hasattr(self, 'request') and self.request:
+            req_host = self.request.get_host().split(':')[0]
+            # Ignore standard localhost or numeric IPs when extracting request domain
+            import re
+            is_ip = re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', req_host)
+            if req_host and req_host != 'localhost' and req_host != '127.0.0.1' and not is_ip:
+                domain_name_req = f"{subdomain}.{req_host}"
+                if domain_name_req not in created_domains:
+                    Domain.objects.get_or_create(
+                        domain=domain_name_req,
+                        tenant=city,
+                        defaults={'is_primary': not created_domains}
+                    )
+                    created_domains.add(domain_name_req)
+
+        # 2c. Fallback localhost domain for local development convenience
+        domain_name_local = f"{subdomain}.localhost"
+        if domain_name_local not in created_domains:
+            Domain.objects.get_or_create(
+                domain=domain_name_local,
+                tenant=city,
+                defaults={'is_primary': not created_domains}
+            )
+
+        # 3. Trigger asynchronous Celery task
+        from .tasks import provision_city_schema_task
+        provision_city_schema_task.delay(str(city.id))
+        
+        return city
 
 
 class CompanyViewSet(viewsets.ModelViewSet):

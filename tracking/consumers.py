@@ -25,22 +25,19 @@ def calculate_distance(lon1, lat1, lon2, lat2):
     r = 6371000  # Radius of earth in meters
     return c * r
 
-def calculate_trail_distance(segments):
+def calculate_trail_distance(coords):
     """
-    Calculate the total cumulative distance along a list of segments (each segment is a list of [lng, lat] coordinates) in kilometers.
+    Calculate the total cumulative distance along a list of [lng, lat] coordinates in kilometers.
     """
-    if not segments:
+    if not coords or len(coords) < 2:
         return 0.0
     
     total_dist = 0.0
-    for segment in segments:
-        if len(segment) < 2:
-            continue
-        for i in range(len(segment) - 1):
-            total_dist += calculate_distance(
-                segment[i][0], segment[i][1],
-                segment[i+1][0], segment[i+1][1]
-            )
+    for i in range(len(coords) - 1):
+        total_dist += calculate_distance(
+            coords[i][0], coords[i][1],
+            coords[i+1][0], coords[i+1][1]
+        )
     return round(total_dist / 1000.0, 2)
 
 
@@ -177,56 +174,35 @@ class TrackingConsumer(AsyncWebsocketConsumer):
                 return [lng, lat] if (lng != 0.0 or lat != 0.0) else None
             return None
 
-        # Segment coordinates based on a 5-minute time gap threshold
-        segments = []
-        current_segment = []
-        last_timestamp = None
-        
+        coords = []
         for t in historical_trails:
             coord = get_cleaned_coords(t)
-            if not coord:
-                continue
-            
-            if last_timestamp and (t.timestamp - last_timestamp).total_seconds() > 300:
-                if current_segment:
-                    segments.append(current_segment)
-                    current_segment = []
-                    
-            current_segment.append(coord)
-            last_timestamp = t.timestamp
-            
-        if current_segment:
-            segments.append(current_segment)
+            if coord:
+                coords.append(coord)
 
-        # Deduplicate and match/snap each segment individually
-        matched_segments = []
+        # Deduplicate consecutive duplicates
+        unique_coords = []
+        for coord in coords:
+            if not unique_coords or unique_coords[-1] != coord:
+                unique_coords.append(coord)
+
+        if not unique_coords:
+            return []
+
+        if len(unique_coords) < 2:
+            return unique_coords
+
+        # Downsample if there are too many coordinates (e.g. > 120 points)
+        if len(unique_coords) > 120:
+            step = len(unique_coords) // 120 + 1
+            sampled_coords = unique_coords[::step]
+            if sampled_coords[-1] != unique_coords[-1]:
+                sampled_coords.append(unique_coords[-1])
+        else:
+            sampled_coords = unique_coords
+
         from routing.services.osrm_client import match_trail
-        
-        for segment in segments:
-            # Filter consecutive duplicates
-            unique_coords = []
-            for coord in segment:
-                if not unique_coords or unique_coords[-1] != coord:
-                    unique_coords.append(coord)
-            
-            if not unique_coords:
-                continue
-                
-            if len(unique_coords) < 2:
-                matched_segments.append(unique_coords)
-            else:
-                # Downsample if there are too many coordinates in this segment
-                if len(unique_coords) > 90:
-                    step = len(unique_coords) // 90 + 1
-                    sampled_coords = unique_coords[::step]
-                    if sampled_coords[-1] != unique_coords[-1]:
-                        sampled_coords.append(unique_coords[-1])
-                else:
-                    sampled_coords = unique_coords
-                
-                matched_segments.append(match_trail(sampled_coords))
-                
-        return matched_segments
+        return match_trail(sampled_coords)
 
     @database_sync_to_async
     def update_driver_location(self, lat, lng, accuracy=None):

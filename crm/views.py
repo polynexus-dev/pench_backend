@@ -84,16 +84,16 @@ class CustomerViewSet(viewsets.ModelViewSet):
         
         qr_img = qr.make_image(fill_color=pench_green, back_color="white").convert('RGB')
         
-        # 2. Canvas Setup (Trimmed height to remove dead space)
+        # 2. Canvas Setup (Optimized for A4 aspect ratio to minimize margins)
         width, height = qr_img.size
         canvas_width = 600
-        canvas_height = 750
+        canvas_height = 850
         
         canvas = Image.new('RGB', (canvas_width, canvas_height), pench_green)
         draw = ImageDraw.Draw(canvas)
         
         # 3. Draw Stylized Background
-        draw.polygon([(0, 0), (canvas_width, 0), (canvas_width, 350), (0, 500)], fill=dark_bg)
+        draw.polygon([(0, 0), (canvas_width, 0), (canvas_width, 420), (0, 590)], fill=dark_bg)
         
         # 3.5. Draw Inclined Watermark
         logo_path = os.path.join(settings.BASE_DIR, 'Untitled design-8 (2).png')
@@ -158,7 +158,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
 
         # 5. Paste QR onto Canvas (Centered vertically)
         qr_x = (canvas_width - width) // 2
-        qr_y = 160 # Moved down slightly to center the whole block
+        qr_y = 190
         canvas.paste(qr_img, (qr_x, qr_y))
         
         # 6. Load Professional Font
@@ -187,59 +187,278 @@ class CustomerViewSet(viewsets.ModelViewSet):
         display_text = f"ID: PENCH-{unique_num}"
             
         # Draw the ID right beneath the QR code (tight gap)
-        draw.text((canvas_width/2, 590), display_text, fill=dark_bg, anchor="mm", font=font_customer)
+        draw.text((canvas_width/2, 650), display_text, fill=dark_bg, anchor="mm", font=font_customer)
         
         # Smaller "SCAN HERE" close to the ID
-        draw.text((canvas_width/2, 650), "SCAN HERE", fill=dark_bg, anchor="mm", font=font_scan)
+        draw.text((canvas_width/2, 715), "SCAN HERE", fill=dark_bg, anchor="mm", font=font_scan)
         
         # Small Footer sitting neatly at the bottom edge
         footer_text = "Powered by Polynexus Technologies"
-        draw.text((canvas_width/2, 720), footer_text, fill=(255, 255, 255, 200), anchor="mm", font=font_small)
+        draw.text((canvas_width/2, 810), footer_text, fill=(255, 255, 255, 200), anchor="mm", font=font_small)
         
         return canvas
 
     @action(detail=True, methods=['get'], url_path='download-qr')
     def download_qr(self, request, pk=None):
         """
-        Generates and returns a single Balanced, High-Impact Branded QR Label.
+        Generates and returns a single page A4 PDF containing the QR label at row 0, col 0, with full cutting lines.
+        """
+        customer = self.get_object()
+        from io import BytesIO
+        from django.http import HttpResponse
+        from PIL import Image, ImageDraw
+        
+        canvas = self._generate_qr_label_image(request, customer)
+        
+        # A4 page at 300 DPI
+        page_width, page_height = 2480, 3508
+        cols, rows = 3, 3
+        # 600x850 aspect ratio stickers
+        sticker_width, sticker_height = 750, 1060
+        card_gap = 30  # Gap/gutter between stickers
+        
+        total_width = cols * sticker_width + (cols - 1) * card_gap
+        total_height = rows * sticker_height + (rows - 1) * card_gap
+        
+        # Calculate margins for centering 3x3 grid with gutters
+        margin_x = (page_width - total_width) // 2
+        margin_y = (page_height - total_height) // 2
+        
+        def draw_dashed_line(draw, pt1, pt2, fill, width=1, dash_length=20, gap_length=15):
+            x1, y1 = pt1
+            x2, y2 = pt2
+            dx = x2 - x1
+            dy = y2 - y1
+            distance = (dx**2 + dy**2)**0.5
+            if distance == 0:
+                return
+            
+            ux = dx / distance
+            uy = dy / distance
+            
+            current_dist = 0
+            while current_dist < distance:
+                sx = x1 + ux * current_dist
+                sy = y1 + uy * current_dist
+                
+                current_dist += dash_length
+                if current_dist > distance:
+                    current_dist = distance
+                ex = x1 + ux * current_dist
+                ey = y1 + uy * current_dist
+                
+                draw.line([(sx, sy), (ex, ey)], fill=fill, width=width)
+                current_dist += gap_length
+
+        def finalize_page(page):
+            draw_lines = ImageDraw.Draw(page)
+            line_color = (80, 80, 80)  # Visible dark gray
+            line_width = 4
+            
+            # Horizontal lines - drawn in the middle of gutters + outer borders
+            for r in range(rows + 1):
+                if r == 0:
+                    ly = margin_y
+                elif r == rows:
+                    ly = margin_y + rows * sticker_height + (rows - 1) * card_gap
+                else:
+                    ly = margin_y + r * sticker_height + (r - 1) * card_gap + card_gap // 2
+                    
+                draw_dashed_line(
+                    draw_lines,
+                    (margin_x - 60, ly),
+                    (margin_x + total_width + 60, ly),
+                    fill=line_color,
+                    width=line_width
+                )
+                
+            # Vertical lines - drawn in the middle of gutters + outer borders
+            for c in range(cols + 1):
+                if c == 0:
+                    lx = margin_x
+                elif c == cols:
+                    lx = margin_x + cols * sticker_width + (cols - 1) * card_gap
+                else:
+                    lx = margin_x + c * sticker_width + (c - 1) * card_gap + card_gap // 2
+                    
+                draw_dashed_line(
+                    draw_lines,
+                    (lx, margin_y - 60),
+                    (lx, margin_y + total_height + 60),
+                    fill=line_color,
+                    width=line_width
+                )
+
+        # Draw the single page PDF
+        page = Image.new('RGB', (page_width, page_height), 'white')
+        
+        # Resize the 600x850 sticker to larger 750x1060 to fit 3x3 layout
+        sticker_resized = canvas.resize((sticker_width, sticker_height), Image.Resampling.LANCZOS)
+        
+        # Paste at row 0, col 0 (top-left)
+        page.paste(sticker_resized, (margin_x, margin_y))
+        
+        # Finalize page by drawing the grid lines
+        finalize_page(page)
+        
+        # Save as PDF
+        buffer = BytesIO()
+        page.save(
+            buffer, 
+            format="PDF", 
+            resolution=300.0
+        )
+        buffer.seek(0)
+        
+        unique_num = str(customer.qr_code_id.int)[:6]
+        filename = f"qr_sticker_customer_PENCH-{unique_num}.pdf"
+        
+        response = HttpResponse(buffer, content_type="application/pdf")
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+
+    @action(detail=True, methods=['get'], url_path='view-qr')
+    def view_qr(self, request, pk=None):
+        """
+        Generates and returns a single PNG image containing the styled QR sticker label.
         """
         customer = self.get_object()
         from io import BytesIO
         from django.http import HttpResponse
         
         canvas = self._generate_qr_label_image(request, customer)
-        
         buffer = BytesIO()
         canvas.save(buffer, format="PNG")
         buffer.seek(0)
-        return HttpResponse(buffer, content_type="image/png")
+        
+        response = HttpResponse(buffer, content_type="image/png")
+        return response
 
-    @action(detail=False, methods=['get'], url_path='bulk-download-qr')
+    @action(detail=False, methods=['get', 'post'], url_path='bulk-download-qr')
     def bulk_download_qr(self, request):
         """
         Generates a ZIP archive containing:
-        1. A multi-page A4 PDF with all customer QR stickers in a 3x4 grid.
+        1. A multi-page A4 PDF with customer QR stickers in a 3x3 grid.
         2. A CSV mapping file (opens in Excel) matching the Sticker IDs to customer details.
+        Supports filtering by customer IDs passed via GET query params or POST request body.
         """
         import csv
         import zipfile
         from io import BytesIO, StringIO
         from django.http import HttpResponse
-        from PIL import Image
+        from PIL import Image, ImageDraw
         
         customers = self.get_queryset()
-        if not customers.exists():
-            return Response({"detail": "No active customers found."}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Extract customer IDs for filtering
+        customer_ids = None
+        if request.method == 'POST':
+            customer_ids = request.data.get('ids') or request.data.get('customer_ids')
+        else:
+            customer_ids = request.query_params.get('ids') or request.query_params.get('customer_ids')
+            
+        if customer_ids is not None:
+            import uuid
+            parsed_ids = []
+            if isinstance(customer_ids, str):
+                try:
+                    parsed_ids = [uuid.UUID(x.strip()) for x in customer_ids.split(',') if x.strip()]
+                except ValueError:
+                    return Response({"detail": "Invalid format for ids. Expected a comma-separated list of UUIDs."}, status=status.HTTP_400_BAD_REQUEST)
+            elif isinstance(customer_ids, list):
+                try:
+                    parsed_ids = [uuid.UUID(str(x)) for x in customer_ids]
+                except (ValueError, TypeError):
+                    return Response({"detail": "Invalid format for ids. Expected a list of UUIDs."}, status=status.HTTP_400_BAD_REQUEST)
+            else:
+                return Response({"detail": "Invalid format for ids. Expected a list or a comma-separated string."}, status=status.HTTP_400_BAD_REQUEST)
+            
+            customers = customers.filter(id__in=parsed_ids)
+            if not customers.exists():
+                return Response({"detail": "No active customers found for the specified IDs."}, status=status.HTTP_404_NOT_FOUND)
+        else:
+            if not customers.exists():
+                return Response({"detail": "No active customers found."}, status=status.HTTP_404_NOT_FOUND)
             
         # --- 1. GENERATE PDF STICKERS ---
         # A4 page at 300 DPI
         page_width, page_height = 2480, 3508
-        cols, rows = 3, 4
-        sticker_width, sticker_height = 600, 750
+        cols, rows = 3, 3
+        # 600x850 aspect ratio stickers
+        sticker_width, sticker_height = 750, 1060
+        card_gap = 30  # Gap/gutter between stickers
         
-        # Calculate padding
-        pad_x = (page_width - (cols * sticker_width)) // (cols + 1)
-        pad_y = (page_height - (rows * sticker_height)) // (rows + 1)
+        total_width = cols * sticker_width + (cols - 1) * card_gap
+        total_height = rows * sticker_height + (rows - 1) * card_gap
+        
+        # Calculate margins for centering 3x3 grid with gutters
+        margin_x = (page_width - total_width) // 2
+        margin_y = (page_height - total_height) // 2
+        
+        def draw_dashed_line(draw, pt1, pt2, fill, width=1, dash_length=20, gap_length=15):
+            x1, y1 = pt1
+            x2, y2 = pt2
+            dx = x2 - x1
+            dy = y2 - y1
+            distance = (dx**2 + dy**2)**0.5
+            if distance == 0:
+                return
+            
+            ux = dx / distance
+            uy = dy / distance
+            
+            current_dist = 0
+            while current_dist < distance:
+                sx = x1 + ux * current_dist
+                sy = y1 + uy * current_dist
+                
+                current_dist += dash_length
+                if current_dist > distance:
+                    current_dist = distance
+                ex = x1 + ux * current_dist
+                ey = y1 + uy * current_dist
+                
+                draw.line([(sx, sy), (ex, ey)], fill=fill, width=width)
+                current_dist += gap_length
+
+        def finalize_page(page):
+            draw_lines = ImageDraw.Draw(page)
+            line_color = (80, 80, 80)  # Visible dark gray
+            line_width = 4
+            
+            # Horizontal lines - drawn in the middle of gutters + outer borders
+            for r in range(rows + 1):
+                if r == 0:
+                    ly = margin_y
+                elif r == rows:
+                    ly = margin_y + rows * sticker_height + (rows - 1) * card_gap
+                else:
+                    ly = margin_y + r * sticker_height + (r - 1) * card_gap + card_gap // 2
+                    
+                draw_dashed_line(
+                    draw_lines,
+                    (margin_x - 60, ly),
+                    (margin_x + total_width + 60, ly),
+                    fill=line_color,
+                    width=line_width
+                )
+                
+            # Vertical lines - drawn in the middle of gutters + outer borders
+            for c in range(cols + 1):
+                if c == 0:
+                    lx = margin_x
+                elif c == cols:
+                    lx = margin_x + cols * sticker_width + (cols - 1) * card_gap
+                else:
+                    lx = margin_x + c * sticker_width + (c - 1) * card_gap + card_gap // 2
+                    
+                draw_dashed_line(
+                    draw_lines,
+                    (lx, margin_y - 60),
+                    (lx, margin_y + total_height + 60),
+                    fill=line_color,
+                    width=line_width
+                )
         
         pdf_pages = []
         current_page = Image.new('RGB', (page_width, page_height), 'white')
@@ -247,24 +466,28 @@ class CustomerViewSet(viewsets.ModelViewSet):
         
         for customer in customers:
             sticker = self._generate_qr_label_image(request, customer)
+            # Resize the 600x850 sticker to larger 750x1060 to fit 3x3 layout
+            sticker_resized = sticker.resize((sticker_width, sticker_height), Image.Resampling.LANCZOS)
             
             # Calculate grid position
             col = current_count % cols
             row = (current_count // cols) % rows
             
-            x = pad_x + col * (sticker_width + pad_x)
-            y = pad_y + row * (sticker_height + pad_y)
+            x = margin_x + col * (sticker_width + card_gap)
+            y = margin_y + row * (sticker_height + card_gap)
             
-            current_page.paste(sticker, (x, y))
+            current_page.paste(sticker_resized, (x, y))
             current_count += 1
             
             # If page is full, save it and create a new one
             if current_count % (cols * rows) == 0:
+                finalize_page(current_page)
                 pdf_pages.append(current_page)
                 current_page = Image.new('RGB', (page_width, page_height), 'white')
                 
         # Append the last page if it has any stickers
         if current_count % (cols * rows) != 0:
+            finalize_page(current_page)
             pdf_pages.append(current_page)
             
         pdf_data = b""
@@ -288,8 +511,8 @@ class CustomerViewSet(viewsets.ModelViewSet):
             unique_num = str(customer.qr_code_id.int)[:6]
             sticker_id = f"PENCH-{unique_num}"
             
-            name = ""
-            if customer.user:
+            name = customer.name
+            if not name and customer.user:
                 name = customer.user.get_full_name() or customer.user.username
             
             phone = customer.phone or ""

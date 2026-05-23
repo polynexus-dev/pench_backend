@@ -2,10 +2,14 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
+from orders.views import DriverViewSet
 
 urlpatterns = [
     # City Admin
     path('admin/', admin.site.urls),
+
+    # Dedicated Driver URL path
+    path('api/drivers/my-route/', DriverViewSet.as_view({'get': 'my_route'}), name='driver-my-route'),
 
     # City ERP Modules
     path('api/erp/', include([

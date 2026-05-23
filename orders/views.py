@@ -6,6 +6,13 @@ from core.permissions import IsERPUser, HasGroupPermission
 from .models import Order, OrderStatus, Route
 from .serializers import OrderSerializer, RouteSerializer
 from .services import create_optimized_route
+from orders.services.route_generator import generate_daily_routes_for_date, regenerate_daily_routes_for_date
+from orders.services.trip_management import (
+    lock_route_for_trip,
+    unlock_route_for_trip,
+    start_trip_for_route,
+    stop_trip_for_route
+)
 import datetime
 
 
@@ -328,9 +335,9 @@ class RouteViewSet(viewsets.ModelViewSet):
                     'detail': f"No pending or confirmed orders found in zone '{zone.name}' for date {date}."
                 }, status=status.HTTP_400_BAD_REQUEST)
                 
-            order_ids = list(orders.values_list('id', flat=True))
             if not name:
-                name = f"{zone.name} - {date}"
+                route_count = Route.objects.filter(delivery_date=date).count()
+                name = f"{zone.name} - {date} #{route_count + 1}"
             if not driver_id and zone.assigned_driver:
                 driver_id = zone.assigned_driver.id
         
@@ -349,6 +356,10 @@ class RouteViewSet(viewsets.ModelViewSet):
         from accounts.models import User
         driver = User.objects.filter(id=driver_id).first() if driver_id else None
         
+        if name and '#' not in name:
+            route_count = Route.objects.filter(delivery_date=date).count()
+            name = f"{name} #{route_count + 1}"
+
         route = create_optimized_route(name, driver, date, order_ids)
         
         # Return the route with extra debug info to help troubleshoot empty stops
@@ -401,7 +412,8 @@ class RouteViewSet(viewsets.ModelViewSet):
                 continue
                 
             order_ids = [str(o.id) for o in z_orders]
-            name = f"{zone.name} - {date}"
+            route_count = Route.objects.filter(delivery_date=date).count()
+            name = f"{zone.name} - {date} #{route_count + 1}"
             
             try:
                 route = create_optimized_route(name, driver, date, order_ids)
@@ -463,6 +475,54 @@ class RouteViewSet(viewsets.ModelViewSet):
             "features": features
         })
 
+    @action(detail=False, methods=['post'], url_path='generate')
+    def generate_routes(self, request):
+        """
+        Manually triggers next day's automatic route/trip generation.
+        """
+        date_str = request.data.get('date')
+        if date_str:
+            target_date = datetime.date.fromisoformat(date_str)
+        else:
+            target_date = datetime.date.today() + datetime.timedelta(days=1)
+        
+        results = generate_daily_routes_for_date(target_date)
+        return Response(results, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['post'], url_path='regenerate')
+    def regenerate_routes(self, request):
+        """
+        Manually triggers daily route regeneration (deletes old incomplete routes and regenerates).
+        """
+        date_str = request.data.get('date')
+        if date_str:
+            target_date = datetime.date.fromisoformat(date_str)
+        else:
+            target_date = datetime.date.today() + datetime.timedelta(days=1)
+        
+        results = regenerate_daily_routes_for_date(target_date)
+        return Response(results, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'], url_path='lock')
+    def lock_route(self, request, pk=None):
+        """
+        Locks the route to prevent any order changes.
+        """
+        success = lock_route_for_trip(pk)
+        if success:
+            return Response({"status": "locked", "detail": "Route locked successfully."}, status=status.HTTP_200_OK)
+        return Response({"error": "Failed to lock route or route not found."}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'], url_path='unlock')
+    def unlock_route(self, request, pk=None):
+        """
+        Unlocks the route to enable order changes.
+        """
+        success = unlock_route_for_trip(pk)
+        if success:
+            return Response({"status": "unlocked", "detail": "Route unlocked successfully."}, status=status.HTTP_200_OK)
+        return Response({"error": "Failed to unlock route or route not found."}, status=status.HTTP_400_BAD_REQUEST)
+
 
 class DriverViewSet(viewsets.ViewSet):
     """
@@ -473,6 +533,50 @@ class DriverViewSet(viewsets.ViewSet):
 
     def retrieve(self, request, pk=None):
         return Response({"detail": "Use specific actions like start-trip"})
+
+    @action(detail=False, methods=['get'], url_path='trip-status')
+    def trip_status(self, request):
+        """
+        Checks if the logged-in driver's trip is started or not.
+        Returns the on_trip status and information about the active route.
+        """
+        from django_tenants.utils import schema_context
+        from django.db import connection
+        
+        user = request.user
+        schema = user.tenant_schema
+        context_schema = schema if connection.schema_name == 'public' and schema else connection.schema_name
+        
+        with schema_context(context_schema):
+            from routing.models import Driver
+            
+            driver_profile = Driver.objects.filter(user=user).first()
+            on_trip = driver_profile.on_trip if driver_profile else False
+            
+            # Find any active route (not completed) assigned to the driver
+            active_route = Route.objects.filter(
+                driver=user,
+                is_completed=False
+            ).order_by('delivery_date').first()
+            
+            route_data = None
+            if active_route:
+                route_data = {
+                    'id': str(active_route.id),
+                    'route_id': str(active_route.id),
+                    'name': active_route.name,
+                    'delivery_date': active_route.delivery_date,
+                    'started_at': active_route.started_at,
+                    'is_started': active_route.started_at is not None
+                }
+                # If they have an active route that has started, they are on a trip
+                if active_route.started_at is not None:
+                    on_trip = True
+                    
+            return Response({
+                'on_trip': on_trip,
+                'active_route': route_data
+            })
 
     @action(detail=False, methods=['get'], url_path='my-route')
     def my_route(self, request):
@@ -645,14 +749,12 @@ class DriverViewSet(viewsets.ViewSet):
                 'completed_at': active_route.completed_at,
             })
 
-
     @action(detail=True, methods=['post'], url_path='start-trip')
     def start_trip(self, request, pk=None):
         """
         Starts the route and marks all orders as IN_TRANSIT.
         pk is the Route ID.
         """
-        from django.utils import timezone
         from django_tenants.utils import schema_context
         from django.db import connection
         
@@ -661,35 +763,18 @@ class DriverViewSet(viewsets.ViewSet):
         context_schema = schema if connection.schema_name == 'public' and schema else connection.schema_name
         
         with schema_context(context_schema):
-            # Professional Error Handling: Distinguish between "Not Found" and "Forbidden"
-            route = Route.objects.filter(id=pk).first()
-            if not route:
-                return Response({'error': f'Route with ID {pk} does not exist in this city.'}, status=status.HTTP_404_NOT_FOUND)
-            
-            if route.driver != user:
+            try:
+                route = start_trip_for_route(pk, user)
+                if not route:
+                    return Response({'error': f'Route with ID {pk} does not exist in this city.'}, status=status.HTTP_404_NOT_FOUND)
+                return Response({'detail': 'Trip started successfully.', 'started_at': route.started_at})
+            except PermissionError as pe:
                 return Response({
                     'error': 'Access Denied',
-                    'detail': f'This route is assigned to {route.driver.username if route.driver else "nobody"}. You (User {user.id}) cannot complete it.'
+                    'detail': str(pe)
                 }, status=status.HTTP_403_FORBIDDEN)
-            
-            route.started_at = timezone.now()
-            route.save(update_fields=['started_at'])
-            
-            # Mark Driver Profile as Unavailable (Busy on trip)
-            if route.driver:
-                from routing.models import Driver
-                driver_profile = Driver.objects.filter(user=route.driver).first()
-                if driver_profile:
-                    driver_profile.is_available = False
-                    driver_profile.on_trip = True
-                    driver_profile.save(update_fields=['is_available', 'on_trip'])
-            
-            # Update all orders in this route to IN_TRANSIT
-            for stop in route.stops.all():
-                stop.order.status = OrderStatus.IN_TRANSIT
-                stop.order.save(update_fields=['status'])
-                
-            return Response({'detail': 'Trip started successfully.', 'started_at': route.started_at})
+            except Exception as e:
+                return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=True, methods=['post'], url_path='complete-trip')
     def complete_trip(self, request, pk=None):
@@ -697,7 +782,6 @@ class DriverViewSet(viewsets.ViewSet):
         Finishes the route.
         pk is the Route ID.
         """
-        from django.utils import timezone
         from django_tenants.utils import schema_context
         from django.db import connection
         
@@ -706,31 +790,18 @@ class DriverViewSet(viewsets.ViewSet):
         context_schema = schema if connection.schema_name == 'public' and schema else connection.schema_name
         
         with schema_context(context_schema):
-            # Professional Error Handling: Distinguish between "Not Found" and "Forbidden"
-            route = Route.objects.filter(id=pk).first()
-            if not route:
-                return Response({'error': f'Route with ID {pk} does not exist in this city.'}, status=status.HTTP_404_NOT_FOUND)
-            
-            if route.driver != user:
+            try:
+                route = stop_trip_for_route(pk, user)
+                if not route:
+                    return Response({'error': f'Route with ID {pk} does not exist in this city.'}, status=status.HTTP_404_NOT_FOUND)
+                return Response({'detail': 'Trip completed successfully.', 'completed_at': route.completed_at})
+            except PermissionError as pe:
                 return Response({
                     'error': 'Access Denied',
-                    'detail': f'This route is assigned to {route.driver.username if route.driver else "nobody"}. You (User {user.id}) cannot complete it.'
+                    'detail': str(pe)
                 }, status=status.HTTP_403_FORBIDDEN)
-            
-            route.completed_at = timezone.now()
-            route.is_completed = True
-            route.save(update_fields=['completed_at', 'is_completed'])
-    
-            # Mark Driver Profile as Available again
-            if route.driver:
-                from routing.models import Driver
-                driver_profile = Driver.objects.filter(user=route.driver).first()
-                if driver_profile:
-                    driver_profile.is_available = True
-                    driver_profile.on_trip = False
-                    driver_profile.save(update_fields=['is_available', 'on_trip'])
-                
-            return Response({'detail': 'Trip completed successfully.', 'completed_at': route.completed_at})
+            except Exception as e:
+                return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=True, methods=['post'], url_path='submit-delivery')
     def submit_delivery(self, request, pk=None):

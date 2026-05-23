@@ -184,6 +184,140 @@
                     ]
                 },
                 {
+                    "name": "GET Dedicated My Route",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{city_url}}/api/drivers/my-route/",
+                            "host": [
+                                "{{city_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "drivers",
+                                "my-route",
+                                ""
+                            ],
+                            "query": []
+                        }
+                    },
+                    "response": [
+                        {
+                            "name": "Default Success",
+                            "originalRequest": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    },
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{city_url}}/api/drivers/my-route/",
+                                    "host": [
+                                        "{{city_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "drivers",
+                                        "my-route",
+                                        ""
+                                    ],
+                                    "query": []
+                                }
+                            },
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "cookie": [],
+                            "body": "{\n    \"id\": \"e4c5d700-085a-4173-b815-64bd019ab7de\",\n    \"name\": \"Nagpur Route - 2026-05-23\",\n    \"driver_name\": \"John Driver\",\n    \"delivery_date\": \"2026-05-23\",\n    \"status\": \"in_progress\",\n    \"is_locked\": true,\n    \"is_completed\": false,\n    \"stops\": []\n}"
+                        }
+                    ]
+                },
+                {
+                    "name": "GET Trip Status",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{city_url}}/api/erp/orders/driver/trip-status/",
+                            "host": [
+                                "{{city_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "erp",
+                                "orders",
+                                "driver",
+                                "trip-status",
+                                ""
+                            ],
+                            "query": []
+                        }
+                    },
+                    "response": [
+                        {
+                            "name": "Default Success",
+                            "originalRequest": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{city_url}}/api/erp/orders/driver/trip-status/",
+                                    "host": [
+                                        "{{city_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "erp",
+                                        "orders",
+                                        "driver",
+                                        "trip-status",
+                                        ""
+                                    ],
+                                    "query": []
+                                }
+                            },
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "cookie": [],
+                            "body": "{\n    \"on_trip\": true,\n    \"active_route\": {\n        \"id\": \"1\",\n        \"name\": \"Route A\",\n        \"delivery_date\": \"2026-05-22\",\n        \"started_at\": \"2026-05-22T10:00:00Z\",\n        \"is_started\": true\n    }\n}"
+                        }
+                    ]
+                },
+                {
                     "name": "POST Start Trip",
                     "request": {
                         "method": "POST",
@@ -3788,6 +3922,71 @@
                                     ]
                                 }
                             }
+                        },
+                        {
+                            "name": "GET Bulk Download QR",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{city_url}}/api/erp/customers/bulk-download-qr/?ids=UUID1,UUID2",
+                                    "host": [
+                                        "{{city_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "erp",
+                                        "customers",
+                                        "bulk-download-qr",
+                                        ""
+                                    ],
+                                    "query": [
+                                        {
+                                            "key": "ids",
+                                            "value": "UUID1,UUID2",
+                                            "description": "Optional comma-separated list of Customer UUIDs to download"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "name": "POST Bulk Download QR (Filtered)",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    },
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"customer_ids\": [\n        \"UUID1\",\n        \"UUID2\"\n    ]\n}"
+                                },
+                                "url": {
+                                    "raw": "{{city_url}}/api/erp/customers/bulk-download-qr/",
+                                    "host": [
+                                        "{{city_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "erp",
+                                        "customers",
+                                        "bulk-download-qr",
+                                        ""
+                                    ]
+                                }
+                            }
                         }
                     ]
                 },
@@ -7146,6 +7345,132 @@
                             "body": "{\n    \"detail\": \"Success\",\n    \"status\": \"Request processed successfully\"\n}"
                         }
                     ]
+                },
+                {
+                    "name": "POST Generate Daily Routes",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"date\": \"2026-05-24\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{city_url}}/api/erp/orders/routes/generate/",
+                            "host": [
+                                "{{city_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "erp",
+                                "orders",
+                                "routes",
+                                "generate",
+                                ""
+                            ],
+                            "query": []
+                        }
+                    }
+                },
+                {
+                    "name": "POST Regenerate Daily Routes",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"date\": \"2026-05-24\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{city_url}}/api/erp/orders/routes/regenerate/",
+                            "host": [
+                                "{{city_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "erp",
+                                "orders",
+                                "routes",
+                                "regenerate",
+                                ""
+                            ],
+                            "query": []
+                        }
+                    }
+                },
+                {
+                    "name": "POST Lock Route",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{city_url}}/api/erp/orders/routes/{{route_id}}/lock/",
+                            "host": [
+                                "{{city_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "erp",
+                                "orders",
+                                "routes",
+                                "{{route_id}}",
+                                "lock",
+                                ""
+                            ],
+                            "query": []
+                        }
+                    }
+                },
+                {
+                    "name": "POST Unlock Route",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{city_url}}/api/erp/orders/routes/{{route_id}}/unlock/",
+                            "host": [
+                                "{{city_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "erp",
+                                "orders",
+                                "routes",
+                                "{{route_id}}",
+                                "unlock",
+                                ""
+                            ],
+                            "query": []
+                        }
+                    }
                 },
                 {
                     "name": "Reconciliations (Reconciliation)",
