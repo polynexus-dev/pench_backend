@@ -3,6 +3,8 @@
 # Exit immediately if a command exits with a non-zero status
 set -e
 
+READY_FILE="/app/media/.migrations_complete"
+
 echo "Waiting for PostgreSQL..."
 while ! pg_isready -h $DB_HOST -p $DB_PORT -U $DB_USER > /dev/null 2>&1; do
   sleep 1
@@ -11,6 +13,9 @@ echo "PostgreSQL is ready!"
 
 if [ "$RUN_MIGRATIONS" = "1" ]; then
     echo "--- STARTING SAFE MIGRATION FIX ---"
+
+    # Remove any stale ready-file from a previous run
+    rm -f "$READY_FILE"
 
     # fix_migrations.py uses Django's Python API directly.
     # It applies each migration in a savepoint and fakes any that fail
@@ -80,6 +85,24 @@ PYEOF
     python manage.py collectstatic --noinput
 
     echo "--- MIGRATION FIX COMPLETE ---"
+
+    # Write the ready-file so beat/worker containers know migrations are done
+    touch "$READY_FILE"
+    echo "[*] Ready file written: $READY_FILE"
+
+elif [ "$WAIT_FOR_READY" = "1" ]; then
+    echo "Waiting for web migrations to complete..."
+    WAIT_SECONDS=0
+    while [ ! -f "$READY_FILE" ]; do
+        sleep 2
+        WAIT_SECONDS=$((WAIT_SECONDS + 2))
+        if [ $WAIT_SECONDS -ge 180 ]; then
+            echo "ERROR: Timed out waiting for migrations after 180s. Exiting."
+            exit 1
+        fi
+        echo "  Still waiting... (${WAIT_SECONDS}s)"
+    done
+    echo "Migrations complete. Starting service..."
 fi
 
 # Execute the CMD

@@ -70,13 +70,16 @@ services:
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - GDAL_LIBRARY_PATH=
       - GEOS_LIBRARY_PATH=
+      - WAIT_FOR_READY=1                          # Wait for web migrations before starting
+    volumes:
+      - media_data:/app/media                     # Shared volume to detect ready-file
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
       web:
-        condition: service_started           # Wait for web (migrations) to begin first
+        condition: service_started
 
   beat:
     build: .
@@ -94,8 +97,10 @@ services:
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - GDAL_LIBRARY_PATH=
       - GEOS_LIBRARY_PATH=
+      - WAIT_FOR_READY=1                          # Wait for web migrations before starting
     volumes:
-      - beat_data:/app/beat                        # Persist celerybeat-schedule file
+      - beat_data:/app/beat                       # Persist celerybeat-schedule file
+      - media_data:/app/media                     # Shared volume to detect ready-file
     depends_on:
       db:
         condition: service_healthy
