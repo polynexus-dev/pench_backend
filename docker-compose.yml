@@ -83,7 +83,12 @@ services:
 
   beat:
     build: .
-    command: celery -A config beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler -s /tmp/celerybeat-schedule
+    command: >
+      bash -c "rm -f /app/beat/celerybeat.pid &&
+               celery -A config beat -l info
+               --scheduler django_celery_beat.schedulers:DatabaseScheduler
+               --schedule /app/beat/celerybeat-schedule
+               --pidfile /app/beat/celerybeat.pid"
     environment:
       - SECRET_KEY=${SECRET_KEY:-django-insecure-docker-dev-key-change-in-prod}
       - HAS_GDAL=True
