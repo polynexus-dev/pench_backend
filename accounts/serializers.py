@@ -262,7 +262,7 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
                 public_domain = Domain.objects.filter(tenant__schema_name='public').first()
                 
             if public_domain:
-                data['domain_name'] = public_domain.domain
+                data['domain_name'] = public_domain.domain.replace('_', '-')
             else:
                 data['domain_name'] = 'localhost' # Fallback for local testing
                 
@@ -296,8 +296,8 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
                     domain = Domain.objects.filter(tenant=city, domain__icontains=base_domain).first()
                     if not domain:
                         domain = Domain.objects.filter(tenant=city).first()
-                        
-                    data['domain_name'] = domain.domain if domain else None
+                    
+                    data['domain_name'] = domain.domain.replace('_', '-') if domain and domain.domain else f"{schema.replace('_', '-')}.{base_domain}"
                     
                     # If driver, find their active route
                     if self.user.is_driver:

@@ -179,7 +179,7 @@ class LoginOTPView(APIView):
                 if not domain:
                     domain = Domain.objects.filter(tenant=city).first()
                     
-                response_data['tenant_domain'] = domain.domain if domain else None
+                response_data['tenant_domain'] = domain.domain.replace('_', '-') if domain and domain.domain else f"{user.tenant_schema.replace('_', '-')}.{base_domain}"
                 
                 # If driver, find their active route
                 if user.is_driver:
