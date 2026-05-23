@@ -123,15 +123,29 @@ class OrderSerializer(serializers.ModelSerializer):
 
 class RouteStopSerializer(serializers.ModelSerializer):
     customer_name = serializers.CharField(source='order.customer.name', read_only=True)
+    customer_phone = serializers.CharField(source='order.customer.phone', read_only=True)
+    customer_email = serializers.CharField(source='order.customer.email', read_only=True)
+    customer_company = serializers.CharField(source='order.customer.company', read_only=True)
+    customer_zone_name = serializers.CharField(source='order.customer.zone.name', read_only=True)
     address = serializers.CharField(source='order.delivery_address', read_only=True)
+    order_status = serializers.CharField(source='order.status', read_only=True)
+    order_notes = serializers.CharField(source='order.delivery_notes', read_only=True)
+    order_total = serializers.FloatField(source='order.total', read_only=True)
+    delivered_at = serializers.DateTimeField(source='order.delivered_at', read_only=True)
+    pod_image = serializers.SerializerMethodField()
     latitude = serializers.SerializerMethodField()
     longitude = serializers.SerializerMethodField()
-    order_status = serializers.CharField(source='order.status', read_only=True)
     product_list = serializers.SerializerMethodField()
+    subscription_details = serializers.SerializerMethodField()
 
     class Meta:
         model = RouteStop
-        fields = ['id', 'sequence_number', 'order', 'customer_name', 'address', 'latitude', 'longitude', 'order_status', 'product_list']
+        fields = [
+            'id', 'sequence_number', 'order', 'customer_name', 'customer_phone', 
+            'customer_email', 'customer_company', 'customer_zone_name', 'address', 
+            'latitude', 'longitude', 'order_status', 'order_notes', 'order_total', 
+            'delivered_at', 'pod_image', 'product_list', 'subscription_details'
+        ]
 
     def get_latitude(self, obj):
         loc = obj.order.customer.location
@@ -147,6 +161,14 @@ class RouteStopSerializer(serializers.ModelSerializer):
         if isinstance(loc, dict): return loc.get('lng') or loc.get('longitude') or loc.get('lon')
         return None
 
+    def get_pod_image(self, obj):
+        request = self.context.get('request')
+        if obj.order.pod_image and hasattr(obj.order.pod_image, 'url'):
+            if request:
+                return request.build_absolute_uri(obj.order.pod_image.url)
+            return obj.order.pod_image.url
+        return None
+
     def get_product_list(self, obj):
         items = obj.order.items.all()
         return [
@@ -159,6 +181,35 @@ class RouteStopSerializer(serializers.ModelSerializer):
             }
             for item in items
         ]
+
+    def get_subscription_details(self, obj):
+        # 1. If today's order was generated from a subscription, show it directly
+        sub = obj.order.subscription
+        
+        # 2. Fallback: If not linked but the customer has an active subscription, show it
+        if not sub:
+            from subscriptions.models import Subscription, SubscriptionStatus
+            sub = Subscription.objects.filter(
+                customer=obj.order.customer, 
+                status=SubscriptionStatus.ACTIVE
+            ).first()
+
+        if sub:
+            items = sub.items.all()
+            return {
+                "id": str(sub.id),
+                "frequency": sub.get_frequency_display(),
+                "is_paused": sub.is_paused,
+                "special_instructions": sub.special_instructions,
+                "items": [
+                    {
+                        "product_name": item.product.name,
+                        "quantity": item.quantity,
+                        "unit": item.product.unit
+                    } for item in items
+                ]
+            }
+        return None
 
 
 class RouteSerializer(serializers.ModelSerializer):

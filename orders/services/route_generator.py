@@ -162,7 +162,8 @@ def generate_daily_routes_for_date(target_date):
             continue
 
         order_ids = [str(o.id) for o in z_orders]
-        route_name = f"{zone.name} - {target_date.strftime('%Y-%m-%d')}"
+        route_count = Route.objects.filter(delivery_date=target_date).count()
+        route_name = f"{zone.name} - {target_date.strftime('%Y-%m-%d')} #{route_count + 1}"
 
         try:
             route = create_optimized_route(route_name, driver, target_date, order_ids)

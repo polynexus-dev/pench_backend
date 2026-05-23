@@ -335,9 +335,9 @@ class RouteViewSet(viewsets.ModelViewSet):
                     'detail': f"No pending or confirmed orders found in zone '{zone.name}' for date {date}."
                 }, status=status.HTTP_400_BAD_REQUEST)
                 
-            order_ids = list(orders.values_list('id', flat=True))
             if not name:
-                name = f"{zone.name} - {date}"
+                route_count = Route.objects.filter(delivery_date=date).count()
+                name = f"{zone.name} - {date} #{route_count + 1}"
             if not driver_id and zone.assigned_driver:
                 driver_id = zone.assigned_driver.id
         
@@ -356,6 +356,10 @@ class RouteViewSet(viewsets.ModelViewSet):
         from accounts.models import User
         driver = User.objects.filter(id=driver_id).first() if driver_id else None
         
+        if name and '#' not in name:
+            route_count = Route.objects.filter(delivery_date=date).count()
+            name = f"{name} #{route_count + 1}"
+
         route = create_optimized_route(name, driver, date, order_ids)
         
         # Return the route with extra debug info to help troubleshoot empty stops
@@ -408,7 +412,8 @@ class RouteViewSet(viewsets.ModelViewSet):
                 continue
                 
             order_ids = [str(o.id) for o in z_orders]
-            name = f"{zone.name} - {date}"
+            route_count = Route.objects.filter(delivery_date=date).count()
+            name = f"{zone.name} - {date} #{route_count + 1}"
             
             try:
                 route = create_optimized_route(name, driver, date, order_ids)

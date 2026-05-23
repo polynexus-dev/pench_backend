@@ -64,22 +64,26 @@ def start_trip_for_route(route_id, driver_user):
         logger.error("start_trip_for_route: Route %s not found.", route_id)
         return None
 
-    if route.driver != driver_user:
+    is_manager = driver_user.is_superuser or getattr(driver_user, 'is_erp_user', False) or driver_user.groups.filter(name__in=['Logistics_Managers', 'ERP_Admins']).exists()
+    if route.driver != driver_user and not is_manager:
         logger.warning("User %s attempted to start trip on Route %s which is assigned to another driver.", driver_user, route_id)
         raise PermissionError("This route is assigned to another driver.")
 
     with transaction.atomic():
         route.status = RouteStatus.IN_PROGRESS
         route.started_at = timezone.now()
+        route.completed_at = None
+        route.is_completed = False
         route.is_locked = True  # Automatically lock the route once started
-        route.save(update_fields=['status', 'started_at', 'is_locked'])
+        route.save(update_fields=['status', 'started_at', 'completed_at', 'is_completed', 'is_locked'])
 
         # Update associated Driver Profile in routing app
-        driver_profile = Driver.objects.filter(user=driver_user).first()
-        if driver_profile:
-            driver_profile.is_available = False
-            driver_profile.on_trip = True
-            driver_profile.save(update_fields=['is_available', 'on_trip'])
+        if route.driver:
+            driver_profile = Driver.objects.filter(user=route.driver).first()
+            if driver_profile:
+                driver_profile.is_available = False
+                driver_profile.on_trip = True
+                driver_profile.save(update_fields=['is_available', 'on_trip'])
 
         # Mark all pending/confirmed orders in this route as IN_TRANSIT
         stops = route.stops.select_related('order')
@@ -109,7 +113,8 @@ def stop_trip_for_route(route_id, driver_user):
         logger.error("stop_trip_for_route: Route %s not found.", route_id)
         return None
 
-    if route.driver != driver_user:
+    is_manager = driver_user.is_superuser or getattr(driver_user, 'is_erp_user', False) or driver_user.groups.filter(name__in=['Logistics_Managers', 'ERP_Admins']).exists()
+    if route.driver != driver_user and not is_manager:
         logger.warning("User %s attempted to stop trip on Route %s which is assigned to another driver.", driver_user, route_id)
         raise PermissionError("This route is assigned to another driver.")
 
@@ -120,11 +125,12 @@ def stop_trip_for_route(route_id, driver_user):
         route.save(update_fields=['status', 'completed_at', 'is_completed'])
 
         # Free the driver
-        driver_profile = Driver.objects.filter(user=driver_user).first()
-        if driver_profile:
-            driver_profile.is_available = True
-            driver_profile.on_trip = False
-            driver_profile.save(update_fields=['is_available', 'on_trip'])
+        if route.driver:
+            driver_profile = Driver.objects.filter(user=route.driver).first()
+            if driver_profile:
+                driver_profile.is_available = True
+                driver_profile.on_trip = False
+                driver_profile.save(update_fields=['is_available', 'on_trip'])
 
         # Set any non-delivered, non-cancelled orders inside this route to UNDELIVERED
         stops = route.stops.select_related('order')
