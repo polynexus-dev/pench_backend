@@ -55,10 +55,20 @@ class Package(BaseModel):
     height_cm = models.DecimalField(max_digits=6, decimal_places=2, default=0)
     description = models.CharField(max_length=200, blank=True)
 
+class RouteStatus(models.TextChoices):
+    PENDING = 'pending', 'Pending'
+    STARTED = 'started', 'Started'
+    IN_PROGRESS = 'in_progress', 'In Progress'
+    COMPLETED = 'completed', 'Completed'
+    STOPPED = 'stopped', 'Stopped'
+
+
 class Route(BaseModel):
     name = models.CharField(max_length=200)
     driver = models.ForeignKey('accounts.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='legacy_routes')
     delivery_date = models.DateField()
+    status = models.CharField(max_length=20, choices=RouteStatus.choices, default=RouteStatus.PENDING)
+    is_locked = models.BooleanField(default=False)
     is_completed = models.BooleanField(default=False)
     started_at = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
@@ -81,3 +91,20 @@ class RouteStop(BaseModel):
     class Meta:
         ordering = ['sequence_number']
         unique_together = ('route', 'sequence_number')
+
+
+class DeliveryLog(BaseModel):
+    """
+    Audit log tracking all logistics events, modifications, automated tasks, and cutoffs.
+    """
+    action = models.CharField(max_length=100)
+    route = models.ForeignKey(Route, on_delete=models.SET_NULL, null=True, blank=True, related_name='logs')
+    order = models.ForeignKey(Order, on_delete=models.SET_NULL, null=True, blank=True, related_name='logs')
+    details = models.TextField()
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-timestamp']
+
+    def __str__(self):
+        return f"[{self.timestamp.strftime('%Y-%m-%d %H:%M:%S')}] {self.action}: {self.details[:50]}"

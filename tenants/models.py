@@ -31,6 +31,8 @@ class City(TenantMixin):
     """
     The Tenant model. Each City will have its own schema in Postgres.
     """
+    auto_create_schema = False
+
     company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name='cities', null=True, blank=True)
     name = models.CharField(max_length=100)
     state = models.CharField(max_length=100)

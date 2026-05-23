@@ -48,11 +48,22 @@ class CityViewSet(viewsets.ModelViewSet):
             
         return queryset
 
-    def perform_create(self, serializer):
-        # Save the city
-        city = serializer.save()
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        city = self.perform_create_async(serializer)
+        response_serializer = self.get_serializer(city)
+        return Response({
+            "detail": "City provisioning started successfully in the background.",
+            "status": "provisioning",
+            "city": response_serializer.data
+        }, status=status.HTTP_202_ACCEPTED)
+
+    def perform_create_async(self, serializer):
+        # 1. Save with is_active=False
+        city = serializer.save(is_active=False)
         
-        # Automatically create a domain for the city (replacing underscores with hyphens for DNS compliance)
+        # 2. Automatically create a domain for the city (replacing underscores with hyphens for DNS compliance)
         import os
         base_domain = os.environ.get('PUBLIC_DOMAIN', 'localhost')
         subdomain = city.schema_name.replace('_', '-')
@@ -63,6 +74,12 @@ class CityViewSet(viewsets.ModelViewSet):
             tenant=city,
             defaults={'is_primary': True}
         )
+        
+        # 3. Trigger asynchronous Celery task
+        from .tasks import provision_city_schema_task
+        provision_city_schema_task.delay(str(city.id))
+        
+        return city
 
 
 class CompanyViewSet(viewsets.ModelViewSet):

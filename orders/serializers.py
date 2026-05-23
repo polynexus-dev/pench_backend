@@ -127,10 +127,11 @@ class RouteStopSerializer(serializers.ModelSerializer):
     latitude = serializers.SerializerMethodField()
     longitude = serializers.SerializerMethodField()
     order_status = serializers.CharField(source='order.status', read_only=True)
+    product_list = serializers.SerializerMethodField()
 
     class Meta:
         model = RouteStop
-        fields = ['id', 'sequence_number', 'order', 'customer_name', 'address', 'latitude', 'longitude', 'order_status']
+        fields = ['id', 'sequence_number', 'order', 'customer_name', 'address', 'latitude', 'longitude', 'order_status', 'product_list']
 
     def get_latitude(self, obj):
         loc = obj.order.customer.location
@@ -146,10 +147,24 @@ class RouteStopSerializer(serializers.ModelSerializer):
         if isinstance(loc, dict): return loc.get('lng') or loc.get('longitude') or loc.get('lon')
         return None
 
+    def get_product_list(self, obj):
+        items = obj.order.items.all()
+        return [
+            {
+                "product_id": str(item.product.id),
+                "product_name": item.product.name,
+                "quantity": item.quantity,
+                "unit": item.product.unit,
+                "unit_price": float(item.unit_price)
+            }
+            for item in items
+        ]
+
 
 class RouteSerializer(serializers.ModelSerializer):
     stops = RouteStopSerializer(many=True, read_only=True)
     driver_name = serializers.CharField(source='driver.get_full_name', read_only=True)
+    route_id = serializers.CharField(source='id', read_only=True)
     
     # Return geometry as GeoJSON
     route_geometry = serializers.SerializerMethodField()
@@ -157,8 +172,8 @@ class RouteSerializer(serializers.ModelSerializer):
     class Meta:
         model = Route
         fields = [
-            'id', 'name', 'driver', 'driver_name', 'delivery_date', 
-            'is_completed', 'route_geometry', 'stops'
+            'id', 'route_id', 'name', 'driver', 'driver_name', 'delivery_date', 
+            'status', 'is_locked', 'is_completed', 'route_geometry', 'stops'
         ]
 
     def get_route_geometry(self, obj):

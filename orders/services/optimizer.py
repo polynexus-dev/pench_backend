@@ -4,7 +4,7 @@ import logging
 from django.contrib.gis.geos import Point, LineString
 from ortools.constraint_solver import routing_enums_pb2
 from ortools.constraint_solver import pywrapcp
-from .models import Order, Route, RouteStop
+from orders.models import Order, Route, RouteStop
 
 logger = logging.getLogger(__name__)
 

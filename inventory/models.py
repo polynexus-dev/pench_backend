@@ -155,3 +155,21 @@ class CustomerProductPrice(BaseModel):
     def __str__(self):
         return f"{self.customer.name} - {self.product.name}: Rs. {self.custom_price}"
 
+
+class ProductAvailability(BaseModel):
+    """
+    Tracks product availability on specific dates.
+    Used to skip subscription product delivery generation if a product is unavailable.
+    """
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='availabilities')
+    date = models.DateField()
+    is_available = models.BooleanField(default=True)
+
+    class Meta:
+        unique_together = ('product', 'date')
+        ordering = ['-date', 'product']
+
+    def __str__(self):
+        status = "Available" if self.is_available else "Unavailable"
+        return f"{self.product.name} on {self.date}: {status}"
+
