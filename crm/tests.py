@@ -21,6 +21,7 @@ class CustomerAutoAssignZonesTestCase(TenantTestCase):
         tenant.name = 'Test City'
         tenant.state = 'Test State'
         tenant.code = 'TST'
+        tenant.create_schema(sync_schema=True)
 
     def setUp(self):
         super().setUp()
@@ -290,6 +291,7 @@ class CustomerBulkQRTestCase(TenantTestCase):
         tenant.name = 'Test City'
         tenant.state = 'Test State'
         tenant.code = 'TST'
+        tenant.create_schema(sync_schema=True)
 
     def setUp(self):
         super().setUp()
@@ -456,3 +458,13 @@ class CustomerBulkQRTestCase(TenantTestCase):
         self.assertEqual(response['Content-Type'], 'application/pdf')
         self.assertTrue(response['Content-Disposition'].startswith('attachment; filename="qr_sticker_customer_PENCH-'))
         self.assertTrue(response['Content-Disposition'].endswith('.pdf"'))
+
+    def test_single_view_qr_png(self):
+        """
+        Verify that view-qr endpoint returns a PNG image of the QR label.
+        """
+        connection.set_tenant(self.tenant)
+        url = f'/api/erp/customers/{self.cust1.id}/view-qr/'
+        response = self.client.get(url, HTTP_HOST='tenant.test.com')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'image/png')

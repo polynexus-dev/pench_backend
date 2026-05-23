@@ -212,22 +212,7 @@ def auto_stop_active_trips_at_noon():
 def process_pre_delivery_product_cutoff():
     """
     Runs at 6:00 AM cutoff time on delivery day.
-    Locks all routes scheduled for today.
+    (Previously locked routes; now just logs that the cutoff has passed).
     """
-    today = datetime.date.today()
-    routes_to_lock = Route.objects.filter(delivery_date=today, is_locked=False)
-    
-    locked_count = 0
-    for route in routes_to_lock:
-        route.is_locked = True
-        route.save(update_fields=['is_locked'])
-        
-        DeliveryLog.objects.create(
-            action="Route Locked",
-            route=route,
-            details="Route locked automatically at 6:00 AM pre-delivery cutoff."
-        )
-        locked_count += 1
-
-    logger.info("Cutoff 6:00 AM processing completed. Locked %d routes.", locked_count)
-    return {"locked_routes_count": locked_count}
+    logger.info("Cutoff 6:00 AM processing completed. No routes locked per new biker/rider model.")
+    return {"locked_routes_count": 0}

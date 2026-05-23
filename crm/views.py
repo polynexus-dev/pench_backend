@@ -317,6 +317,23 @@ class CustomerViewSet(viewsets.ModelViewSet):
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
         return response
 
+    @action(detail=True, methods=['get'], url_path='view-qr')
+    def view_qr(self, request, pk=None):
+        """
+        Generates and returns a single PNG image containing the styled QR sticker label.
+        """
+        customer = self.get_object()
+        from io import BytesIO
+        from django.http import HttpResponse
+        
+        canvas = self._generate_qr_label_image(request, customer)
+        buffer = BytesIO()
+        canvas.save(buffer, format="PNG")
+        buffer.seek(0)
+        
+        response = HttpResponse(buffer, content_type="image/png")
+        return response
+
     @action(detail=False, methods=['get', 'post'], url_path='bulk-download-qr')
     def bulk_download_qr(self, request):
         """

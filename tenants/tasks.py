@@ -23,7 +23,7 @@ def provision_city_schema_task(self, city_id: str):
 
     try:
         # Create database schema and run all migrations
-        city.create_schema(sync_schema=True, check_geographic=True)
+        city.create_schema(sync_schema=True)
 
         # Mark city as active once fully migrated
         city.is_active = True

@@ -172,30 +172,36 @@ class CitySerializer(serializers.ModelSerializer):
         return data
 
     def create(self, validated_data):
-        if not validated_data.get('schema_name'):
-            company = validated_data.get('company')
-            city_name = validated_data.get('name', '')
-            
-            import re
-            def clean_name(val):
-                if not val:
-                    return ""
-                val = val.lower()
-                val = re.sub(r'[^a-z0-9_]', '_', val)
-                val = re.sub(r'_+', '_', val)
-                return val.strip('_')
+        import re
+        def clean_name(val):
+            if not val:
+                return ""
+            val = val.lower()
+            val = re.sub(r'[^a-z0-9_]', '_', val)
+            val = re.sub(r'_+', '_', val)
+            return val.strip('_')
 
-            clean_city = clean_name(city_name)
+        company = validated_data.get('company')
+        schema_name = validated_data.get('schema_name', '')
+        
+        if company:
+            clean_company = clean_name(company.code)
+            clean_schema = clean_name(schema_name)
+            if not clean_schema:
+                clean_schema = clean_name(validated_data.get('name', ''))
             
-            if company and clean_city:
-                clean_company = clean_name(company.code)
-                schema_name = f"{clean_company}_{clean_city}"
-            elif clean_city:
-                schema_name = clean_city
+            prefix = f"{clean_company}_"
+            if not clean_schema.startswith(prefix):
+                schema_name = f"{prefix}{clean_schema}"
             else:
-                schema_name = clean_name(validated_data.get('code', ''))
+                schema_name = clean_schema
+        else:
+            if not schema_name:
+                schema_name = clean_name(validated_data.get('name', ''))
+            else:
+                schema_name = clean_name(schema_name)
 
-            validated_data['schema_name'] = schema_name[:63]
+        validated_data['schema_name'] = schema_name[:63]
         return super().create(validated_data)
 
 

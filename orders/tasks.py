@@ -45,8 +45,8 @@ def generate_next_day_routes_task(target_date_str=None):
 @shared_task(name="orders.tasks.auto_lock_routes_at_6am")
 def auto_lock_routes_at_6am_task():
     """
-    Celery task that executes daily at 6:00 AM to automatically lock all routes
-    scheduled for delivery today across all cities (tenants).
+    Celery task that executes daily at 6:00 AM for the daily cutoff.
+    (Previously locked all routes; now just runs process_pre_delivery_product_cutoff logging).
     """
     logger.info("Executing Celery Task: auto_lock_routes_at_6am")
     
@@ -54,13 +54,13 @@ def auto_lock_routes_at_6am_task():
     results = {}
 
     for city in cities:
-        logger.info("Running automatic route lock for City schema: %s", city.schema_name)
+        logger.info("Running pre-delivery product cutoff check for City schema: %s", city.schema_name)
         with schema_context(city.schema_name):
             try:
                 stats = process_pre_delivery_product_cutoff()
                 results[city.schema_name] = stats
             except Exception as e:
-                logger.exception("Failed to auto lock routes for City schema %s", city.schema_name)
+                logger.exception("Failed pre-delivery cutoff check for City schema %s", city.schema_name)
                 results[city.schema_name] = {"status": "failed", "error": str(e)}
 
     return results
