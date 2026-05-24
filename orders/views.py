@@ -482,7 +482,13 @@ class RouteViewSet(viewsets.ModelViewSet):
         """
         date_str = request.data.get('date')
         if date_str:
-            target_date = datetime.date.fromisoformat(date_str)
+            try:
+                target_date = datetime.date.fromisoformat(date_str)
+            except ValueError:
+                return Response(
+                    {'detail': 'Invalid date format. Expected YYYY-MM-DD.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
         else:
             target_date = datetime.date.today() + datetime.timedelta(days=1)
         
@@ -496,7 +502,13 @@ class RouteViewSet(viewsets.ModelViewSet):
         """
         date_str = request.data.get('date')
         if date_str:
-            target_date = datetime.date.fromisoformat(date_str)
+            try:
+                target_date = datetime.date.fromisoformat(date_str)
+            except ValueError:
+                return Response(
+                    {'detail': 'Invalid date format. Expected YYYY-MM-DD.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
         else:
             target_date = datetime.date.today() + datetime.timedelta(days=1)
         
