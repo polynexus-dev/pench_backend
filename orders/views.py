@@ -43,9 +43,12 @@ class OrderViewSet(viewsets.ModelViewSet):
         if hasattr(user, 'customer_profile'):
             return qs.filter(customer=user.customer_profile)
             
-        # Allow drivers to access orders assigned to their routes
+        # Allow drivers to access orders assigned to their routes (primary or additional driver)
         from .models import RouteStop
-        assigned_order_ids = RouteStop.objects.filter(route__driver=user).values_list('order_id', flat=True)
+        from django.db.models import Q
+        assigned_order_ids = RouteStop.objects.filter(
+            Q(route__driver=user) | Q(route__additional_drivers=user)
+        ).distinct().values_list('order_id', flat=True)
         if assigned_order_ids.exists() or getattr(user, 'is_driver', False):
             return qs.filter(id__in=assigned_order_ids)
             
@@ -144,20 +147,46 @@ class OrderViewSet(viewsets.ModelViewSet):
 
         routes_created = 0
         route_errors = []
+        from routing.models import Driver
         for zone, z_orders in zone_orders.items():
-            driver = zone.assigned_driver
-            if not driver:
+            driver_user = zone.assigned_driver
+            if not driver_user:
                 route_errors.append({
                     'zone': zone.name,
                     'error': 'No primary driver assigned.'
                 })
                 continue
 
+            # Safely convert User to Driver profile
+            driver_profile = getattr(driver_user, 'driver_profile', None)
+            if not driver_profile:
+                driver_profile = Driver.objects.filter(user=driver_user).first()
+
+            if not driver_profile:
+                route_errors.append({
+                    'zone': zone.name,
+                    'error': f"Primary driver '{driver_user.username}' has no Driver profile."
+                })
+                continue
+
+            # Resolve warehouse and warehouse_location coordinates for pathfinder
+            warehouse = driver_profile.warehouse
+            warehouse_location = None
+            if warehouse and warehouse.latitude is not None and warehouse.longitude is not None:
+                warehouse_location = {'longitude': float(warehouse.longitude), 'latitude': float(warehouse.latitude)}
+
             order_ids = [str(o.id) for o in z_orders]
             route_name = f"{zone.name} - {date_str}"
 
             try:
-                create_optimized_route(route_name, driver, date_str, order_ids)
+                create_optimized_route(
+                    route_name, 
+                    driver_profile, 
+                    date_str, 
+                    order_ids, 
+                    warehouse=warehouse, 
+                    warehouse_location=warehouse_location
+                )
                 routes_created += 1
             except Exception as e:
                 route_errors.append({
@@ -301,11 +330,18 @@ class OrderViewSet(viewsets.ModelViewSet):
 
 
 class RouteViewSet(viewsets.ModelViewSet):
-    queryset = Route.objects.all().prefetch_related('stops__order__customer')
     serializer_class = RouteSerializer
     permission_classes = [IsERPUser, HasGroupPermission]
     required_groups = ['Logistics_Managers', 'ERP_Admins']
-    filterset_fields = ['delivery_date', 'driver', 'is_completed']
+    filterset_fields = ['delivery_date', 'is_completed']
+
+    def get_queryset(self):
+        queryset = Route.objects.all().select_related('driver').prefetch_related('stops__order__customer', 'additional_drivers')
+        driver_id = self.request.query_params.get('driver')
+        if driver_id:
+            from django.db.models import Q
+            queryset = queryset.filter(Q(driver_id=driver_id) | Q(additional_drivers__id=driver_id)).distinct()
+        return queryset
 
     @action(detail=False, methods=['post'], url_path='create-optimized')
     def create_optimized(self, request):
@@ -354,13 +390,34 @@ class RouteViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_400_BAD_REQUEST)
             
         from accounts.models import User
-        driver = User.objects.filter(id=driver_id).first() if driver_id else None
+        from routing.models import Driver
+        driver_user = User.objects.filter(id=driver_id).first() if driver_id else None
+        
+        driver_profile = None
+        warehouse = None
+        warehouse_location = None
+        if driver_user:
+            driver_profile = getattr(driver_user, 'driver_profile', None)
+            if not driver_profile:
+                driver_profile = Driver.objects.filter(user=driver_user).first()
+                
+            if driver_profile:
+                warehouse = driver_profile.warehouse
+                if warehouse and warehouse.latitude is not None and warehouse.longitude is not None:
+                    warehouse_location = {'longitude': float(warehouse.longitude), 'latitude': float(warehouse.latitude)}
         
         if name and '#' not in name:
             route_count = Route.objects.filter(delivery_date=date).count()
             name = f"{name} #{route_count + 1}"
 
-        route = create_optimized_route(name, driver, date, order_ids)
+        route = create_optimized_route(
+            name, 
+            driver_profile or driver_user, 
+            date, 
+            order_ids, 
+            warehouse=warehouse, 
+            warehouse_location=warehouse_location
+        )
         
         # Return the route with extra debug info to help troubleshoot empty stops
         response_data = RouteSerializer(route).data
@@ -401,9 +458,10 @@ class RouteViewSet(viewsets.ModelViewSet):
         created_routes = []
         errors = []
         
+        from routing.models import Driver
         for zone, z_orders in zone_orders.items():
-            driver = zone.assigned_driver
-            if not driver:
+            driver_user = zone.assigned_driver
+            if not driver_user:
                 errors.append({
                     'zone_id': str(zone.id),
                     'zone_name': zone.name,
@@ -411,12 +469,38 @@ class RouteViewSet(viewsets.ModelViewSet):
                 })
                 continue
                 
+            # Safely convert User to Driver profile
+            driver_profile = getattr(driver_user, 'driver_profile', None)
+            if not driver_profile:
+                driver_profile = Driver.objects.filter(user=driver_user).first()
+                
+            if not driver_profile:
+                errors.append({
+                    'zone_id': str(zone.id),
+                    'zone_name': zone.name,
+                    'error': f"Primary driver '{driver_user.username}' has no Driver profile."
+                })
+                continue
+
+            # Resolve warehouse and warehouse_location coordinates for pathfinder
+            warehouse = driver_profile.warehouse
+            warehouse_location = None
+            if warehouse and warehouse.latitude is not None and warehouse.longitude is not None:
+                warehouse_location = {'longitude': float(warehouse.longitude), 'latitude': float(warehouse.latitude)}
+
             order_ids = [str(o.id) for o in z_orders]
             route_count = Route.objects.filter(delivery_date=date).count()
             name = f"{zone.name} - {date} #{route_count + 1}"
             
             try:
-                route = create_optimized_route(name, driver, date, order_ids)
+                route = create_optimized_route(
+                    name, 
+                    driver_profile, 
+                    date, 
+                    order_ids, 
+                    warehouse=warehouse, 
+                    warehouse_location=warehouse_location
+                )
                 created_routes.append(RouteSerializer(route).data)
             except Exception as e:
                 errors.append({
@@ -606,14 +690,27 @@ class DriverViewSet(viewsets.ViewSet):
         
         with schema_context(context_schema):
             # Look for the oldest incomplete active route
+            from django.db.models import Q
             route = Route.objects.filter(
-                driver=user,
+                Q(driver=user) | Q(additional_drivers=user),
                 is_completed=False
-            ).prefetch_related('stops__order__customer').order_by('delivery_date').first()
+            ).distinct().prefetch_related('stops__order__customer').order_by('delivery_date').first()
             
             if not route:
                 return Response({'detail': 'No active route found for today.'}, status=404)
                 
+            # If the route is started/in progress, make sure all non-delivered/non-cancelled/undelivered orders are IN_TRANSIT
+            from orders.models import RouteStatus, OrderStatus
+            if route.status == RouteStatus.IN_PROGRESS or route.started_at is not None:
+                updated_any = False
+                for stop in route.stops.all():
+                    if stop.order.status in [OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.DISPATCHED, OrderStatus.UNDELIVERED]:
+                        stop.order.status = OrderStatus.IN_TRANSIT
+                        stop.order.save(update_fields=['status'])
+                        updated_any = True
+                if updated_any:
+                    route = Route.objects.filter(id=route.id).prefetch_related('stops__order__customer').first()
+
             return Response(RouteSerializer(route).data)
 
     @action(detail=False, methods=['post'], url_path='start-tracking',
@@ -663,12 +760,13 @@ class DriverViewSet(viewsets.ViewSet):
             )
 
             # Step 2: Check if there's already an active/in-progress route today
+            from django.db.models import Q
             today = datetime.date.today()
             existing_route = Route.objects.filter(
-                driver=driver_profile,
+                Q(driver=driver_profile) | Q(additional_drivers=driver_profile),
                 is_completed=False,
                 delivery_date=today
-            ).order_by('-created_at').first()
+            ).distinct().order_by('-created_at').first()
 
             if existing_route:
                 # Already has a route - just mark it as started if not yet
@@ -676,6 +774,14 @@ class DriverViewSet(viewsets.ViewSet):
                     existing_route.status = RouteStatus.IN_PROGRESS
                     existing_route.started_at = timezone.now()
                     existing_route.save(update_fields=['status', 'started_at'])
+                
+                # Ensure all non-delivered/non-cancelled/undelivered orders on this route are set to IN_TRANSIT
+                from orders.models import OrderStatus
+                for order in existing_route.orders.all():
+                    if order.status in [OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.DISPATCHED, OrderStatus.UNDELIVERED]:
+                        order.status = OrderStatus.IN_TRANSIT
+                        order.save(update_fields=['status'])
+
                 driver_profile.is_available = False
                 driver_profile.on_trip = True
                 driver_profile.save(update_fields=['is_available', 'on_trip'])
@@ -733,13 +839,14 @@ class DriverViewSet(viewsets.ViewSet):
             if not driver_profile:
                 return Response({'detail': 'No driver profile found.'}, status=404)
 
+            from django.db.models import Q
             today = datetime.date.today()
             active_route = Route.objects.filter(
-                driver=driver_profile,
+                Q(driver=driver_profile) | Q(additional_drivers=driver_profile),
                 is_completed=False,
                 delivery_date=today,
                 status=RouteStatus.IN_PROGRESS
-            ).order_by('-created_at').first()
+            ).distinct().order_by('-created_at').first()
 
             if not active_route:
                 return Response({'detail': 'No active tracking session found.'}, status=404)

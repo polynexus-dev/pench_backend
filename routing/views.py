@@ -13,11 +13,18 @@ from .tasks import optimize_route_task
 
 
 class RouteViewSet(viewsets.ModelViewSet):
-    queryset = Route.objects.select_related('driver__user').prefetch_related('orders')
     serializer_class = RouteSerializer
     permission_classes = [IsAuthenticated]
-    filterset_fields = ['status', 'driver']
+    filterset_fields = ['status']
     ordering_fields = ['created_at']
+
+    def get_queryset(self):
+        queryset = Route.objects.select_related('driver__user').prefetch_related('orders', 'additional_drivers')
+        driver_id = self.request.query_params.get('driver')
+        if driver_id:
+            from django.db.models import Q
+            queryset = queryset.filter(Q(driver_id=driver_id) | Q(additional_drivers__id=driver_id)).distinct()
+        return queryset
 
     @action(detail=True, methods=['post'], url_path='optimize')
     def optimize(self, request, pk=None):

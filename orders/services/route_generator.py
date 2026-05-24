@@ -27,9 +27,10 @@ def is_product_available(product, target_date):
         return False
 
     # 3. Check stock level (if any stock is defined, must be > 0)
-    stock_sum = Stock.objects.filter(product=product).aggregate(total_qty=Sum('quantity')).get('total_qty')
-    if stock_sum is not None and stock_sum <= 0:
-        return False
+    if product.raw_material:
+        stock_sum = Stock.objects.filter(raw_material=product.raw_material).aggregate(total_qty=Sum('quantity')).get('total_qty')
+        if stock_sum is not None and stock_sum <= 0:
+            return False
 
     return True
 
@@ -131,50 +132,89 @@ def generate_daily_routes_for_date(target_date):
             created_order_ids.append(order.id)
             orders_created += 1
 
-    # 2. Group all pending orders (including newly created ones) for this date by Zone
+    # 2. Group all pending orders (including newly created ones) for this date by Zone's driver's Warehouse (Logistical Hub Affinity)
     pending_orders = Order.objects.filter(
         scheduled_delivery_date=target_date,
         status__in=[OrderStatus.PENDING, OrderStatus.CONFIRMED],
         customer__zone__isnull=False
     ).select_related('customer__zone', 'customer__zone__assigned_driver')
 
-    zone_orders = {}
-    for order in pending_orders:
-        zone = order.customer.zone
-        if zone:
-            zone_orders.setdefault(zone, []).append(order)
+    from routing.models import Driver
+    
+    # Pre-fetch all driver profiles to map driver User IDs to Driver profiles and Warehouses
+    driver_profiles = {dp.user_id: dp for dp in Driver.objects.select_related('warehouse').all()}
 
+    # Group orders by (warehouse, driver_user, driver_profile)
+    grouped_orders = {}
     routes_created = 0
     route_errors = []
 
-    for zone, z_orders in zone_orders.items():
-        driver = zone.assigned_driver
-        if not driver:
-            msg = f"Zone {zone.name}: No primary driver assigned. Skipping automatic route optimization."
-            route_errors.append(msg)
-            logger.warning(msg)
+    for order in pending_orders:
+        zone = order.customer.zone
+        if not zone:
             continue
 
-        # Check if an incomplete/active route already exists for this driver and date
-        if Route.objects.filter(driver=driver, delivery_date=target_date, is_completed=False).exists():
-            msg = f"Route for driver {driver.username} on {target_date} already exists. Skipping duplicate creation."
+        driver_user = zone.assigned_driver
+        if not driver_user:
+            msg = f"Zone {zone.name}: No primary driver assigned. Skipping automatic route optimization."
+            if msg not in route_errors:
+                route_errors.append(msg)
+                logger.warning(msg)
+            continue
+
+        driver_profile = driver_profiles.get(driver_user.id)
+        if not driver_profile:
+            msg = f"Zone {zone.name}: Primary driver '{driver_user.username}' has no Driver profile. Skipping automatic route optimization."
+            if msg not in route_errors:
+                route_errors.append(msg)
+                logger.warning(msg)
+            continue
+
+        warehouse = driver_profile.warehouse
+        if not warehouse:
+            msg = f"Driver '{driver_user.username}' (Zone: {zone.name}) is not associated with any warehouse. Enforcing logistical hub affinity: Skipping route generation."
+            if msg not in route_errors:
+                route_errors.append(msg)
+                logger.warning(msg)
+            continue
+
+        # Group by the unique combination of warehouse, driver User instance, and Driver profile instance
+        key = (warehouse, driver_user, driver_profile)
+        grouped_orders.setdefault(key, []).append(order)
+
+    for (warehouse, driver_user, driver_profile), z_orders in grouped_orders.items():
+        # Check if an incomplete/active route already exists for this driver (User) and date
+        if Route.objects.filter(driver=driver_user, delivery_date=target_date, is_completed=False).exists():
+            msg = f"Route for driver {driver_user.username} on {target_date} already exists. Skipping duplicate creation."
             logger.info(msg)
             continue
 
+        # Resolve warehouse_location coordinates for pathfinder depot
+        warehouse_location = None
+        if warehouse.latitude is not None and warehouse.longitude is not None:
+            warehouse_location = {'longitude': float(warehouse.longitude), 'latitude': float(warehouse.latitude)}
+
         order_ids = [str(o.id) for o in z_orders]
         route_count = Route.objects.filter(delivery_date=target_date).count()
-        route_name = f"{zone.name} - {target_date.strftime('%Y-%m-%d')} #{route_count + 1}"
+        route_name = f"{warehouse.name} - {driver_user.get_full_name() or driver_user.username} - {target_date.strftime('%Y-%m-%d')} #{route_count + 1}"
 
         try:
-            route = create_optimized_route(route_name, driver, target_date, order_ids)
+            route = create_optimized_route(
+                route_name, 
+                driver_user,  # Pass the User instance for orders.models.Route.driver
+                target_date, 
+                order_ids, 
+                warehouse=warehouse, 
+                warehouse_location=warehouse_location
+            )
             routes_created += 1
             DeliveryLog.objects.create(
                 action="Route Generated",
                 route=route,
-                details=f"Automatically generated and optimized route for Zone: {zone.name} with {len(order_ids)} stops."
+                details=f"Automatically generated and optimized route for Warehouse: {warehouse.name}, Driver: {driver_user.username} with {len(order_ids)} stops."
             )
         except Exception as e:
-            err_msg = f"Failed to generate route for Zone {zone.name}: {str(e)}"
+            err_msg = f"Failed to generate route for Warehouse {warehouse.name}, Driver {driver_user.username}: {str(e)}"
             route_errors.append(err_msg)
             logger.error(err_msg)
 

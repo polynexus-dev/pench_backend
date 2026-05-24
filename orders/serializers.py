@@ -222,13 +222,28 @@ class RouteSerializer(serializers.ModelSerializer):
     route_geometry = serializers.SerializerMethodField()
     dispatch_bottles_1L = serializers.SerializerMethodField()
     dispatch_bottles_500ml = serializers.SerializerMethodField()
+    
+    additional_driver_names = serializers.SerializerMethodField()
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from accounts.models import User
+        self.fields['additional_drivers'] = serializers.PrimaryKeyRelatedField(
+            many=True,
+            queryset=User.objects.all(),
+            required=False
+        )
+
+    def get_additional_driver_names(self, obj):
+        return [drv.get_full_name() or drv.username for drv in obj.additional_drivers.all()]
 
     class Meta:
         model = Route
         fields = [
             'id', 'route_id', 'name', 'driver', 'driver_name', 'delivery_date', 
             'status', 'is_locked', 'is_completed', 'route_geometry', 'stops',
-            'dispatch_bottles_1L', 'dispatch_bottles_500ml'
+            'dispatch_bottles_1L', 'dispatch_bottles_500ml',
+            'additional_drivers', 'additional_driver_names'
         ]
 
     def get_route_geometry(self, obj):

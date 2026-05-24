@@ -1,4 +1,5 @@
 from django.db import models
+from django.conf import settings
 from core.models import BaseModel
 
 
@@ -11,6 +12,20 @@ class Warehouse(BaseModel):
 
     def __str__(self):
         return self.name
+
+
+class RawMaterial(BaseModel):
+    name = models.CharField(max_length=200)
+    sku = models.CharField(max_length=100, unique=True)
+    description = models.TextField(blank=True)
+    unit = models.CharField(max_length=20, default='Litre')
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return f'{self.name} ({self.sku})'
 
 
 class Product(BaseModel):
@@ -34,6 +49,14 @@ class Product(BaseModel):
         default=False,
         help_text='Whether the container/bottle for this product is returnable.'
     )
+    raw_material = models.ForeignKey(
+        'RawMaterial',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='products',
+        help_text='The base raw material ingredient used to fill this package.'
+    )
 
     class Meta:
         ordering = ['name']
@@ -43,17 +66,17 @@ class Product(BaseModel):
 
 
 class Stock(BaseModel):
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='stock_levels')
+    raw_material = models.ForeignKey(RawMaterial, on_delete=models.CASCADE, null=True, blank=True, related_name='stock_levels')
     warehouse = models.ForeignKey(Warehouse, on_delete=models.CASCADE, related_name='stock_levels')
     quantity = models.IntegerField(default=0)
     reorder_level = models.IntegerField(default=10)
 
     class Meta:
-        unique_together = [('product', 'warehouse')]
+        unique_together = [('raw_material', 'warehouse')]
         verbose_name_plural = 'Stock'
 
     def __str__(self):
-        return f'{self.product.name} @ {self.warehouse.name}: {self.quantity}'
+        return f'{self.raw_material.name if self.raw_material else "Unknown"} @ {self.warehouse.name}: {self.quantity}'
 
 
 class BottleType(BaseModel):
@@ -172,4 +195,28 @@ class ProductAvailability(BaseModel):
     def __str__(self):
         status = "Available" if self.is_available else "Unavailable"
         return f"{self.product.name} on {self.date}: {status}"
+
+
+class StockMovementType(models.TextChoices):
+    INBOUND = 'inbound', 'Inbound / Supplier'
+    OUTBOUND = 'outbound', 'Outbound / Order Dispatch'
+    ADJUSTMENT = 'adjustment', 'Manual Adjustment'
+    TRANSFER = 'transfer', 'Warehouse Transfer'
+
+
+class StockMovement(BaseModel):
+    warehouse = models.ForeignKey(Warehouse, on_delete=models.CASCADE, related_name='movements')
+    raw_material = models.ForeignKey(RawMaterial, on_delete=models.CASCADE, null=True, blank=True, related_name='movements')
+    movement_type = models.CharField(max_length=20, choices=StockMovementType.choices)
+    quantity = models.IntegerField(help_text="Positive for inbound/adjustments, negative for outbound/transfers")
+    reference = models.CharField(max_length=200, blank=True, help_text="e.g. Order ID, Supplier Invoice, or Transfer ID")
+    notes = models.TextField(blank=True)
+    recorded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.movement_type} of {self.quantity} {self.raw_material.name if self.raw_material else 'Unknown'} @ {self.warehouse.name}"
+
 

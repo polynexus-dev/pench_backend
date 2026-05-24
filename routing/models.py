@@ -62,6 +62,14 @@ class Driver(BaseModel):
         blank=True, 
         related_name='driver_profiles'
     )
+    warehouse = models.ForeignKey(
+        'inventory.Warehouse',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='drivers',
+        help_text='The primary warehouse this driver is associated with.'
+    )
 
     def __str__(self):
         return f'Driver: {self.user.get_full_name()} ({self.vehicle_plate})'
@@ -71,6 +79,12 @@ class Route(BaseModel):
         Driver,
         on_delete=models.PROTECT,
         related_name='routes'
+    )
+    additional_drivers = models.ManyToManyField(
+        Driver,
+        related_name='shared_routes',
+        blank=True,
+        help_text='Additional drivers assigned to this route in case of emergency.'
     )
     warehouse = models.ForeignKey(
         'inventory.Warehouse',

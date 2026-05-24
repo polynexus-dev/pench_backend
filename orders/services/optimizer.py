@@ -150,7 +150,48 @@ def optimize_route_ortools(order_ids, start_point=None):
     
     return optimized_orders, road_geometry
 
-def create_optimized_route(name, driver, date, order_ids, warehouse_location=None):
+def create_optimized_route(name, driver, date, order_ids, warehouse=None, warehouse_location=None):
+    from django.contrib.auth import get_user_model
+    from routing.models import Driver
+    
+    User = get_user_model()
+    
+    # Resolve BOTH driver_user (User instance for Route.driver) and driver_profile (Driver profile instance for Warehouse)
+    driver_user = None
+    driver_profile = None
+    
+    if driver:
+        if isinstance(driver, User):
+            driver_user = driver
+            driver_profile = getattr(driver, 'driver_profile', None)
+            if not driver_profile:
+                driver_profile = Driver.objects.filter(user=driver).first()
+        elif isinstance(driver, Driver):
+            driver_profile = driver
+            driver_user = driver.user
+        else:
+            # Duck typing support or ID lookups
+            if hasattr(driver, 'driver_profile'):
+                driver_user = driver
+                driver_profile = driver.driver_profile
+            elif hasattr(driver, 'user'):
+                driver_profile = driver
+                driver_user = driver.user
+            else:
+                driver_user = User.objects.filter(id=driver).first()
+                if driver_user:
+                    driver_profile = getattr(driver_user, 'driver_profile', None)
+                    if not driver_profile:
+                        driver_profile = Driver.objects.filter(user=driver_user).first()
+
+    # Automatically resolve warehouse and warehouse_location if not explicitly passed
+    if not warehouse and driver_profile and getattr(driver_profile, 'warehouse', None):
+        warehouse = driver_profile.warehouse
+
+    if warehouse and not warehouse_location:
+        if warehouse.latitude is not None and warehouse.longitude is not None:
+            warehouse_location = {'longitude': float(warehouse.longitude), 'latitude': float(warehouse.latitude)}
+
     optimized_orders, road_geometry = optimize_route_ortools(order_ids, start_point=warehouse_location)
     
     from django.db import transaction
@@ -158,7 +199,7 @@ def create_optimized_route(name, driver, date, order_ids, warehouse_location=Non
         RouteStop.objects.filter(order_id__in=order_ids).delete()
         route = Route.objects.create(
             name=name,
-            driver=driver,
+            driver=driver_user,  # Save the resolved User instance
             delivery_date=date,
             geometry=road_geometry
         )

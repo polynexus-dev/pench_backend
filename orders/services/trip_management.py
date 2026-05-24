@@ -65,7 +65,8 @@ def start_trip_for_route(route_id, driver_user):
         return None
 
     is_manager = driver_user.is_superuser or getattr(driver_user, 'is_erp_user', False) or driver_user.groups.filter(name__in=['Logistics_Managers', 'ERP_Admins']).exists()
-    if route.driver != driver_user and not is_manager:
+    is_assigned = (route.driver == driver_user) or route.additional_drivers.filter(id=driver_user.id).exists()
+    if not is_assigned and not is_manager:
         logger.warning("User %s attempted to start trip on Route %s which is assigned to another driver.", driver_user, route_id)
         raise PermissionError("This route is assigned to another driver.")
 
@@ -85,10 +86,10 @@ def start_trip_for_route(route_id, driver_user):
                 driver_profile.on_trip = True
                 driver_profile.save(update_fields=['is_available', 'on_trip'])
 
-        # Mark all pending/confirmed orders in this route as IN_TRANSIT
+        # Mark all pending/confirmed/undelivered orders in this route as IN_TRANSIT
         stops = route.stops.select_related('order')
         for stop in stops:
-            if stop.order.status in [OrderStatus.PENDING, OrderStatus.CONFIRMED]:
+            if stop.order.status in [OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.UNDELIVERED]:
                 stop.order.status = OrderStatus.IN_TRANSIT
                 stop.order.save(update_fields=['status'])
 
@@ -114,7 +115,8 @@ def stop_trip_for_route(route_id, driver_user):
         return None
 
     is_manager = driver_user.is_superuser or getattr(driver_user, 'is_erp_user', False) or driver_user.groups.filter(name__in=['Logistics_Managers', 'ERP_Admins']).exists()
-    if route.driver != driver_user and not is_manager:
+    is_assigned = (route.driver == driver_user) or route.additional_drivers.filter(id=driver_user.id).exists()
+    if not is_assigned and not is_manager:
         logger.warning("User %s attempted to stop trip on Route %s which is assigned to another driver.", driver_user, route_id)
         raise PermissionError("This route is assigned to another driver.")
 

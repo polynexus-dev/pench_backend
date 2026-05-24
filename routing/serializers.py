@@ -190,11 +190,13 @@ class ZoneSerializer(serializers.ModelSerializer):
 class DriverSerializer(serializers.ModelSerializer):
     full_name = serializers.SerializerMethodField()
     current_route = serializers.SerializerMethodField()
+    warehouse_name = serializers.CharField(source='warehouse.name', read_only=True)
 
     class Meta:
         model = Driver
         fields = ['id', 'user', 'full_name', 'vehicle_plate', 'vehicle_type',
-                  'max_capacity_kg', 'is_available', 'on_trip', 'zone', 'current_route']
+                  'max_capacity_kg', 'is_available', 'on_trip', 'zone', 'current_route',
+                  'warehouse', 'warehouse_name']
 
     def get_full_name(self, obj):
         try:
@@ -270,6 +272,16 @@ class RouteSerializer(serializers.ModelSerializer):
     )
     dispatch_bottles_1L = serializers.SerializerMethodField()
     dispatch_bottles_500ml = serializers.SerializerMethodField()
+    
+    additional_drivers = serializers.PrimaryKeyRelatedField(
+        many=True,
+        queryset=Driver.objects.all(),
+        required=False
+    )
+    additional_driver_names = serializers.SerializerMethodField()
+
+    def get_additional_driver_names(self, obj):
+        return [drv.user.get_full_name() for drv in obj.additional_drivers.all() if drv.user]
 
     class Meta:
         model = Route
@@ -278,7 +290,8 @@ class RouteSerializer(serializers.ModelSerializer):
             'geometry', 'waypoints', 'estimated_duration_minutes',
             'estimated_distance_km', 'optimization_error',
             'created_at', 'updated_at',
-            'dispatch_bottles_1L', 'dispatch_bottles_500ml'
+            'dispatch_bottles_1L', 'dispatch_bottles_500ml',
+            'additional_drivers', 'additional_driver_names'
         ]
         read_only_fields = [
             'id', 'status', 'geometry', 'waypoints',

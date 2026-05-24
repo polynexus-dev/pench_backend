@@ -72,6 +72,7 @@ class RouteStatus(models.TextChoices):
 class Route(BaseModel):
     name = models.CharField(max_length=200)
     driver = models.ForeignKey('accounts.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='legacy_routes')
+    additional_drivers = models.ManyToManyField('accounts.User', related_name='additional_routes', blank=True)
     delivery_date = models.DateField()
     status = models.CharField(max_length=20, choices=RouteStatus.choices, default=RouteStatus.PENDING)
     is_locked = models.BooleanField(default=False)

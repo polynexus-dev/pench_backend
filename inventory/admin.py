@@ -1,8 +1,14 @@
 from django.contrib import admin
 from .models import (
-    Product, Stock, Warehouse, BottleType, 
+    Product, RawMaterial, Stock, Warehouse, BottleType, 
     CustomerBottleBalance, BottleTransaction
 )
+
+@admin.register(RawMaterial)
+class RawMaterialAdmin(admin.ModelAdmin):
+    list_display = ['name', 'sku', 'unit', 'is_active']
+    list_filter = ['is_active']
+    search_fields = ['name', 'sku']
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
@@ -12,7 +18,7 @@ class ProductAdmin(admin.ModelAdmin):
 
 @admin.register(Stock)
 class StockAdmin(admin.ModelAdmin):
-    list_display = ['product', 'warehouse', 'quantity', 'reorder_level']
+    list_display = ['raw_material', 'warehouse', 'quantity', 'reorder_level']
     list_filter = ['warehouse']
 
 @admin.register(Warehouse)

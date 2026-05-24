@@ -187,10 +187,11 @@ class LoginOTPView(APIView):
                     with schema_context(user.tenant_schema):
                         # 1. Search in the delivery routing system (used by the mobile app's stop schedule)
                         from orders.models import Route as OrdersRoute
+                        from django.db.models import Q
                         route = OrdersRoute.objects.filter(
-                            driver=user,
+                            Q(driver=user) | Q(additional_drivers=user),
                             is_completed=False
-                        ).order_by('delivery_date').first()
+                        ).distinct().order_by('delivery_date').first()
                         
                         if route:
                             response_data['active_route_id'] = str(route.id)
@@ -200,9 +201,9 @@ class LoginOTPView(APIView):
                             driver_profile = Driver.objects.filter(user=user).first()
                             if driver_profile:
                                 r_route = RoutingRoute.objects.filter(
-                                    driver=driver_profile,
+                                    Q(driver=driver_profile) | Q(additional_drivers=driver_profile),
                                     status__in=['pending', 'in_progress']
-                                ).first()
+                                ).distinct().first()
                                 if r_route:
                                     response_data['active_route_id'] = str(r_route.id)
         

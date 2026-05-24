@@ -33,6 +33,9 @@ class EmployeeSerializer(serializers.ModelSerializer):
     last_name = serializers.CharField(required=False, allow_blank=True)
     phone = serializers.CharField(required=False, allow_blank=True)
 
+    warehouse_id = serializers.SerializerMethodField(read_only=True)
+    warehouse_name = serializers.SerializerMethodField(read_only=True)
+
     class Meta:
         model = Employee
         fields = [
@@ -41,8 +44,28 @@ class EmployeeSerializer(serializers.ModelSerializer):
             'job_title', 'employee_id', 'date_joined', 
             'is_active', 'aadhaar_number', 'pan_number', 'licence_number',
             'emergency_contact_name', 'emergency_contact_phone', 
-            'bank_account_number', 'bank_ifsc'
+            'bank_account_number', 'bank_ifsc', 'warehouse_id', 'warehouse_name'
         ]
+
+    def get_warehouse_id(self, obj):
+        try:
+            from routing.models import Driver
+            driver_profile = Driver.objects.filter(user=obj.user).first()
+            if driver_profile and driver_profile.warehouse:
+                return str(driver_profile.warehouse.id)
+        except Exception:
+            pass
+        return None
+
+    def get_warehouse_name(self, obj):
+        try:
+            from routing.models import Driver
+            driver_profile = Driver.objects.filter(user=obj.user).first()
+            if driver_profile and driver_profile.warehouse:
+                return driver_profile.warehouse.name
+        except Exception:
+            pass
+        return None
 
     def to_representation(self, instance):
         ret = super().to_representation(instance)

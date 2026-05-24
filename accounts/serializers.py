@@ -122,6 +122,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
     
     # Driver and Customer profile-specific fields
     zone = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    warehouse = serializers.CharField(required=False, allow_blank=True, write_only=True)
     vehicle_plate = serializers.CharField(required=False, allow_blank=True, write_only=True)
     vehicle_type = serializers.CharField(required=False, allow_blank=True, write_only=True)
     max_capacity_kg = serializers.DecimalField(required=False, max_digits=8, decimal_places=2, write_only=True)
@@ -132,7 +133,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
             'id', 'username', 'email', 'first_name', 'last_name', 'password', 
             'phone', 'is_driver', 'is_erp_user', 'is_customer', 'groups', 
             'tenant_schema', 'role', 'latitude', 'longitude', 
-            'address', 'company', 'notes', 'zone', 'vehicle_plate',
+            'address', 'company', 'notes', 'zone', 'warehouse', 'vehicle_plate',
             'vehicle_type', 'max_capacity_kg', 'is_superuser', 'is_staff'
         ]
         read_only_fields = ['id', 'is_superuser', 'is_staff']
@@ -184,6 +185,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
         
         # Profile-specific fields
         zone = validated_data.pop('zone', None)
+        warehouse = validated_data.pop('warehouse', None)
         plate = validated_data.pop('vehicle_plate', None)
         v_type = validated_data.pop('vehicle_type', None)
         cap = validated_data.pop('max_capacity_kg', None)
@@ -199,6 +201,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
         user.company = comp
         user.notes = nts
         user.zone = zone
+        user.warehouse = warehouse
         user.vehicle_plate = plate
         user.vehicle_type = v_type
         user.max_capacity_kg = cap
@@ -305,10 +308,11 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
                         with schema_context(schema):
                             # 1. Search in the delivery routing system (used by the mobile app's stop schedule)
                             from orders.models import Route as OrdersRoute
+                            from django.db.models import Q
                             route = OrdersRoute.objects.filter(
-                                driver=self.user,
+                                Q(driver=self.user) | Q(additional_drivers=self.user),
                                 is_completed=False
-                            ).order_by('delivery_date').first()
+                            ).distinct().order_by('delivery_date').first()
                             
                             if route:
                                 data['active_route_id'] = str(route.id)
@@ -318,9 +322,9 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
                                 driver_profile = Driver.objects.filter(user=self.user).first()
                                 if driver_profile:
                                     r_route = RoutingRoute.objects.filter(
-                                        driver=driver_profile,
+                                        Q(driver=driver_profile) | Q(additional_drivers=driver_profile),
                                         status__in=['pending', 'in_progress']
-                                    ).first()
+                                    ).distinct().first()
                                     if r_route:
                                         data['active_route_id'] = str(r_route.id)
         return data
