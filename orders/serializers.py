@@ -129,7 +129,7 @@ class RouteStopSerializer(serializers.ModelSerializer):
     customer_company = serializers.CharField(source='order.customer.company', read_only=True)
     customer_zone_name = serializers.CharField(source='order.customer.zone.name', read_only=True)
     address = serializers.CharField(source='order.delivery_address', read_only=True)
-    order_status = serializers.CharField(source='order.status', read_only=True)
+    order_status = serializers.SerializerMethodField()
     order_notes = serializers.CharField(source='order.delivery_notes', read_only=True)
     order_total = serializers.FloatField(source='order.total', read_only=True)
     delivered_at = serializers.DateTimeField(source='order.delivered_at', read_only=True)
@@ -212,11 +212,23 @@ class RouteStopSerializer(serializers.ModelSerializer):
             }
         return None
 
+    def get_order_status(self, obj):
+        # If route is started/in progress, return 'in_transit' for active order statuses
+        from orders.models import RouteStatus, OrderStatus
+        status = obj.order.status
+        if status == 'in_progress':
+            return 'in_transit'
+        if obj.route and (obj.route.status == RouteStatus.IN_PROGRESS or obj.route.status == 'in_transit' or obj.route.started_at is not None):
+            if status in [OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.DISPATCHED, OrderStatus.UNDELIVERED]:
+                return 'in_transit'
+        return status
+
 
 class RouteSerializer(serializers.ModelSerializer):
     stops = RouteStopSerializer(many=True, read_only=True)
     driver_name = serializers.CharField(source='driver.get_full_name', read_only=True)
     route_id = serializers.CharField(source='id', read_only=True)
+    status = serializers.SerializerMethodField()
     
     # Return geometry as GeoJSON
     route_geometry = serializers.SerializerMethodField()
@@ -233,6 +245,11 @@ class RouteSerializer(serializers.ModelSerializer):
             queryset=User.objects.all(),
             required=False
         )
+
+    def get_status(self, obj):
+        if obj.status == 'in_progress':
+            return 'in_transit'
+        return obj.status
 
     def get_additional_driver_names(self, obj):
         return [drv.get_full_name() or drv.username for drv in obj.additional_drivers.all()]

@@ -270,6 +270,7 @@ class RouteSerializer(serializers.ModelSerializer):
     order_ids = serializers.PrimaryKeyRelatedField(
         source='orders', many=True, read_only=True
     )
+    status = serializers.SerializerMethodField()
     dispatch_bottles_1L = serializers.SerializerMethodField()
     dispatch_bottles_500ml = serializers.SerializerMethodField()
     
@@ -279,6 +280,11 @@ class RouteSerializer(serializers.ModelSerializer):
         required=False
     )
     additional_driver_names = serializers.SerializerMethodField()
+
+    def get_status(self, obj):
+        if obj.status == 'in_progress':
+            return 'in_transit'
+        return obj.status
 
     def get_additional_driver_names(self, obj):
         return [drv.user.get_full_name() for drv in obj.additional_drivers.all() if drv.user]
