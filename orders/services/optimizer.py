@@ -196,6 +196,47 @@ def create_optimized_route(name, driver, date, order_ids, warehouse=None, wareho
     
     from django.db import transaction
     with transaction.atomic():
+        # Auto-close/complete any previous active routes for this driver
+        if driver_user:
+            from orders.models import RouteStatus, OrderStatus, DeliveryLog
+            from django.utils import timezone
+            
+            previous_active_routes = Route.objects.filter(driver=driver_user, is_completed=False)
+            for prev_route in previous_active_routes:
+                prev_route.status = RouteStatus.COMPLETED
+                prev_route.completed_at = timezone.now()
+                prev_route.is_completed = True
+                prev_route.save(update_fields=['status', 'completed_at', 'is_completed'])
+                
+                # Free the driver profile
+                if driver_profile:
+                    driver_profile.is_available = True
+                    driver_profile.on_trip = False
+                    driver_profile.save(update_fields=['is_available', 'on_trip'])
+                
+                # Set all incomplete orders on that route to UNDELIVERED
+                prev_stops = prev_route.stops.select_related('order')
+                undelivered_count = 0
+                for stop in prev_stops:
+                    if stop.order.status in [OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.DISPATCHED, OrderStatus.IN_TRANSIT]:
+                        stop.order.status = OrderStatus.UNDELIVERED
+                        stop.order.delivered_at = timezone.now()
+                        stop.order.save(update_fields=['status', 'delivered_at'])
+                        undelivered_count += 1
+                        
+                        DeliveryLog.objects.create(
+                            action="Order Force Undelivered",
+                            route=prev_route,
+                            order=stop.order,
+                            details="Order marked as undelivered automatically during route generation because it was left incomplete."
+                        )
+                
+                DeliveryLog.objects.create(
+                    action="Trip Completed",
+                    route=prev_route,
+                    details=f"Route automatically closed/completed on new route creation. {undelivered_count} stops marked undelivered."
+                )
+
         RouteStop.objects.filter(order_id__in=order_ids).delete()
         route = Route.objects.create(
             name=name,

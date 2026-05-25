@@ -86,10 +86,10 @@ def start_trip_for_route(route_id, driver_user):
                 driver_profile.on_trip = True
                 driver_profile.save(update_fields=['is_available', 'on_trip'])
 
-        # Mark all pending/confirmed/undelivered orders in this route as IN_TRANSIT
+        # Mark all pending/confirmed orders in this route as IN_TRANSIT
         stops = route.stops.select_related('order')
         for stop in stops:
-            if stop.order.status in [OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.UNDELIVERED]:
+            if stop.order.status in [OrderStatus.PENDING, OrderStatus.CONFIRMED]:
                 stop.order.status = OrderStatus.IN_TRANSIT
                 stop.order.save(update_fields=['status'])
 

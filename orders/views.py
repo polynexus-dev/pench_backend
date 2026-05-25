@@ -364,7 +364,8 @@ class OrderViewSet(viewsets.ModelViewSet):
         if delivery_date:
             orders = orders.filter(scheduled_delivery_date=delivery_date)
             
-        count = orders.update(status=OrderStatus.DELIVERED)
+        from django.utils import timezone
+        count = orders.update(status=OrderStatus.DELIVERED, delivered_at=timezone.now())
         return Response({'detail': f'Marked {count} orders as delivered.'})
 
 
@@ -743,7 +744,7 @@ class DriverViewSet(viewsets.ViewSet):
             if route.status == RouteStatus.IN_PROGRESS or route.started_at is not None:
                 updated_any = False
                 for stop in route.stops.all():
-                    if stop.order.status in [OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.DISPATCHED, OrderStatus.UNDELIVERED]:
+                    if stop.order.status in [OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.DISPATCHED]:
                         stop.order.status = OrderStatus.IN_TRANSIT
                         stop.order.save(update_fields=['status'])
                         updated_any = True
@@ -824,7 +825,7 @@ class DriverViewSet(viewsets.ViewSet):
                 # Ensure all non-delivered/non-cancelled/undelivered orders on this route are set to IN_TRANSIT
                 from orders.models import OrderStatus
                 for order in existing_route.orders.all():
-                    if order.status in [OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.DISPATCHED, OrderStatus.UNDELIVERED]:
+                    if order.status in [OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.DISPATCHED]:
                         order.status = OrderStatus.IN_TRANSIT
                         order.save(update_fields=['status'])
 

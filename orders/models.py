@@ -41,6 +41,11 @@ class Order(BaseModel):
         if self.status in [OrderStatus.DELIVERED, OrderStatus.UNDELIVERED] and not self.delivered_at:
             from django.utils import timezone
             self.delivered_at = timezone.now()
+            if 'update_fields' in kwargs and kwargs['update_fields'] is not None:
+                update_fields = list(kwargs['update_fields'])
+                if 'delivered_at' not in update_fields:
+                    update_fields.append('delivered_at')
+                kwargs['update_fields'] = update_fields
         super().save(*args, **kwargs)
 
 class OrderItem(BaseModel):

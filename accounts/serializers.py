@@ -327,6 +327,18 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
                                     ).distinct().first()
                                     if r_route:
                                         data['active_route_id'] = str(r_route.id)
+                                        
+        # Construct and inject full domain URL directly inside 'domain_name' for frontend/client ease of use
+        if 'domain_name' in data:
+            request = self.context.get('request')
+            scheme = 'https' if request and request.is_secure() else 'http'
+            port = ""
+            if request:
+                host_parts = request.get_host().split(':')
+                if len(host_parts) > 1:
+                    port = f":{host_parts[1]}"
+            data['domain_name'] = f"{scheme}://{data['domain_name']}{port}"
+
         return data
 
 
