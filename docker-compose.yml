@@ -25,9 +25,9 @@ services:
 
   web:
     build: .
-    command: daphne -b 0.0.0.0 -p 9093 config.asgi:application
+    command: daphne -b 0.0.0.0 -p 9083 config.asgi:application
     ports:
-      - "9093:9093"
+      - "9083:9083"
     environment:
       - SECRET_KEY=${SECRET_KEY:-django-insecure-docker-dev-key-change-in-prod}
       - DEBUG=1

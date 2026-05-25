@@ -36,6 +36,6 @@ RUN sed -i 's/\r$//' /app/entrypoint.sh \
     && sed -i 's/\r$//' /app/fix_migrations.py \
     && chmod +x /app/entrypoint.sh
 
-EXPOSE 9093
+EXPOSE 9083
 
 ENTRYPOINT ["/bin/bash", "/app/entrypoint.sh"]
