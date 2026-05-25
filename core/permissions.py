@@ -59,7 +59,7 @@ class HasGroupPermission(BasePermission):
 
         required_groups = getattr(view, 'required_groups', [])
         if not required_groups:
-            return True
+            return False
         
         return request.user.groups.filter(name__in=required_groups).exists()
 

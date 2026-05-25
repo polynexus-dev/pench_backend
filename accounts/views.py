@@ -21,6 +21,7 @@ from .serializers import (
     PermissionSerializer, GroupSerializer
 )
 from .utils import generate_otp
+from core.permissions import IsERPUser
 
 
 class MyTokenObtainPairView(TokenObtainPairView):
@@ -104,7 +105,10 @@ class RequestOTPView(APIView):
                 )
         
         # 3. Generate and "send" OTP
-        otp_obj = generate_otp(phone)
+        try:
+            otp_obj = generate_otp(phone)
+        except ValueError as e:
+            return Response({"error": str(e)}, status=status.HTTP_429_TOO_MANY_REQUESTS)
         
         response_data = {"message": "OTP sent successfully."}
         
@@ -267,7 +271,10 @@ class ForgotPasswordView(APIView):
                 )
         
         # 3. Generate and return OTP
-        otp_obj = generate_otp(phone)
+        try:
+            otp_obj = generate_otp(phone)
+        except ValueError as e:
+            return Response({"error": str(e)}, status=status.HTTP_429_TOO_MANY_REQUESTS)
         
         response_data = {
             "message": "OTP for password reset sent successfully.",
@@ -321,7 +328,7 @@ class ResetPasswordView(APIView):
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all().order_by('-date_joined')
     serializer_class = UserSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsERPUser]
     filterset_fields = ['tenant_schema', 'is_driver', 'is_customer', 'is_erp_user', 'is_staff', 'is_superuser']
     search_fields = ['username', 'first_name', 'last_name', 'email', 'phone']
 
@@ -379,14 +386,14 @@ class UserViewSet(viewsets.ModelViewSet):
 class PermissionViewSet(viewsets.ModelViewSet):
     queryset = Permission.objects.all().order_by('id')
     serializer_class = PermissionSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsERPUser]
     search_fields = ['name', 'codename']
 
 
 class GroupViewSet(viewsets.ModelViewSet):
     queryset = Group.objects.all().order_by('id')
     serializer_class = GroupSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsERPUser]
     search_fields = ['name']
 
     @action(detail=True, methods=['post'], url_path='assign-permissions')

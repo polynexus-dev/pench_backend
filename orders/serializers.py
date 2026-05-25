@@ -219,7 +219,7 @@ class RouteStopSerializer(serializers.ModelSerializer):
         if status == 'in_progress':
             return 'in_transit'
         if obj.route and (obj.route.status == RouteStatus.IN_PROGRESS or obj.route.status == 'in_transit' or obj.route.started_at is not None):
-            if status in [OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.DISPATCHED, OrderStatus.UNDELIVERED]:
+            if status in [OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.DISPATCHED]:
                 return 'in_transit'
         return status
 

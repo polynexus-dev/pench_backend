@@ -292,6 +292,30 @@ class OrderViewSet(viewsets.ModelViewSet):
                         order=order,
                         user=request.user if not request.user.is_anonymous else None
                     )
+                    
+        # Broadcast real-time delivery notification to admins
+        try:
+            from asgiref.sync import async_to_sync
+            from channels.layers import get_channel_layer
+            channel_layer = get_channel_layer()
+            if channel_layer:
+                driver_name = request.user.get_full_name() or request.user.username
+                customer_name = order.customer.name
+                async_to_sync(channel_layer.group_send)(
+                    "admins",
+                    {
+                        "type": "broadcast_location", # Forwarded directly by consumer's broadcast_location handler
+                        "notification_type": "order_delivered",
+                        "title": "Order Delivered! 📦🎉",
+                        "message": f"Driver '{driver_name}' has successfully delivered Order #{order.id} to {customer_name}.",
+                        "order_id": str(order.id),
+                        "customer_name": customer_name,
+                        "driver_name": driver_name,
+                        "timestamp": timezone.now().isoformat()
+                    }
+                )
+        except Exception as e:
+            print(f"[Delivery WS Broadcast Error] {e}")
         
         return Response(OrderSerializer(order).data)
 
@@ -324,7 +348,22 @@ class OrderViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'], url_path='mark-all-delivered')
     def mark_all_delivered(self, request):
+        route_id = request.data.get('route_id')
+        delivery_date = request.data.get('delivery_date') or request.data.get('date') or request.data.get('scheduled_delivery_date')
+        
+        if not route_id and not delivery_date:
+            return Response(
+                {"error": "Please provide either route_id or delivery_date/date to scope the mass update."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
         orders = Order.objects.exclude(status__in=[OrderStatus.DELIVERED, OrderStatus.CANCELLED, OrderStatus.UNDELIVERED])
+        
+        if route_id:
+            orders = orders.filter(route_stop__route_id=route_id)
+        if delivery_date:
+            orders = orders.filter(scheduled_delivery_date=delivery_date)
+            
         count = orders.update(status=OrderStatus.DELIVERED)
         return Response({'detail': f'Marked {count} orders as delivered.'})
 
@@ -731,6 +770,13 @@ class DriverViewSet(viewsets.ViewSet):
         import datetime
 
         user = request.user
+
+        # 1. Prevent arbitrary customers from self-promoting to drivers
+        if user.is_customer and not (user.is_superuser or user.is_staff):
+            return Response(
+                {"error": "Access denied. Customers are not allowed to promote themselves to drivers."},
+                status=status.HTTP_403_FORBIDDEN
+            )
 
         # Auto-assign user to Drivers group so future driver endpoints also work
         drivers_group, _ = Group.objects.get_or_create(name='Drivers')

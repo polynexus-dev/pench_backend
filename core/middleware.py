@@ -13,9 +13,26 @@ class JWTAuthMiddleware:
         self.inner = inner
 
     async def __call__(self, scope, receive, send):
-        query_string = scope.get("query_string", b"").decode()
-        query_params = dict(x.split('=') for x in query_string.split('&') if '=' in x)
-        token_key = query_params.get("token")
+        token_key = None
+        
+        # 1. Try to get token from Sec-WebSocket-Protocol header (highly secure)
+        headers = dict(scope.get("headers", []))
+        sec_protocol = headers.get(b"sec-websocket-protocol", b"").decode()
+        if sec_protocol:
+            protocols = [p.strip() for p in sec_protocol.split(",")]
+            for i, p in enumerate(protocols):
+                if p == "access_token" and i + 1 < len(protocols):
+                    token_key = protocols[i + 1]
+                    break
+                elif p.startswith("Bearer-") or p.startswith("Bearer_"):
+                    token_key = p.split("-", 1)[1] if "-" in p else p.split("_", 1)[1]
+                    break
+
+        # 2. Fallback to query string parameter
+        if not token_key:
+            query_string = scope.get("query_string", b"").decode()
+            query_params = dict(x.split('=') for x in query_string.split('&') if '=' in x)
+            token_key = query_params.get("token")
 
         if token_key:
             scope["user"] = await self.get_user(token_key)
@@ -81,9 +98,21 @@ class LocalDomainAutoRegisterMiddleware:
     def __call__(self, request):
         from tenants.models import City, Domain
         from django.db import connection
+        from django.conf import settings
         
         host = request.get_host().split(':')[0]
         
+        # Only allow auto-registration in local or development host environments
+        is_local = (
+            settings.DEBUG 
+            or host == 'localhost' 
+            or host == '127.0.0.1' 
+            or host.endswith('.nip.io')
+            or host.endswith('.localhost')
+        )
+        if not is_local:
+            return self.get_response(request)
+            
         # 1. On-the-fly self-healing for city subdomains
         if host and not Domain.objects.filter(domain=host).exists():
             parts = host.split('.')
@@ -135,8 +164,9 @@ from django.utils.deprecation import MiddlewareMixin
 
 class TokenExpiryMiddleware(MiddlewareMixin):
     """
-    Middleware that adds 'expires_in_seconds' to every JSON response
-    if a valid JWT token is used.
+    Middleware that adds 'X-Token-Expires-In' header to every response
+    if a valid JWT token is used. Removes JSON body mutation to eliminate
+    CPU overhead and response corruption risks.
     """
     def process_response(self, request, response):
         if response is None:
@@ -155,22 +185,6 @@ class TokenExpiryMiddleware(MiddlewareMixin):
                     
                     # Add to header
                     response['X-Token-Expires-In'] = str(int(max(0, remaining)))
-                    
-                    # If it's a JSON response, inject the field into body
-                    content_type = response.get('Content-Type', '')
-                    if 'application/json' in content_type:
-                        try:
-                            # Only try to parse if there is content
-                            if response.content:
-                                data = json.loads(response.content)
-                                if isinstance(data, dict):
-                                    data['expires_in_seconds'] = int(max(0, remaining))
-                                    response.content = json.dumps(data)
-                                    # Reset content-length if modified
-                                    if response.has_header('Content-Length'):
-                                        response['Content-Length'] = str(len(response.content))
-                        except Exception:
-                            pass
             except Exception:
                 pass
                 
