@@ -2,11 +2,11 @@ services:
   db:
     image: postgis/postgis:15-3.3
     environment:
-      - POSTGRES_DB=delivery_erp
+      - POSTGRES_DB=delivery_erp_dev
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=admin
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d delivery_erp"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d delivery_erp_dev"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -25,14 +25,14 @@ services:
 
   web:
     build: .
-    command: daphne -b 0.0.0.0 -p 8083 config.asgi:application
+    command: daphne -b 0.0.0.0 -p 9093 config.asgi:application
     ports:
-      - "8083:8083"
+      - "9093:9093"
     environment:
       - SECRET_KEY=${SECRET_KEY:-django-insecure-docker-dev-key-change-in-prod}
       - DEBUG=1
       - HAS_GDAL=True                              # GDAL is installed in this image
-      - DB_NAME=delivery_erp
+      - DB_NAME=delivery_erp_dev
       - DB_USER=postgres
       - DB_PASSWORD=admin
       - DB_HOST=db
@@ -60,7 +60,7 @@ services:
     environment:
       - SECRET_KEY=${SECRET_KEY:-django-insecure-docker-dev-key-change-in-prod}
       - HAS_GDAL=True
-      - DB_NAME=delivery_erp
+      - DB_NAME=delivery_erp_dev
       - DB_USER=postgres
       - DB_PASSWORD=admin
       - DB_HOST=db
@@ -84,7 +84,7 @@ services:
     environment:
       - SECRET_KEY=${SECRET_KEY:-django-insecure-docker-dev-key-change-in-prod}
       - HAS_GDAL=True
-      - DB_NAME=delivery_erp
+      - DB_NAME=delivery_erp_dev
       - DB_USER=postgres
       - DB_PASSWORD=admin
       - DB_HOST=db
