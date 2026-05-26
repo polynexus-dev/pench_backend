@@ -734,14 +734,12 @@ class DriverViewSet(viewsets.ViewSet):
             
             driver_profile = Driver.objects.filter(user=user).first()
             
-            # Find any active route (not completed) assigned to this driver
-            # Route.driver is a FK to Driver, NOT User — must use driver_profile
-            active_route = None
-            if driver_profile:
-                active_route = Route.objects.filter(
-                    driver=driver_profile,
-                    is_completed=False
-                ).order_by('delivery_date').first()
+            # Find any active route (not completed) assigned to this driver (either primary or additional driver)
+            from django.db.models import Q
+            active_route = Route.objects.filter(
+                Q(driver=user) | Q(additional_drivers=user),
+                is_completed=False
+            ).distinct().order_by('delivery_date').first()
             
             # Derive on_trip from the actual route state, not the stale DB flag
             on_trip = False

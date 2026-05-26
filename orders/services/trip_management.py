@@ -65,7 +65,7 @@ def start_trip_for_route(route_id, driver_user):
         return None
 
     is_manager = driver_user.is_superuser or getattr(driver_user, 'is_erp_user', False) or driver_user.groups.filter(name__in=['Logistics_Managers', 'ERP_Admins']).exists()
-    is_assigned = (route.driver.user == driver_user) or route.additional_drivers.filter(id=driver_user.id).exists()
+    is_assigned = (route.driver == driver_user) or route.additional_drivers.filter(id=driver_user.id).exists()
     if not is_assigned and not is_manager:
         logger.warning("User %s attempted to start trip on Route %s which is assigned to another driver.", driver_user, route_id)
         raise PermissionError("This route is assigned to another driver.")
@@ -79,11 +79,12 @@ def start_trip_for_route(route_id, driver_user):
         route.save(update_fields=['status', 'started_at', 'completed_at', 'is_completed', 'is_locked'])
 
         # Update associated Driver Profile in routing app
-        # route.driver IS the Driver instance (FK to Driver model)
         if route.driver:
-            route.driver.is_available = False
-            route.driver.on_trip = True
-            route.driver.save(update_fields=['is_available', 'on_trip'])
+            driver_profile = Driver.objects.filter(user=route.driver).first()
+            if driver_profile:
+                driver_profile.is_available = False
+                driver_profile.on_trip = True
+                driver_profile.save(update_fields=['is_available', 'on_trip'])
 
         # Mark all pending/confirmed orders in this route as IN_TRANSIT
         stops = route.stops.select_related('order')
@@ -114,7 +115,7 @@ def stop_trip_for_route(route_id, driver_user):
         return None
 
     is_manager = driver_user.is_superuser or getattr(driver_user, 'is_erp_user', False) or driver_user.groups.filter(name__in=['Logistics_Managers', 'ERP_Admins']).exists()
-    is_assigned = (route.driver.user == driver_user) or route.additional_drivers.filter(id=driver_user.id).exists()
+    is_assigned = (route.driver == driver_user) or route.additional_drivers.filter(id=driver_user.id).exists()
     if not is_assigned and not is_manager:
         logger.warning("User %s attempted to stop trip on Route %s which is assigned to another driver.", driver_user, route_id)
         raise PermissionError("This route is assigned to another driver.")
@@ -126,11 +127,12 @@ def stop_trip_for_route(route_id, driver_user):
         route.save(update_fields=['status', 'completed_at', 'is_completed'])
 
         # Free the driver
-        # route.driver IS the Driver instance (FK to Driver model)
         if route.driver:
-            route.driver.is_available = True
-            route.driver.on_trip = False
-            route.driver.save(update_fields=['is_available', 'on_trip'])
+            driver_profile = Driver.objects.filter(user=route.driver).first()
+            if driver_profile:
+                driver_profile.is_available = True
+                driver_profile.on_trip = False
+                driver_profile.save(update_fields=['is_available', 'on_trip'])
 
         # Set any non-delivered, non-cancelled orders inside this route to UNDELIVERED
         stops = route.stops.select_related('order')
@@ -182,11 +184,12 @@ def auto_stop_active_trips_at_noon():
             route.save(update_fields=['status', 'is_completed', 'completed_at'])
 
             # Free the driver profile
-            # route.driver IS the Driver instance (FK to Driver model)
             if route.driver:
-                route.driver.is_available = True
-                route.driver.on_trip = False
-                route.driver.save(update_fields=['is_available', 'on_trip'])
+                driver_profile = Driver.objects.filter(user=route.driver).first()
+                if driver_profile:
+                    driver_profile.is_available = True
+                    driver_profile.on_trip = False
+                    driver_profile.save(update_fields=['is_available', 'on_trip'])
 
             # Update remaining orders to undelivered
             stops = route.stops.select_related('order')
