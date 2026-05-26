@@ -674,23 +674,23 @@ class CustomerViewSet(viewsets.ModelViewSet):
         }}
     </style>
     <script>
-        (function() {
+        (function() {{
             var deepLink = "pench-foods://delivery/qr/{qr_id}";
             // 1. Immediate trigger
             window.location.replace(deepLink);
             
             // 2. Fallback on DOMContentLoaded
-            document.addEventListener("DOMContentLoaded", function() {
+            document.addEventListener("DOMContentLoaded", function() {{
                 window.location.replace(deepLink);
-            });
+            }});
             
             // 3. Fallback on window load
-            window.onload = function() {
-                setTimeout(function() {
+            window.onload = function() {{
+                setTimeout(function() {{
                     window.location.replace(deepLink);
-                }, 100);
-            };
-        })();
+                }}, 100);
+            }};
+        }})();
     </script>
 </head>
 <body>
