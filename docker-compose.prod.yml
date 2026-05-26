@@ -2,18 +2,18 @@ services:
   db:
     image: postgis/postgis:15-3.3
     environment:
-      - POSTGRES_DB=delivery_erp_dev
+      - POSTGRES_DB=delivery_erp
       - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=admin
+      - POSTGRES_PASSWORD=admin                    # MUST override with secure secret at runtime
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d delivery_erp_dev"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d delivery_erp"]
       interval: 10s
       timeout: 5s
       retries: 5
     ports:
-      - "5434:5432"
+      - "5433:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data_prod:/var/lib/postgresql/data
 
   redis:
     image: redis:7-alpine
@@ -26,31 +26,30 @@ services:
   web:
     build:
       context: .
-      dockerfile: Dockerfile.dev
-    command: python manage.py runserver 0.0.0.0:9083
+      dockerfile: Dockerfile.prod
+    command: daphne -b 0.0.0.0 -p 8083 config.asgi:application
     ports:
-      - "9083:9083"
+      - "8083:8083"
     environment:
-      - SECRET_KEY=${SECRET_KEY:-django-insecure-docker-dev-key-change-in-prod}
-      - DEBUG=1
-      - HAS_GDAL=True                              # GDAL is installed in this image
-      - DB_NAME=delivery_erp_dev
+      - SECRET_KEY=${SECRET_KEY}                  # Strict requirement for injecting SECRET_KEY at runtime
+      - DEBUG=0                                   # Explicitly disabled DEBUG mode in production
+      - HAS_GDAL=True
+      - DB_NAME=delivery_erp
       - DB_USER=postgres
-      - DB_PASSWORD=admin
+      - DB_PASSWORD=admin                          # MUST override with secure secret at runtime
       - DB_HOST=db
       - DB_PORT=5432
       - REDIS_URL=redis://redis:6379/0
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - ALLOWED_HOSTS=.pench.api.polynexus.in,.pench.dev.api.polynexus.in,13.235.143.251,localhost,127.0.0.1,.localhost
-      - CORS_ALLOW_ALL_ORIGINS=True
+      - CORS_ALLOW_ALL_ORIGINS=False               # Locked down CORS origins for production security
       - RUN_MIGRATIONS=1
       - PUBLIC_DOMAIN=pench.api.polynexus.in
-      - GDAL_LIBRARY_PATH=                         # Let Django auto-detect on Linux
+      - GDAL_LIBRARY_PATH=
       - GEOS_LIBRARY_PATH=
     volumes:
-      - .:/app
-      - media_data:/app/media                      # Persist uploaded media across restarts
+      - media_data_prod:/app/media                # Persisted production uploads
     depends_on:
       db:
         condition: service_healthy
@@ -60,12 +59,13 @@ services:
   worker:
     build:
       context: .
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile.prod
     command: celery -A config worker -l info
     environment:
-      - SECRET_KEY=${SECRET_KEY:-django-insecure-docker-dev-key-change-in-prod}
+      - SECRET_KEY=${SECRET_KEY}
+      - DEBUG=0
       - HAS_GDAL=True
-      - DB_NAME=delivery_erp_dev
+      - DB_NAME=delivery_erp
       - DB_USER=postgres
       - DB_PASSWORD=admin
       - DB_HOST=db
@@ -77,8 +77,7 @@ services:
       - GEOS_LIBRARY_PATH=
       - WAIT_FOR_READY=1                          # Wait for web migrations before starting
     volumes:
-      - .:/app
-      - media_data:/app/media                     # Shared volume to detect ready-file
+      - media_data_prod:/app/media                # Shared volume to detect ready-file
     depends_on:
       db:
         condition: service_healthy
@@ -90,17 +89,18 @@ services:
   beat:
     build:
       context: .
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile.prod
     command: >
-      bash -c "rm -f /app/beat/celerybeat.pid &&
+      bash -c "rm -f /app/beat/celerybeat.prod.pid &&
                celery -A config beat -l info
                --scheduler django_celery_beat.schedulers:DatabaseScheduler
-               --schedule /app/beat/celerybeat-schedule
-               --pidfile /app/beat/celerybeat.pid"
+               --schedule /app/beat/celerybeat-schedule-prod
+               --pidfile /app/beat/celerybeat.prod.pid"
     environment:
-      - SECRET_KEY=${SECRET_KEY:-django-insecure-docker-dev-key-change-in-prod}
+      - SECRET_KEY=${SECRET_KEY}
+      - DEBUG=0
       - HAS_GDAL=True
-      - DB_NAME=delivery_erp_dev
+      - DB_NAME=delivery_erp
       - DB_USER=postgres
       - DB_PASSWORD=admin
       - DB_HOST=db
@@ -112,9 +112,8 @@ services:
       - GEOS_LIBRARY_PATH=
       - WAIT_FOR_READY=1                          # Wait for web migrations before starting
     volumes:
-      - .:/app
-      - beat_data:/app/beat                       # Persist celerybeat-schedule file
-      - media_data:/app/media                     # Shared volume to detect ready-file
+      - beat_data_prod:/app/beat                  # Persist celerybeat schedule file in production
+      - media_data_prod:/app/media                # Shared volume to detect ready-file
     depends_on:
       db:
         condition: service_healthy
@@ -124,6 +123,6 @@ services:
         condition: service_started
 
 volumes:
-  postgres_data:
-  media_data:
-  beat_data:
+  postgres_data_prod:
+  media_data_prod:
+  beat_data_prod:

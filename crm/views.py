@@ -584,13 +584,130 @@ class CustomerViewSet(viewsets.ModelViewSet):
             return HttpResponseRedirect(f"pench-foods://delivery/qr/{qr_id}")
 
         # Scenario 2: The Customer themselves
-        if not user.is_anonymous and user == customer.user:
-            # Redirect to the customer app deep link
-            return HttpResponseRedirect(f"pench-foods://profile/qr/{qr_id}")
+        if not user.is_anonymous and getattr(user, 'is_customer', False):
+            if customer.user == user:
+                # Redirect to the customer app deep link
+                return HttpResponseRedirect(f"pench-foods://profile/qr/{qr_id}")
+            else:
+                # Scanned another customer's QR code -> route to marketing website
+                return HttpResponseRedirect("https://penchfoods.com")
 
-        # Scenario 3: Guest / Stranger
-        # Redirect guests directly to the website for marketing
-        return HttpResponseRedirect("https://penchfoods.com")
+        # Scenario 3: Guest / Stranger / Anonymous Mobile System Scanner
+        # Return a premium HTML page that triggers deep linking to launch the native app,
+        # with store links and marketing info as a fallback.
+        from django.http import HttpResponse
+        html_content = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pench Foods | Launch App</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {{
+            background-color: #0E1511;
+            color: #FFFFFF;
+            font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+            text-align: center;
+        }}
+        .container {{
+            max-width: 420px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 24px;
+            padding: 40px 30px;
+            backdrop-filter: blur(20px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }}
+        .logo {{
+            font-size: 28px;
+            font-weight: 700;
+            color: #009646;
+            margin-bottom: 24px;
+            letter-spacing: 1px;
+        }}
+        h1 {{
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: #FFFFFF;
+        }}
+        p {{
+            color: #A0AEC0;
+            font-size: 16px;
+            line-height: 1.5;
+            margin-bottom: 32px;
+        }}
+        .btn {{
+            background: #009646;
+            color: #FFFFFF;
+            text-decoration: none;
+            padding: 16px 32px;
+            border-radius: 14px;
+            font-weight: 600;
+            font-size: 16px;
+            display: inline-block;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 12px rgba(0, 150, 70, 0.3);
+            border: none;
+            cursor: pointer;
+            width: 100%;
+            box-sizing: border-box;
+        }}
+        .btn:hover {{
+            background: #00b052;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 150, 70, 0.4);
+        }}
+        .footer {{
+            margin-top: 40px;
+            font-size: 12px;
+            color: #718096;
+        }}
+    </style>
+    <script>
+        (function() {{
+            var deepLink = "pench-foods://delivery/qr/{qr_id}";
+            // 1. Immediate trigger
+            window.location.replace(deepLink);
+            
+            // 2. Fallback on DOMContentLoaded
+            document.addEventListener("DOMContentLoaded", function() {{
+                window.location.replace(deepLink);
+            }});
+            
+            // 3. Fallback on window load
+            window.onload = function() {{
+                setTimeout(function() {{
+                    window.location.replace(deepLink);
+                }}, 100);
+            }};
+        }})();
+    </script>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">PENCH FOODS</div>
+        <h1>Opening in Native App...</h1>
+        <p>If you have our mobile app installed, it should launch automatically. If it doesn't, tap below to open it manually.</p>
+        
+        <a href="pench-foods://delivery/qr/{qr_id}" class="btn">Open in App</a>
+        
+        <div class="footer">
+            Powered by Polynexus Technologies
+        </div>
+    </div>
+</body>
+</html>"""
+        return HttpResponse(html_content, content_type="text/html")
 
     @action(detail=False, methods=['post'], url_path='auto-assign-zones')
     def auto_assign_zones(self, request):

@@ -15,18 +15,22 @@ class WarehouseSerializer(serializers.ModelSerializer):
 
     def get_drivers(self, obj):
         try:
-            from routing.models import Driver
+            from django.apps import apps
+            Driver = apps.get_model('routing', 'Driver')
             drivers = Driver.objects.filter(warehouse=obj).select_related('user')
             return [
                 {
                     'id': str(d.id),
-                    'name': d.user.get_full_name() or d.user.username,
+                    'name': (d.user.get_full_name() or d.user.username) if d.user else "Unknown",
                     'vehicle_plate': d.vehicle_plate,
-                    'phone': d.phone
+                    'phone': d.user.phone if d.user else None
                 }
                 for d in drivers
             ]
-        except Exception:
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error in WarehouseSerializer.get_drivers: {e}", exc_info=True)
             return []
 
 
