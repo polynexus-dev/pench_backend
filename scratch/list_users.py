@@ -11,9 +11,9 @@ from tenants.models import City
 
 User = get_user_model()
 
-print("="*60)
+print("=" * 60)
 print("EXTRACTING USERS FROM ACTIVE TENANTS")
-print("="*60)
+print("=" * 60)
 
 cities = City.objects.all()
 for city in cities:
@@ -24,5 +24,7 @@ for city in cities:
         if not users.exists():
             print("No users in this schema.")
         for user in users:
-            print(f"Username: {user.username:<15} | Email: {user.email:<25} | Is Superuser: {user.is_superuser:<5} | Is Staff: {user.is_staff:<5}")
-print("="*60)
+            print(
+                f"Username: {user.username:<15} | Email: {user.email:<25} | Is Superuser: {user.is_superuser:<5} | Is Staff: {user.is_staff:<5}"
+            )
+print("=" * 60)

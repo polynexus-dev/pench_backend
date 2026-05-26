@@ -5,44 +5,49 @@ from core.models import BaseModel
 
 try:
     from django.contrib.gis.db import models as gis_models
-    HAS_GIS = getattr(settings, 'HAS_GDAL', False)
+
+    HAS_GIS = getattr(settings, "HAS_GDAL", False)
 except Exception:
     HAS_GIS = False
 
+
 class Customer(BaseModel):
     """CRM customer — Scoped to schema."""
+
     name = models.CharField(max_length=200)
     user = models.OneToOneField(
-        'accounts.User', 
-        on_delete=models.SET_NULL, 
-        null=True, 
-        blank=True, 
-        related_name='customer_profile'
+        "accounts.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="customer_profile",
     )
     company = models.CharField(max_length=200, blank=True)
     email = models.EmailField(unique=True)
     phone = models.CharField(max_length=20, blank=True)
     address = models.TextField(blank=True)
-    
+
     # Conditional GIS field
     if HAS_GIS:
         location = gis_models.PointField(
             srid=4326,
             null=True,
             blank=True,
-            help_text='Customer geolocation (longitude, latitude).'
+            help_text="Customer geolocation (longitude, latitude).",
         )
     else:
-        location = models.JSONField(null=True, blank=True, help_text='GIS Disabled: Falling back to JSON.')
+        location = models.JSONField(
+            null=True, blank=True, help_text="GIS Disabled: Falling back to JSON."
+        )
 
     notes = models.TextField(blank=True)
     is_active = models.BooleanField(default=True)
     zone = models.ForeignKey(
-        'routing.Zone',
+        "routing.Zone",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='customers'
+        related_name="customers",
     )
     qr_code_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
 
@@ -52,29 +57,31 @@ class Customer(BaseModel):
         super().save(*args, **kwargs)
 
     class Meta:
-        ordering = ['name']
-        verbose_name = 'Customer'
-        verbose_name_plural = 'Customers'
+        ordering = ["name"]
+        verbose_name = "Customer"
+        verbose_name_plural = "Customers"
 
     def __str__(self):
-        return f'{self.name} ({self.company or self.email})'
+        return f"{self.name} ({self.company or self.email})"
+
 
 class Lead(BaseModel):
     name = models.CharField(max_length=200)
     phone = models.CharField(max_length=20)
     email = models.EmailField(blank=True)
     referred_by = models.ForeignKey(
-        Customer, 
-        on_delete=models.SET_NULL, 
-        null=True, 
-        blank=True, 
-        related_name='referrals'
+        Customer,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="referrals",
     )
     notes = models.TextField(blank=True)
-    status = models.CharField(max_length=20, default='new')
+    status = models.CharField(max_length=20, default="new")
 
     def __str__(self):
         return f'Lead: {self.name} (Ref: {self.referred_by.name if self.referred_by else "None"})'
+
 
 # --- HELPERS ---
 def _parse_coordinates(loc):
@@ -85,12 +92,12 @@ def _parse_coordinates(loc):
         return None
     try:
         # If it's a Point object (from GIS)
-        if hasattr(loc, 'x') and hasattr(loc, 'y'):
+        if hasattr(loc, "x") and hasattr(loc, "y"):
             return float(loc.x), float(loc.y)
         # If it's a dict
         if isinstance(loc, dict):
-            lat = loc.get('latitude') or loc.get('lat')
-            lng = loc.get('longitude') or loc.get('lng')
+            lat = loc.get("latitude") or loc.get("lat")
+            lng = loc.get("longitude") or loc.get("lng")
             if lat is not None and lng is not None:
                 return float(lng), float(lat)
         # If it's a list/tuple of [lng, lat]
@@ -99,6 +106,7 @@ def _parse_coordinates(loc):
         # If it's a string representation of JSON
         if isinstance(loc, str):
             import json
+
             data = json.loads(loc)
             return _parse_coordinates(data)
     except Exception:
@@ -118,7 +126,7 @@ def _point_in_polygon(x, y, polygon_coords):
     coords = polygon_coords[0]
     if not isinstance(coords, list) or len(coords) < 3:
         return False
-        
+
     num = len(coords)
     j = num - 1
     c = False
@@ -128,7 +136,9 @@ def _point_in_polygon(x, y, polygon_coords):
             p_j = coords[j]
             xi, yi = float(p_i[0]), float(p_i[1])
             xj, yj = float(p_j[0]), float(p_j[1])
-            if ((yi > y) != (yj > y)) and (x < (xj - xi) * (y - yi) / (yj - yi + 1e-9) + xi):
+            if ((yi > y) != (yj > y)) and (
+                x < (xj - xi) * (y - yi) / (yj - yi + 1e-9) + xi
+            ):
                 c = not c
         except (IndexError, TypeError, ValueError, ZeroDivisionError):
             pass
@@ -140,11 +150,13 @@ def _point_in_polygon(x, y, polygon_coords):
 from django.db.models.signals import pre_save, post_save
 from django.dispatch import receiver
 
+
 @receiver(post_save, sender=Customer)
 def sync_customer_user_role(sender, instance, created, **kwargs):
     if instance.user and not instance.user.is_customer:
         instance.user.is_customer = True
         from django.db import connection
+
         instance.user.tenant_schema = connection.schema_name
         instance.user.save()
 
@@ -158,17 +170,17 @@ def auto_assign_customer_zone(sender, instance, **kwargs):
     is_new = instance._state.adding
     location_changed = False
     zone_changed = False
-    
+
     if not is_new:
         try:
             old_instance = Customer.objects.get(pk=instance.pk)
             old_loc = old_instance.location
             old_zone = old_instance.zone
-            
+
             # Compare locations
-            location_changed = (old_loc != instance.location)
+            location_changed = old_loc != instance.location
             # Compare zones
-            zone_changed = (old_zone != instance.zone)
+            zone_changed = old_zone != instance.zone
         except Customer.DoesNotExist:
             pass
 
@@ -189,17 +201,21 @@ def auto_assign_customer_zone(sender, instance, **kwargs):
         return
 
     from routing.models import Zone
+
     assigned_zone = None
-    
+
     if HAS_GIS:
         from django.contrib.gis.geos import Point
+
         if not isinstance(loc, Point):
             coords = _parse_coordinates(loc)
             if coords:
                 loc = Point(coords[0], coords[1])
             else:
                 return
-        assigned_zone = Zone.objects.filter(boundary__contains=loc, is_active=True).first()
+        assigned_zone = Zone.objects.filter(
+            boundary__contains=loc, is_active=True
+        ).first()
     else:
         coords = _parse_coordinates(loc)
         if coords:
@@ -209,11 +225,11 @@ def auto_assign_customer_zone(sender, instance, **kwargs):
                 if zone.boundary:
                     poly_coords = None
                     if isinstance(zone.boundary, dict):
-                        geom_type = zone.boundary.get('type')
-                        if geom_type == 'Polygon':
-                            poly_coords = zone.boundary.get('coordinates')
-                        elif geom_type == 'MultiPolygon':
-                            poly_coords_list = zone.boundary.get('coordinates', [])
+                        geom_type = zone.boundary.get("type")
+                        if geom_type == "Polygon":
+                            poly_coords = zone.boundary.get("coordinates")
+                        elif geom_type == "MultiPolygon":
+                            poly_coords_list = zone.boundary.get("coordinates", [])
                             for sub_poly in poly_coords_list:
                                 if _point_in_polygon(lng, lat, sub_poly):
                                     assigned_zone = zone
@@ -229,6 +245,7 @@ def auto_assign_customer_zone(sender, instance, **kwargs):
 
 # Import here to avoid early module loading of Zone which is in TENANT_APPS
 from routing.models import Zone
+
 
 @receiver(post_save, sender=Zone)
 def auto_assign_customers_on_zone_change(sender, instance, created, **kwargs):
@@ -248,24 +265,27 @@ def auto_assign_customers_on_zone_change(sender, instance, created, **kwargs):
         is_inside = False
         if HAS_GIS:
             from django.contrib.gis.geos import Point
+
             if not isinstance(loc, Point):
                 coords = _parse_coordinates(loc)
                 if coords:
                     loc = Point(coords[0], coords[1])
                 else:
                     continue
-            is_inside = Zone.objects.filter(id=instance.id, boundary__contains=loc).exists()
+            is_inside = Zone.objects.filter(
+                id=instance.id, boundary__contains=loc
+            ).exists()
         else:
             coords = _parse_coordinates(loc)
             if coords:
                 lng, lat = coords
                 if isinstance(instance.boundary, dict):
-                    geom_type = instance.boundary.get('type')
-                    if geom_type == 'Polygon':
-                        poly_coords = instance.boundary.get('coordinates')
+                    geom_type = instance.boundary.get("type")
+                    if geom_type == "Polygon":
+                        poly_coords = instance.boundary.get("coordinates")
                         is_inside = _point_in_polygon(lng, lat, poly_coords)
-                    elif geom_type == 'MultiPolygon':
-                        poly_coords_list = instance.boundary.get('coordinates', [])
+                    elif geom_type == "MultiPolygon":
+                        poly_coords_list = instance.boundary.get("coordinates", [])
                         for sub_poly in poly_coords_list:
                             if _point_in_polygon(lng, lat, sub_poly):
                                 is_inside = True
@@ -274,5 +294,4 @@ def auto_assign_customers_on_zone_change(sender, instance, created, **kwargs):
         if is_inside:
             if customer.zone != instance:
                 customer.zone = instance
-                customer.save(update_fields=['zone'])
-
+                customer.save(update_fields=["zone"])

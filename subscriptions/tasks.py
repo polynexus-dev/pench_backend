@@ -10,6 +10,7 @@ from tenants.models import City, HolidayCalendar
 
 logger = logging.getLogger(__name__)
 
+
 @shared_task
 def generate_all_tenant_orders(target_date_str=None):
     """
@@ -19,9 +20,9 @@ def generate_all_tenant_orders(target_date_str=None):
         target_date = datetime.date.fromisoformat(target_date_str)
     else:
         target_date = datetime.date.today() + datetime.timedelta(days=1)
-        
-    cities = City.objects.exclude(schema_name='public')
-    
+
+    cities = City.objects.exclude(schema_name="public")
+
     results = {}
     for city in cities:
         with schema_context(city.schema_name):
@@ -29,10 +30,13 @@ def generate_all_tenant_orders(target_date_str=None):
                 stats = generate_city_orders(target_date)
                 results[city.schema_name] = stats
             except Exception as e:
-                logger.error(f"Error generating orders for {city.schema_name}: {str(e)}")
-                results[city.schema_name] = {'error': str(e)}
-                
+                logger.error(
+                    f"Error generating orders for {city.schema_name}: {str(e)}"
+                )
+                results[city.schema_name] = {"error": str(e)}
+
     return results
+
 
 def generate_city_orders(target_date):
     """
@@ -41,68 +45,76 @@ def generate_city_orders(target_date):
     # 1. Check for city-wide holidays
     if HolidayCalendar.objects.filter(date=target_date).exists():
         logger.info(f"Skipping order generation for {target_date}: City holiday.")
-        return {'status': 'skipped', 'reason': 'holiday'}
+        return {"status": "skipped", "reason": "holiday"}
 
     # 2. Get active subscriptions
-    active_subs = Subscription.objects.filter(
-        status=SubscriptionStatus.ACTIVE,
-        start_date__lte=target_date
-    ).filter(
-        models.Q(end_date__isnull=True) | models.Q(end_date__gte=target_date)
-    ).prefetch_related('items__product', 'skip_dates')
+    active_subs = (
+        Subscription.objects.filter(
+            status=SubscriptionStatus.ACTIVE, start_date__lte=target_date
+        )
+        .filter(models.Q(end_date__isnull=True) | models.Q(end_date__gte=target_date))
+        .prefetch_related("items__product", "skip_dates")
+    )
 
     generated_count = 0
     skipped_count = 0
-    
+
     for sub in active_subs:
         # Check frequency and pauses
         if not sub.should_deliver_on(target_date):
             skipped_count += 1
             continue
-            
+
         # Check specific skip dates
         if sub.skip_dates.filter(skip_date=target_date).exists():
             skipped_count += 1
             continue
-            
+
         # 3. Duplicate Prevention: Check if an order already exists for this sub and date
-        if Order.objects.filter(subscription=sub, scheduled_delivery_date=target_date).exists():
-            logger.info(f"Skipping: Order already exists for Sub {sub.id} on {target_date}")
+        if Order.objects.filter(
+            subscription=sub, scheduled_delivery_date=target_date
+        ).exists():
+            logger.info(
+                f"Skipping: Order already exists for Sub {sub.id} on {target_date}"
+            )
             skipped_count += 1
             continue
-            
+
         # 4. Create Order
         with transaction.atomic():
             order = Order.objects.create(
                 customer=sub.customer,
                 subscription=sub,
                 scheduled_delivery_date=target_date,
-                status=OrderStatus.PENDING, # Starts as PENDING for admin review
+                status=OrderStatus.PENDING,  # Starts as PENDING for admin review
                 delivery_address=sub.delivery_address or sub.customer.address,
-                delivery_notes=sub.special_instructions
+                delivery_notes=sub.special_instructions,
             )
-            
+
             total_amount = 0
             from inventory.models import CustomerProductPrice
+
             for item in sub.items.all():
-                custom_price_obj = CustomerProductPrice.objects.filter(customer=sub.customer, product=item.product).first()
-                price = custom_price_obj.custom_price if custom_price_obj else item.product.unit_price
-                
+                custom_price_obj = CustomerProductPrice.objects.filter(
+                    customer=sub.customer, product=item.product
+                ).first()
+                price = (
+                    custom_price_obj.custom_price
+                    if custom_price_obj
+                    else item.product.unit_price
+                )
+
                 OrderItem.objects.create(
                     order=order,
                     product=item.product,
                     quantity=item.quantity,
-                    unit_price=price
+                    unit_price=price,
                 )
-                total_amount += (price * item.quantity)
-                
+                total_amount += price * item.quantity
+
             order.total = total_amount
-            order.save(update_fields=['total'])
-            
+            order.save(update_fields=["total"])
+
             generated_count += 1
-            
-    return {
-        'status': 'success',
-        'generated': generated_count,
-        'skipped': skipped_count
-    }
+
+    return {"status": "success", "generated": generated_count, "skipped": skipped_count}

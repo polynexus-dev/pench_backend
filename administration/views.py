@@ -9,6 +9,7 @@ class AdminConfigurationViewSet(viewsets.ModelViewSet):
     """
     API endpoint for viewing and editing tenant-specific configuration.
     """
+
     queryset = AdminConfiguration.objects.all()
     serializer_class = AdminConfigurationSerializer
     permission_classes = [permissions.IsAdminUser]
@@ -27,8 +28,12 @@ class AdminConfigurationViewSet(viewsets.ModelViewSet):
         # Override create to act like an update/get
         return self.update(request, *args, **kwargs)
 
-    @action(detail=False, methods=['get'], url_path='driver-settings',
-            permission_classes=[permissions.IsAuthenticated])
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path="driver-settings",
+        permission_classes=[permissions.IsAuthenticated],
+    )
     def driver_settings(self, request):
         """
         Lightweight endpoint for the driver mobile app.
@@ -39,13 +44,18 @@ class AdminConfigurationViewSet(viewsets.ModelViewSet):
 
         user = request.user
         schema = user.tenant_schema
-        context_schema = schema if connection.schema_name == 'public' and schema else connection.schema_name
+        context_schema = (
+            schema
+            if connection.schema_name == "public" and schema
+            else connection.schema_name
+        )
 
         with schema_context(context_schema):
             config = AdminConfiguration.get_solo()
             charge_bottle_penalty = config.charge_bottle_penalty
 
-        return Response({
-            'charge_bottle_penalty': charge_bottle_penalty,
-        })
-
+        return Response(
+            {
+                "charge_bottle_penalty": charge_bottle_penalty,
+            }
+        )

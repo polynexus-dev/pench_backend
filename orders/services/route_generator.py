@@ -18,7 +18,9 @@ def is_product_available(product, target_date):
     Returns True if available, False otherwise.
     """
     # 1. Check ProductAvailability override first
-    avail_override = ProductAvailability.objects.filter(product=product, date=target_date).first()
+    avail_override = ProductAvailability.objects.filter(
+        product=product, date=target_date
+    ).first()
     if avail_override:
         return avail_override.is_available
 
@@ -28,7 +30,11 @@ def is_product_available(product, target_date):
 
     # 3. Check stock level (if any stock is defined, must be > 0)
     if product.raw_material:
-        stock_sum = Stock.objects.filter(raw_material=product.raw_material).aggregate(total_qty=Sum('quantity')).get('total_qty')
+        stock_sum = (
+            Stock.objects.filter(raw_material=product.raw_material)
+            .aggregate(total_qty=Sum("quantity"))
+            .get("total_qty")
+        )
         if stock_sum is not None and stock_sum <= 0:
             return False
 
@@ -41,12 +47,15 @@ def generate_daily_routes_for_date(target_date):
     customer subscriptions on the target date.
     """
     logger.info("Starting Daily Route Generation for Date: %s", target_date)
-    
+
     # 1. Fetch active subscriptions
-    active_subscriptions = Subscription.objects.filter(
-        status=SubscriptionStatus.ACTIVE,
-        start_date__lte=target_date
-    ).select_related('customer').prefetch_related('items__product')
+    active_subscriptions = (
+        Subscription.objects.filter(
+            status=SubscriptionStatus.ACTIVE, start_date__lte=target_date
+        )
+        .select_related("customer")
+        .prefetch_related("items__product")
+    )
 
     orders_created = 0
     skipped_duplicates = 0
@@ -71,7 +80,9 @@ def generate_daily_routes_for_date(target_date):
             continue
 
         # Check for duplicate order for the same subscription and date
-        if Order.objects.filter(subscription=sub, scheduled_delivery_date=target_date).exists():
+        if Order.objects.filter(
+            subscription=sub, scheduled_delivery_date=target_date
+        ).exists():
             skipped_duplicates += 1
             continue
 
@@ -93,10 +104,7 @@ def generate_daily_routes_for_date(target_date):
         # If some items are unavailable, we notify/log and build order with remaining items
         if unavailable_items:
             details = f"Subscription #{sub.id[:8]}: Products {', '.join(unavailable_items)} are unavailable. Proceeding with remaining products."
-            DeliveryLog.objects.create(
-                action="Product Unavailable",
-                details=details
-            )
+            DeliveryLog.objects.create(action="Product Unavailable", details=details)
             logger.warning(details)
 
         # Create Order & OrderItems in atomic transaction
@@ -107,28 +115,31 @@ def generate_daily_routes_for_date(target_date):
                 scheduled_delivery_date=target_date,
                 status=OrderStatus.PENDING,
                 delivery_address=sub.delivery_address or sub.customer.address,
-                delivery_notes=sub.special_instructions
+                delivery_notes=sub.special_instructions,
             )
 
             total_amount = 0
             for item in valid_items:
                 # Resolve product price (check for custom customer product prices)
                 custom_price_obj = CustomerProductPrice.objects.filter(
-                    customer=sub.customer, 
-                    product=item.product
+                    customer=sub.customer, product=item.product
                 ).first()
-                unit_price = custom_price_obj.custom_price if custom_price_obj else item.product.unit_price
+                unit_price = (
+                    custom_price_obj.custom_price
+                    if custom_price_obj
+                    else item.product.unit_price
+                )
 
                 OrderItem.objects.create(
                     order=order,
                     product=item.product,
                     quantity=item.quantity,
-                    unit_price=unit_price
+                    unit_price=unit_price,
                 )
                 total_amount += item.quantity * unit_price
 
             order.total = total_amount
-            order.save(update_fields=['total'])
+            order.save(update_fields=["total"])
             created_order_ids.append(order.id)
             orders_created += 1
 
@@ -136,13 +147,15 @@ def generate_daily_routes_for_date(target_date):
     pending_orders = Order.objects.filter(
         scheduled_delivery_date=target_date,
         status__in=[OrderStatus.PENDING, OrderStatus.CONFIRMED],
-        customer__zone__isnull=False
-    ).select_related('customer__zone', 'customer__zone__assigned_driver')
+        customer__zone__isnull=False,
+    ).select_related("customer__zone", "customer__zone__assigned_driver")
 
     from routing.models import Driver
-    
+
     # Pre-fetch all driver profiles to map driver User IDs to Driver profiles and Warehouses
-    driver_profiles = {dp.user_id: dp for dp in Driver.objects.select_related('warehouse').all()}
+    driver_profiles = {
+        dp.user_id: dp for dp in Driver.objects.select_related("warehouse").all()
+    }
 
     # Group orders by (warehouse, driver_user, driver_profile)
     grouped_orders = {}
@@ -184,7 +197,9 @@ def generate_daily_routes_for_date(target_date):
 
     for (warehouse, driver_user, driver_profile), z_orders in grouped_orders.items():
         # Check if an incomplete/active route already exists for this driver (User) and date
-        if Route.objects.filter(driver=driver_user, delivery_date=target_date, is_completed=False).exists():
+        if Route.objects.filter(
+            driver=driver_user, delivery_date=target_date, is_completed=False
+        ).exists():
             msg = f"Route for driver {driver_user.username} on {target_date} already exists. Skipping duplicate creation."
             logger.info(msg)
             continue
@@ -192,7 +207,10 @@ def generate_daily_routes_for_date(target_date):
         # Resolve warehouse_location coordinates for pathfinder depot
         warehouse_location = None
         if warehouse.latitude is not None and warehouse.longitude is not None:
-            warehouse_location = {'longitude': float(warehouse.longitude), 'latitude': float(warehouse.latitude)}
+            warehouse_location = {
+                "longitude": float(warehouse.longitude),
+                "latitude": float(warehouse.latitude),
+            }
 
         order_ids = [str(o.id) for o in z_orders]
         route_count = Route.objects.filter(delivery_date=target_date).count()
@@ -200,18 +218,18 @@ def generate_daily_routes_for_date(target_date):
 
         try:
             route = create_optimized_route(
-                route_name, 
+                route_name,
                 driver_user,  # Pass the User instance for orders.models.Route.driver
-                target_date, 
-                order_ids, 
-                warehouse=warehouse, 
-                warehouse_location=warehouse_location
+                target_date,
+                order_ids,
+                warehouse=warehouse,
+                warehouse_location=warehouse_location,
             )
             routes_created += 1
             DeliveryLog.objects.create(
                 action="Route Generated",
                 route=route,
-                details=f"Automatically generated and optimized route for Warehouse: {warehouse.name}, Driver: {driver_user.username} with {len(order_ids)} stops."
+                details=f"Automatically generated and optimized route for Warehouse: {warehouse.name}, Driver: {driver_user.username} with {len(order_ids)} stops.",
             )
         except Exception as e:
             err_msg = f"Failed to generate route for Warehouse {warehouse.name}, Driver {driver_user.username}: {str(e)}"
@@ -225,7 +243,7 @@ def generate_daily_routes_for_date(target_date):
         "skipped_no_delivery": skipped_no_delivery,
         "skipped_unavailable_products": skipped_unavailable_products,
         "routes_created": routes_created,
-        "route_errors": route_errors
+        "route_errors": route_errors,
     }
     logger.info("Daily Route Generation Completed: %s", summary)
     return summary
@@ -237,15 +255,17 @@ def regenerate_daily_routes_for_date(target_date):
     and runs the generation process again.
     """
     logger.info("Regenerating daily routes for date: %s", target_date)
-    
+
     with transaction.atomic():
         # Find incomplete routes for the target date
-        routes_to_delete = Route.objects.filter(delivery_date=target_date, is_completed=False)
-        
+        routes_to_delete = Route.objects.filter(
+            delivery_date=target_date, is_completed=False
+        )
+
         for route in routes_to_delete:
             DeliveryLog.objects.create(
                 action="Route Cancelled",
-                details=f"Cancelling route '{route.name}' (ID: {route.id}) for regeneration."
+                details=f"Cancelling route '{route.name}' (ID: {route.id}) for regeneration.",
             )
             # Delete associated stops (Order reverse lookup is deleted automatically)
             route.stops.all().delete()

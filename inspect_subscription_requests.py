@@ -5,6 +5,7 @@ with open("documentation/postman_collection.json", "r", encoding="utf-8") as f:
 
 subscription_requests = []
 
+
 def recurse_items(items, path=""):
     for item in items:
         name = item.get("name")
@@ -12,13 +13,20 @@ def recurse_items(items, path=""):
         if "item" in item:
             recurse_items(item["item"], curr_path)
         else:
-            if "subscription" in name.lower() or "subscription" in item.get("request", {}).get("url", {}).get("raw", "").lower():
-                subscription_requests.append({
-                    "path": curr_path,
-                    "url": item.get("request", {}).get("url", {}).get("raw", ""),
-                    "method": item.get("request", {}).get("method", ""),
-                    "body": item.get("request", {}).get("body", {}).get("raw", "")
-                })
+            if (
+                "subscription" in name.lower()
+                or "subscription"
+                in item.get("request", {}).get("url", {}).get("raw", "").lower()
+            ):
+                subscription_requests.append(
+                    {
+                        "path": curr_path,
+                        "url": item.get("request", {}).get("url", {}).get("raw", ""),
+                        "method": item.get("request", {}).get("method", ""),
+                        "body": item.get("request", {}).get("body", {}).get("raw", ""),
+                    }
+                )
+
 
 recurse_items(data.get("item", []))
 

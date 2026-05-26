@@ -5,4 +5,4 @@ from .models import AdminConfiguration
 class AdminConfigurationSerializer(serializers.ModelSerializer):
     class Meta:
         model = AdminConfiguration
-        fields = '__all__'
+        fields = "__all__"

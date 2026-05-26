@@ -3,7 +3,7 @@ from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
-TIME_LIMIT = getattr(settings, 'ROUTE_OPTIMIZATION_TIME_LIMIT_SECONDS', 5)
+TIME_LIMIT = getattr(settings, "ROUTE_OPTIMIZATION_TIME_LIMIT_SECONDS", 5)
 
 
 def solve_tsp(distance_matrix: list[list[float]]) -> list[int] | None:
@@ -27,19 +27,18 @@ def solve_tsp(distance_matrix: list[list[float]]) -> list[int] | None:
         from ortools.constraint_solver import routing_enums_pb2
         from ortools.constraint_solver import pywrapcp
     except ImportError:
-        logger.error('OR-Tools not installed. Run: pip install ortools')
+        logger.error("OR-Tools not installed. Run: pip install ortools")
         return None
 
     n = len(distance_matrix)
     if n < 2:
-        logger.warning('TSP solver: need at least 2 nodes.')
+        logger.warning("TSP solver: need at least 2 nodes.")
         return None
 
     # Scale floats to integers (OR-Tools requires int costs)
     scale = 100
     int_matrix = [
-        [int(distance_matrix[i][j] * scale) for j in range(n)]
-        for i in range(n)
+        [int(distance_matrix[i][j] * scale) for j in range(n)] for i in range(n)
     ]
 
     # Create routing index manager (1 vehicle, depot at index 0)
@@ -68,7 +67,7 @@ def solve_tsp(distance_matrix: list[list[float]]) -> list[int] | None:
     solution = routing.SolveWithParameters(search_params)
 
     if not solution:
-        logger.warning('OR-Tools: no solution found within time limit.')
+        logger.warning("OR-Tools: no solution found within time limit.")
         return None
 
     # Decode route
@@ -80,5 +79,5 @@ def solve_tsp(distance_matrix: list[list[float]]) -> list[int] | None:
     route.append(0)  # Return to depot
 
     total_cost = solution.ObjectiveValue() / scale
-    logger.info('OR-Tools solution: %s (cost=%.1fs)', route, total_cost)
+    logger.info("OR-Tools solution: %s (cost=%.1fs)", route, total_cost)
     return route

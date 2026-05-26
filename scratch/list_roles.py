@@ -10,9 +10,9 @@ from tenants.models import City
 
 User = get_user_model()
 
-print("="*80)
+print("=" * 80)
 print("USER ROLES & PROFILES IN SCHEMAS")
-print("="*80)
+print("=" * 80)
 
 cities = City.objects.all()
 for city in cities:
@@ -30,7 +30,9 @@ for city in cities:
                 roles.append("Driver")
             if user.is_customer:
                 roles.append("Customer")
-            
+
             roles_str = ", ".join(roles) if roles else "No Role"
-            print(f"Username: {user.username:<15} | Roles: {roles_str:<30} | Phone: {user.phone:<15}")
-print("="*80)
+            print(
+                f"Username: {user.username:<15} | Roles: {roles_str:<30} | Phone: {user.phone:<15}"
+            )
+print("=" * 80)
