@@ -30,6 +30,18 @@ class AdminConfiguration(BaseModel):
     support_contact_number = models.CharField(max_length=20, blank=True)
     support_email = models.EmailField(blank=True)
     
+    # Bottle Penalty Settings
+    charge_bottle_penalty = models.BooleanField(
+        default=False,
+        help_text="If enabled, broken/lost bottles are tracked and penalty billing is applied during reconciliation."
+    )
+    bottle_penalty_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0,
+        help_text="Penalty charge per broken/lost bottle (in ₹)."
+    )
+
     # UI/UX
     company_name = models.CharField(max_length=100, blank=True)
     theme_color = models.CharField(
