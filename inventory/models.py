@@ -120,7 +120,7 @@ class BottleTransactionType(models.TextChoices):
 
 
 class BottleTransaction(BaseModel):
-    bottle_type = models.ForeignKey(BottleType, on_delete=models.PROTECT, related_name='transactions')
+    bottle_type = models.ForeignKey(BottleType, on_delete=models.CASCADE, related_name='transactions')
     customer = models.ForeignKey(
         'crm.Customer',
         on_delete=models.SET_NULL,

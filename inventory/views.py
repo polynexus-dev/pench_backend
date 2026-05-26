@@ -1,7 +1,7 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from core.permissions import IsERPUser, HasGroupPermission
+from core.permissions import IsERPUser, HasGroupPermission, IsDriverUser
 from .models import Product, RawMaterial, Stock, Warehouse, BottleType, CustomerBottleBalance, BottleTransaction, CustomerProductPrice, StockMovement
 from .serializers import (
     ProductSerializer, RawMaterialSerializer, StockSerializer, WarehouseSerializer,
@@ -391,7 +391,11 @@ class WarehouseViewSet(viewsets.ModelViewSet):
 class BottleTypeViewSet(viewsets.ModelViewSet):
     queryset = BottleType.objects.all()
     serializer_class = BottleTypeSerializer
-    permission_classes = [IsERPUser]
+
+    def get_permissions(self):
+        if self.request.method in ['GET', 'HEAD', 'OPTIONS']:
+            return [(IsERPUser | IsDriverUser)()]
+        return [IsERPUser()]
 
 
 class BottleTransactionViewSet(viewsets.ModelViewSet):

@@ -71,7 +71,39 @@ class CustomerViewSet(viewsets.ModelViewSet):
         # 1. Generate QR Code
         from django.urls import reverse
         resolve_url = reverse('customer-qr-resolve', kwargs={'qr_id': str(customer.qr_code_id)})
-        full_url = request.build_absolute_uri(resolve_url)
+        
+        # Build a reachable QR code URL. If running locally and request is 'localhost' / '127.0.0.1',
+        # try to use a registered non-localhost tenant domain (e.g. nip.io or public domain) so
+        # that mobile devices scanning the QR can resolve and reach the server.
+        current_host = request.get_host()
+        base_url = None
+        if ('localhost' in current_host or '127.0.0.1' in current_host) and getattr(request, 'tenant', None):
+            from tenants.models import Domain
+            tenant_domains = Domain.objects.filter(tenant=request.tenant)
+            reachable_domains = [d.domain for d in tenant_domains if 'localhost' not in d.domain and '127.0.0.1' not in d.domain]
+            if reachable_domains:
+                # Prefer local wifi domains (e.g. nip.io or IP-based) for local testing on the same network,
+                # fallback to public domains.
+                local_wifi = [d for d in reachable_domains if 'nip.io' in d or any(c.isdigit() for c in d.split('.')[0])]
+                public_domains = [d for d in reachable_domains if d not in local_wifi]
+                
+                preferred_domain = local_wifi[0] if local_wifi else public_domains[0]
+                
+                # Use HTTP or HTTPS depending on domain type
+                is_local = 'nip.io' in preferred_domain or any(c.isdigit() for c in preferred_domain.split('.')[0])
+                scheme = 'https' if request.is_secure() or not is_local else 'http'
+                
+                # Keep port for local IP/nip.io if present in request
+                port = ""
+                if ':' in current_host and is_local:
+                    port = ":" + current_host.split(':')[1]
+                    
+                base_url = f"{scheme}://{preferred_domain}{port}"
+        
+        if base_url:
+            full_url = f"{base_url}{resolve_url}"
+        else:
+            full_url = request.build_absolute_uri(resolve_url)
 
         qr = qrcode.QRCode(
             version=None,

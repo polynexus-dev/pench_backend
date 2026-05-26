@@ -253,9 +253,9 @@ class OrderViewSet(viewsets.ModelViewSet):
                 {'detail': 'Proof of Delivery (photo) is required by your administrator.'}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
         from django.db import transaction
         from django.utils import timezone
+        bottle_transactions_data = request.data.get('bottle_transactions')
         with transaction.atomic():
             order.status = OrderStatus.DELIVERED
             order.delivered_at = timezone.now()
@@ -268,31 +268,76 @@ class OrderViewSet(viewsets.ModelViewSet):
             order.save(update_fields=['status', 'delivered_at', 'pod_image', 'pod_latitude', 'pod_longitude'])
             
             from inventory.services import record_bottle_transaction
-            from inventory.models import BottleTransactionType
-            for item in order.items.all():
-                if item.product.is_returnable and item.product.bottle_type:
-                    qty = bottles_issued if bottles_issued is not None else item.quantity
-                    record_bottle_transaction(
-                        bottle_type=item.product.bottle_type,
-                        quantity=qty,
-                        transaction_type=BottleTransactionType.ISSUED,
-                        customer=order.customer,
-                        order=order,
-                        user=request.user if not request.user.is_anonymous else None
-                    )
+            from inventory.models import BottleTransactionType, BottleType
             
-            if bottles_returned > 0:
-                first_item = order.items.filter(product__is_returnable=True).first()
-                if first_item:
-                    record_bottle_transaction(
-                        bottle_type=first_item.product.bottle_type,
-                        quantity=bottles_returned,
-                        transaction_type=BottleTransactionType.RETURNED,
-                        customer=order.customer,
-                        order=order,
-                        user=request.user if not request.user.is_anonymous else None
-                    )
+            user_recorded = request.user if not request.user.is_anonymous else None
+            
+            if bottle_transactions_data is not None and isinstance(bottle_transactions_data, list):
+                for txn_data in bottle_transactions_data:
+                    bt_id = txn_data.get('bottle_type_id')
+                    if not bt_id:
+                        continue
+                    try:
+                        bottle_type = BottleType.objects.get(id=bt_id)
+                    except BottleType.DoesNotExist:
+                        continue
                     
+                    issued_qty = int(txn_data.get('issued', 0))
+                    returned_qty = int(txn_data.get('returned', 0))
+                    broken_qty = int(txn_data.get('broken', 0))
+                    
+                    if issued_qty > 0:
+                        record_bottle_transaction(
+                            bottle_type=bottle_type,
+                            quantity=issued_qty,
+                            transaction_type=BottleTransactionType.ISSUED,
+                            customer=order.customer,
+                            order=order,
+                            user=user_recorded
+                        )
+                    if returned_qty > 0:
+                        record_bottle_transaction(
+                            bottle_type=bottle_type,
+                            quantity=returned_qty,
+                            transaction_type=BottleTransactionType.RETURNED,
+                            customer=order.customer,
+                            order=order,
+                            user=user_recorded
+                        )
+                    if broken_qty > 0:
+                        record_bottle_transaction(
+                            bottle_type=bottle_type,
+                            quantity=broken_qty,
+                            transaction_type=BottleTransactionType.BROKEN,
+                            customer=order.customer,
+                            order=order,
+                            user=user_recorded
+                        )
+            else:
+                for item in order.items.all():
+                    if item.product.is_returnable and item.product.bottle_type:
+                        qty = bottles_issued if bottles_issued is not None else item.quantity
+                        record_bottle_transaction(
+                            bottle_type=item.product.bottle_type,
+                            quantity=qty,
+                            transaction_type=BottleTransactionType.ISSUED,
+                            customer=order.customer,
+                            order=order,
+                            user=user_recorded
+                        )
+                
+                if bottles_returned > 0:
+                    first_item = order.items.filter(product__is_returnable=True).first()
+                    if first_item:
+                        record_bottle_transaction(
+                            bottle_type=first_item.product.bottle_type,
+                            quantity=bottles_returned,
+                            transaction_type=BottleTransactionType.RETURNED,
+                            customer=order.customer,
+                            order=order,
+                            user=user_recorded
+                        )
+
         # Broadcast real-time delivery notification to admins
         try:
             from asgiref.sync import async_to_sync
@@ -304,7 +349,7 @@ class OrderViewSet(viewsets.ModelViewSet):
                 async_to_sync(channel_layer.group_send)(
                     "admins",
                     {
-                        "type": "broadcast_location", # Forwarded directly by consumer's broadcast_location handler
+                        "type": "broadcast_location",
                         "notification_type": "order_delivered",
                         "title": "Order Delivered! 📦🎉",
                         "message": f"Driver '{driver_name}' has successfully delivered Order #{order.id} to {customer_name}.",
@@ -685,16 +730,21 @@ class DriverViewSet(viewsets.ViewSet):
         
         with schema_context(context_schema):
             from routing.models import Driver
+            import datetime as _dt
             
             driver_profile = Driver.objects.filter(user=user).first()
-            on_trip = driver_profile.on_trip if driver_profile else False
             
-            # Find any active route (not completed) assigned to the driver
-            active_route = Route.objects.filter(
-                driver=user,
-                is_completed=False
-            ).order_by('delivery_date').first()
+            # Find any active route (not completed) assigned to this driver
+            # Route.driver is a FK to Driver, NOT User — must use driver_profile
+            active_route = None
+            if driver_profile:
+                active_route = Route.objects.filter(
+                    driver=driver_profile,
+                    is_completed=False
+                ).order_by('delivery_date').first()
             
+            # Derive on_trip from the actual route state, not the stale DB flag
+            on_trip = False
             route_data = None
             if active_route:
                 route_data = {
@@ -705,9 +755,14 @@ class DriverViewSet(viewsets.ViewSet):
                     'started_at': active_route.started_at,
                     'is_started': active_route.started_at is not None
                 }
-                # If they have an active route that has started, they are on a trip
+                # Only consider the trip as started if the route has actually been started
                 if active_route.started_at is not None:
                     on_trip = True
+            
+            # Sync the DB flag if it drifted out of sync
+            if driver_profile and driver_profile.on_trip != on_trip:
+                driver_profile.on_trip = on_trip
+                driver_profile.save(update_fields=['on_trip'])
                     
             return Response({
                 'on_trip': on_trip,
