@@ -67,11 +67,16 @@ class RequestOTPView(APIView):
     def post(self, request):
         serializer = RequestOTPSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        phone = serializer.validated_data['phone']
+        raw_phone = serializer.validated_data['phone']
+        
+        # Helper to match phone (try exact match or last 10 digits)
+        last_10 = raw_phone[-10:] if len(raw_phone) >= 10 else raw_phone
         
         # 1. Check if User already exists in Public Schema
-        user = User.objects.filter(phone=phone).first()
-        
+        user = User.objects.filter(phone=raw_phone).first()
+        if not user:
+            user = User.objects.filter(phone__endswith=last_10).first()
+            
         # 2. If not found, search across ALL tenant schemas
         if not user:
             from crm.models import Customer
@@ -81,20 +86,24 @@ class RequestOTPView(APIView):
             # Iterate through all cities to find this customer
             for city in City.objects.exclude(schema_name='public'):
                 with schema_context(city.schema_name):
-                    customer = Customer.objects.filter(phone=phone).first()
+                    customer = Customer.objects.filter(phone=raw_phone).first()
+                    if not customer:
+                        customer = Customer.objects.filter(phone__endswith=last_10).first()
+                        
                     if customer:
                         # Found them! Create the public User account
-                        username = phone # Use phone as username for easy login
+                        username = raw_phone # Use requested phone as username
                         user = User.objects.create(
                             username=username,
-                            phone=phone,
+                            phone=customer.phone or raw_phone, # Prefer stored phone
                             is_customer=True,
                             tenant_schema=city.schema_name,
-                            first_name=customer.name
+                            first_name=customer.name.split()[0] if customer.name else '',
+                            last_name=' '.join(customer.name.split()[1:]) if customer.name and len(customer.name.split()) > 1 else ''
                         )
                         # Link the customer in the tenant schema to the new public user
                         customer.user = user
-                        customer.save()
+                        customer.save(update_fields=['user'])
                         print(f"Global Search: Found {customer.name} in {city.name}. Linked to new User {username}")
                         break # Stop searching other cities
             
@@ -106,13 +115,13 @@ class RequestOTPView(APIView):
         
         # 3. Generate and "send" OTP
         try:
-            otp_obj = generate_otp(phone)
+            # Generate OTP using the actual phone number string stored/provided
+            otp_phone = user.phone if user.phone else raw_phone
+            otp_obj = generate_otp(otp_phone)
         except ValueError as e:
             return Response({"error": str(e)}, status=status.HTTP_429_TOO_MANY_REQUESTS)
         
-        response_data = {"message": "OTP sent successfully."}
-        
-        response_data["otp"] = otp_obj.code
+        response_data = {"message": "OTP sent successfully.", "otp": otp_obj.code}
             
         return Response(response_data)
 
@@ -123,17 +132,39 @@ class LoginOTPView(APIView):
     def post(self, request):
         serializer = LoginOTPSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        phone = serializer.validated_data['phone']
+        raw_phone = serializer.validated_data['phone']
         code = serializer.validated_data['code']
         
+        last_10 = raw_phone[-10:] if len(raw_phone) >= 10 else raw_phone
+        
+        # Get User
+        user = User.objects.filter(phone=raw_phone).first()
+        if not user:
+            user = User.objects.filter(phone__endswith=last_10).first()
+            
+        if not user:
+            return Response(
+                {"error": "User with this phone number not found."}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+            
         # Validate OTP
         otp = OTP.objects.filter(
-            phone=phone, 
+            phone=user.phone, # Use the actual DB phone string
             code=code, 
             is_used=False,
             expires_at__gt=timezone.now()
         ).first()
         
+        if not otp:
+            # Fallback check with raw_phone just in case it was generated with it
+            otp = OTP.objects.filter(
+                phone=raw_phone, 
+                code=code, 
+                is_used=False,
+                expires_at__gt=timezone.now()
+            ).first()
+            
         if not otp:
             return Response(
                 {"error": "Invalid or expired OTP."}, 
@@ -142,10 +173,7 @@ class LoginOTPView(APIView):
         
         # Mark as used
         otp.is_used = True
-        otp.save()
-        
-        # Get User
-        user = User.objects.get(phone=phone)
+        otp.save(update_fields=['is_used'])
         
         # Fallback: If user has no schema (created before the update), try to find it now
         if not user.tenant_schema:
@@ -154,9 +182,12 @@ class LoginOTPView(APIView):
             from django_tenants.utils import schema_context
             for city in City.objects.exclude(schema_name='public'):
                 with schema_context(city.schema_name):
-                    if Customer.objects.filter(phone=phone).exists():
+                    customer = Customer.objects.filter(phone=user.phone).first()
+                    if not customer:
+                        customer = Customer.objects.filter(phone__endswith=last_10).first()
+                    if customer:
                         user.tenant_schema = city.schema_name
-                        user.save()
+                        user.save(update_fields=['tenant_schema'])
                         break
 
         # Generate JWT
@@ -195,6 +226,8 @@ class LoginOTPView(APIView):
                         route = OrdersRoute.objects.filter(
                             Q(driver=user) | Q(additional_drivers=user),
                             is_completed=False
+                        ).exclude(
+                            status__in=['completed', 'stopped']
                         ).distinct().order_by('delivery_date').first()
                         
                         if route:
@@ -233,10 +266,14 @@ class ForgotPasswordView(APIView):
     def post(self, request):
         serializer = ForgotPasswordSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        phone = serializer.validated_data['phone']
+        raw_phone = serializer.validated_data['phone']
+        
+        last_10 = raw_phone[-10:] if len(raw_phone) >= 10 else raw_phone
         
         # 1. Check if User already exists in Public Schema
-        user = User.objects.filter(phone=phone).first()
+        user = User.objects.filter(phone=raw_phone).first()
+        if not user:
+            user = User.objects.filter(phone__endswith=last_10).first()
         
         # 2. If not found, search across ALL tenant schemas (same as RequestOTPView)
         if not user:
@@ -247,20 +284,24 @@ class ForgotPasswordView(APIView):
             # Iterate through all cities to find this customer
             for city in City.objects.exclude(schema_name='public'):
                 with schema_context(city.schema_name):
-                    customer = Customer.objects.filter(phone=phone).first()
+                    customer = Customer.objects.filter(phone=raw_phone).first()
+                    if not customer:
+                        customer = Customer.objects.filter(phone__endswith=last_10).first()
+                        
                     if customer:
                         # Found them! Create the public User account
-                        username = phone # Use phone as username for easy login
+                        username = raw_phone # Use phone as username for easy login
                         user = User.objects.create(
                             username=username,
-                            phone=phone,
+                            phone=customer.phone or raw_phone,
                             is_customer=True,
                             tenant_schema=city.schema_name,
-                            first_name=customer.name
+                            first_name=customer.name.split()[0] if customer.name else '',
+                            last_name=' '.join(customer.name.split()[1:]) if customer.name and len(customer.name.split()) > 1 else ''
                         )
                         # Link the customer in the tenant schema to the new public user
                         customer.user = user
-                        customer.save()
+                        customer.save(update_fields=['user'])
                         print(f"Global Search: Found {customer.name} in {city.name}. Linked to new User {username}")
                         break # Stop searching other cities
             
@@ -272,7 +313,8 @@ class ForgotPasswordView(APIView):
         
         # 3. Generate and return OTP
         try:
-            otp_obj = generate_otp(phone)
+            otp_phone = user.phone if user.phone else raw_phone
+            otp_obj = generate_otp(otp_phone)
         except ValueError as e:
             return Response({"error": str(e)}, status=status.HTTP_429_TOO_MANY_REQUESTS)
         
@@ -290,41 +332,44 @@ class ResetPasswordView(APIView):
     def post(self, request):
         serializer = ResetPasswordSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        phone = serializer.validated_data['phone']
+        raw_phone = serializer.validated_data['phone']
         code = serializer.validated_data['code']
         new_password = serializer.validated_data['new_password']
         
-        # 1. Validate OTP
-        otp = OTP.objects.filter(
-            phone=phone, 
-            code=code, 
-            is_used=False,
-            expires_at__gt=timezone.now()
-        ).first()
-        
-        if not otp:
-            return Response(
-                {"error": "Invalid or expired OTP."}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        last_10 = raw_phone[-10:] if len(raw_phone) >= 10 else raw_phone
         
         # 2. Get User
-        user = User.objects.filter(phone=phone).first()
+        user = User.objects.filter(phone=raw_phone).first()
+        if not user:
+            user = User.objects.filter(phone__endswith=last_10).first()
+            
         if not user:
             return Response(
                 {"error": "User with this phone number does not exist."}, 
                 status=status.HTTP_404_NOT_FOUND
             )
             
-        # 3. Mark OTP as used
-        otp.is_used = True
-        otp.save()
+        # 1. Validate OTP
+        otp = OTP.objects.filter(
+            phone=user.phone, 
+            code=code, 
+            is_used=False,
+            expires_at__gt=timezone.now()
+        ).first()
         
-        # 4. Set new password
-        user.set_password(new_password)
-        user.save()
-        
-        return Response({"message": "Password reset successfully."})
+        if not otp:
+            otp = OTP.objects.filter(
+                phone=raw_phone, 
+                code=code, 
+                is_used=False,
+                expires_at__gt=timezone.now()
+            ).first()
+            
+        if not otp:
+            return Response(
+                {"error": "Invalid or expired OTP."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all().order_by('-date_joined')
     serializer_class = UserSerializer

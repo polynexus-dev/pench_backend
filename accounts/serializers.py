@@ -99,6 +99,20 @@ class UserSerializer(serializers.ModelSerializer):
                 company_name = city.company.name
         ret['company_id'] = company_id
         ret['company_name'] = company_name
+
+        # Inject customer UUID for frontend usage
+        if instance.is_customer:
+            try:
+                if instance.tenant_schema and instance.tenant_schema != 'public':
+                    from django_tenants.utils import schema_context
+                    with schema_context(instance.tenant_schema):
+                        from crm.models import Customer
+                        cust = Customer.objects.filter(user=instance).first()
+                        if cust:
+                            ret['customer_uuid'] = str(cust.id)
+            except Exception:
+                pass
+
         return ret
 
 
@@ -312,6 +326,8 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
                             route = OrdersRoute.objects.filter(
                                 Q(driver=self.user) | Q(additional_drivers=self.user),
                                 is_completed=False
+                            ).exclude(
+                                status__in=['completed', 'stopped']
                             ).distinct().order_by('delivery_date').first()
                             
                             if route:

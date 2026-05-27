@@ -1,6 +1,7 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
 from core.permissions import IsERPUser, HasGroupPermission, IsDriverUser
 from .models import Product, RawMaterial, Stock, Warehouse, BottleType, CustomerBottleBalance, BottleTransaction, CustomerProductPrice, StockMovement
 from .serializers import (
@@ -20,9 +21,15 @@ class RawMaterialViewSet(viewsets.ModelViewSet):
 class ProductViewSet(viewsets.ModelViewSet):
     queryset = Product.objects.all().select_related('bottle_type')
     serializer_class = ProductSerializer
-    permission_classes = [IsERPUser, HasGroupPermission]
-    required_groups = ['Inventory_Managers', 'ERP_Admins']
+    permission_classes = [IsAuthenticated]
     search_fields = ['name', 'sku']
+
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            return [IsAuthenticated()]
+        return [IsERPUser(), HasGroupPermission()]
+
+    required_groups = ['Inventory_Managers', 'ERP_Admins']
 
     def create(self, request, *args, **kwargs):
         """

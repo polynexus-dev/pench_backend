@@ -142,11 +142,53 @@ from django.dispatch import receiver
 
 @receiver(post_save, sender=Customer)
 def sync_customer_user_role(sender, instance, created, **kwargs):
-    if instance.user and not instance.user.is_customer:
-        instance.user.is_customer = True
-        from django.db import connection
-        instance.user.tenant_schema = connection.schema_name
-        instance.user.save()
+    from django.db import connection
+    from accounts.models import User
+    
+    current_schema = connection.schema_name
+    
+    # Auto-create or link User if missing
+    if not instance.user and (instance.phone or instance.email):
+        user = None
+        if instance.phone:
+            user = User.objects.filter(phone=instance.phone).first()
+        if not user and instance.email:
+            user = User.objects.filter(email=instance.email).first()
+            
+        if not user:
+            # We need to create one
+            username = instance.phone if instance.phone else instance.email
+            base_username = username
+            counter = 1
+            while User.objects.filter(username=username).exists():
+                username = f"{base_username}_{counter}"
+                counter += 1
+                
+            user = User.objects.create(
+                username=username,
+                phone=instance.phone if instance.phone else None,
+                email=instance.email,
+                is_customer=True,
+                tenant_schema=current_schema,
+                first_name=instance.name.split()[0] if instance.name else '',
+                last_name=' '.join(instance.name.split()[1:]) if instance.name and len(instance.name.split()) > 1 else ''
+            )
+            user.set_unusable_password()
+            user.save(update_fields=['password'])
+            
+        Customer.objects.filter(id=instance.id).update(user=user)
+        instance.user = user
+
+    if instance.user:
+        changed = False
+        if not instance.user.is_customer:
+            instance.user.is_customer = True
+            changed = True
+        if instance.user.tenant_schema != current_schema:
+            instance.user.tenant_schema = current_schema
+            changed = True
+        if changed:
+            instance.user.save(update_fields=['is_customer', 'tenant_schema'])
 
 
 @receiver(pre_save, sender=Customer)

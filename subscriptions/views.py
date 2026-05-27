@@ -345,12 +345,27 @@ class SubscriptionViewSet(viewsets.ModelViewSet):
         from orders.models import Order, OrderStatus
 
         customer_id = request.query_params.get('customer_id')
-        if not customer_id:
-            return Response(
-                {'detail': 'customer_id query parameter is required.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
+        
+        # For customer users, always resolve from the authenticated user
+        if request.user.is_customer:
+            from crm.models import Customer as CrmCustomer
+            cust = CrmCustomer.objects.filter(user=request.user).first()
+            if cust:
+                customer_id = cust.id
+            else:
+                return Response({'detail': 'Customer profile not found.'}, status=404)
+        elif customer_id:
+            # Admin passing customer_id - check if it's a UUID or integer
+            try:
+                import uuid
+                uuid.UUID(str(customer_id))
+            except ValueError:
+                from crm.models import Customer as CrmCustomer
+                cust = CrmCustomer.objects.filter(user_id=customer_id).first()
+                if cust:
+                    customer_id = cust.id
+                else:
+                    return Response({'detail': 'Customer not found.'}, status=404)
         today = datetime.date.today()
         try:
             year = int(request.query_params.get('year', today.year))
@@ -368,10 +383,19 @@ class SubscriptionViewSet(viewsets.ModelViewSet):
         ).prefetch_related('items__product', 'skip_dates')
 
         if not subscriptions.exists():
-            return Response(
-                {'detail': 'No subscriptions found for this customer.'},
-                status=status.HTTP_404_NOT_FOUND
-            )
+            return Response({
+                'customer_id': str(customer_id),
+                'customer_name': '',
+                'customer_email': '',
+                'year': year,
+                'month': month,
+                'overall_summary': {
+                    'total_scheduled': 0, 'total_delivered': 0,
+                    'total_undelivered': 0, 'total_in_transit': 0,
+                    'total_pending': 0, 'total_skipped': 0, 'total_vacation': 0,
+                },
+                'subscriptions': [],
+            })
 
         month_start = datetime.date(year, month, 1)
         month_end = datetime.date(year, month, calendar.monthrange(year, month)[1])

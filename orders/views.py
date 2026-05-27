@@ -739,23 +739,32 @@ class DriverViewSet(viewsets.ViewSet):
             active_route = Route.objects.filter(
                 Q(driver=user) | Q(additional_drivers=user),
                 is_completed=False
+            ).exclude(
+                status__in=['completed', 'stopped']
             ).distinct().order_by('delivery_date').first()
             
-            # Derive on_trip from the actual route state, not the stale DB flag
+            # Derive on_trip from the actual route state, falling back to driver profile if no active route is present
             on_trip = False
             route_data = None
             if active_route:
+                is_started = (
+                    active_route.started_at is not None and 
+                    not active_route.is_completed and 
+                    active_route.status not in ['completed', 'stopped']
+                )
                 route_data = {
                     'id': str(active_route.id),
                     'route_id': str(active_route.id),
                     'name': active_route.name,
                     'delivery_date': active_route.delivery_date,
                     'started_at': active_route.started_at,
-                    'is_started': active_route.started_at is not None
+                    'is_started': is_started
                 }
-                # Only consider the trip as started if the route has actually been started
-                if active_route.started_at is not None:
+                # Only consider the trip as started if the route has actually been started and is not completed/stopped
+                if is_started:
                     on_trip = True
+            elif driver_profile:
+                on_trip = driver_profile.on_trip
             
             # Sync the DB flag if it drifted out of sync
             if driver_profile and driver_profile.on_trip != on_trip:
@@ -787,6 +796,8 @@ class DriverViewSet(viewsets.ViewSet):
             route = Route.objects.filter(
                 Q(driver=user) | Q(additional_drivers=user),
                 is_completed=False
+            ).exclude(
+                status__in=['completed', 'stopped']
             ).distinct().prefetch_related('stops__order__customer').order_by('delivery_date').first()
             
             if not route:
