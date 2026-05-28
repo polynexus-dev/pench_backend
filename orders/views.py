@@ -29,9 +29,9 @@ class OrderViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         """
-        ERP users can do everything. Customers can only list and retrieve.
+        ERP users can do everything. Customers can list, retrieve, create, update, and destroy their own orders.
         """
-        if self.action in ["list", "retrieve"]:
+        if self.action in ["list", "retrieve", "create", "partial_update", "update", "destroy"]:
             return [IsAuthenticated()]
         # Management actions require ERP permissions
         return [IsERPUser(), HasGroupPermission()]
@@ -68,7 +68,45 @@ class OrderViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         """
         Supports creating multiple orders in one request.
+        For customers, we auto-fill and enforce that they only create orders for themselves.
+        Enforces that they cannot place a same-day order if today's delivery route has already departed (is in_progress or completed).
         """
+        user = request.user
+        is_customer = hasattr(user, "customer_profile") and user.customer_profile is not None
+
+        if is_customer:
+            import datetime
+            from rest_framework.exceptions import ValidationError
+            from routing.models import Route, RouteStatus
+            
+            data_list = request.data if isinstance(request.data, list) else [request.data]
+            for item in data_list:
+                date_str = item.get("scheduled_delivery_date")
+                if date_str:
+                    try:
+                        delivery_date = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
+                    except ValueError:
+                        continue
+                    
+                    if delivery_date == datetime.date.today():
+                        active_routes = Route.objects.filter(
+                            delivery_date=delivery_date,
+                            orders__customer=user.customer_profile,
+                            status__in=[RouteStatus.IN_PROGRESS, RouteStatus.COMPLETED]
+                        )
+                        if active_routes.exists():
+                            raise ValidationError(
+                                "Cannot place order for today: Your delivery route for today has already departed (in transit/completed)."
+                            )
+
+            if isinstance(request.data, list):
+                for item in request.data:
+                    item["customer"] = user.customer_profile.id
+            else:
+                if hasattr(request.data, "_mutable"):
+                    request.data._mutable = True
+                request.data["customer"] = user.customer_profile.id
+
         is_many = isinstance(request.data, list)
         if not is_many:
             return super().create(request, *args, **kwargs)
@@ -77,6 +115,79 @@ class OrderViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    def perform_create(self, serializer):
+        serializer.save()
+        orders = serializer.instance
+        if not isinstance(orders, list):
+            orders = [orders]
+
+        from orders.services.route_generator import add_order_to_active_route_if_pending
+        for order in orders:
+            try:
+                add_order_to_active_route_if_pending(order)
+            except Exception as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"Failed calling add_order_to_active_route_if_pending: {str(e)}")
+
+    def update(self, request, *args, **kwargs):
+        user = request.user
+        is_customer = hasattr(user, "customer_profile") and user.customer_profile is not None
+        if is_customer:
+            instance = self.get_object()
+            if instance.customer != user.customer_profile:
+                return Response(
+                    {"detail": "You do not have permission to modify this order."},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+            import datetime
+            from rest_framework.exceptions import ValidationError
+            from routing.models import Route, RouteStatus
+            
+            date_str = request.data.get("scheduled_delivery_date") or str(instance.scheduled_delivery_date)
+            if date_str:
+                try:
+                    if isinstance(date_str, str):
+                        delivery_date = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
+                    else:
+                        delivery_date = date_str
+                except ValueError:
+                    delivery_date = None
+                
+                if delivery_date == datetime.date.today():
+                    active_routes = Route.objects.filter(
+                        delivery_date=delivery_date,
+                        orders__customer=user.customer_profile,
+                        status__in=[RouteStatus.IN_PROGRESS, RouteStatus.COMPLETED]
+                    )
+                    if active_routes.exists():
+                        raise ValidationError(
+                            "Cannot update order for today: Your delivery route for today has already departed (in transit/completed)."
+                        )
+
+            if hasattr(request.data, "_mutable"):
+                request.data._mutable = True
+            request.data["customer"] = user.customer_profile.id
+        return super().update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        user = request.user
+        is_customer = hasattr(user, "customer_profile") and user.customer_profile is not None
+        if is_customer:
+            instance = self.get_object()
+            if instance.customer != user.customer_profile:
+                return Response(
+                    {"detail": "You do not have permission to delete this order."},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            if instance.status not in [OrderStatus.PENDING, OrderStatus.CONFIRMED]:
+                return Response(
+                    {"detail": "You cannot delete an order that has already been dispatched or delivered."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        return super().destroy(request, *args, **kwargs)
 
     @action(detail=False, methods=["post"], url_path="sync")
     def sync(self, request):
@@ -863,17 +974,35 @@ class DriverViewSet(viewsets.ViewSet):
 
             driver_profile = Driver.objects.filter(user=user).first()
 
-            # Find any active route (not completed) assigned to this driver (either primary or additional driver)
+            # Find the active route for this driver
+            # Priority: today's incomplete route first, then any other incomplete route
             from django.db.models import Q
 
+            today = _dt.date.today()
+
+            # 1. First look for today's incomplete route
             active_route = (
                 Route.objects.filter(
-                    Q(driver=user) | Q(additional_drivers=user), is_completed=False
+                    Q(driver=user) | Q(additional_drivers=user),
+                    is_completed=False,
+                    delivery_date=today,
                 )
                 .distinct()
-                .order_by("delivery_date")
+                .order_by("-created_at")
                 .first()
             )
+
+            # 2. Fallback: find any incomplete route (for routes without a date or future routes)
+            if not active_route:
+                active_route = (
+                    Route.objects.filter(
+                        Q(driver=user) | Q(additional_drivers=user),
+                        is_completed=False,
+                    )
+                    .distinct()
+                    .order_by("-delivery_date")
+                    .first()
+                )
 
             # Derive on_trip from the actual route state, not the stale DB flag
             on_trip = False

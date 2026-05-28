@@ -10,6 +10,7 @@ class UserSerializer(serializers.ModelSerializer):
     groups = serializers.SerializerMethodField()
     role = serializers.SerializerMethodField()
     user_permissions = serializers.SerializerMethodField()
+    has_password = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -31,6 +32,7 @@ class UserSerializer(serializers.ModelSerializer):
             "user_permissions",
             "is_superuser",
             "is_staff",
+            "has_password",
         ]
         read_only_fields = [
             "id",
@@ -41,6 +43,7 @@ class UserSerializer(serializers.ModelSerializer):
             "tenant_schema",
             "is_superuser",
             "is_staff",
+            "has_password",
         ]
 
     def get_customer_dashboard(self, obj):
@@ -108,6 +111,9 @@ class UserSerializer(serializers.ModelSerializer):
             for p in obj.user_permissions.all()
         ]
 
+    def get_has_password(self, obj):
+        return obj.has_usable_password()
+
     def to_representation(self, instance):
         ret = super().to_representation(instance)
         company_id = None
@@ -123,6 +129,22 @@ class UserSerializer(serializers.ModelSerializer):
             if city and city.company:
                 company_id = str(city.company.id)
                 company_name = city.company.name
+
+            # If user is a driver, fetch their profile details from the tenant schema
+            if instance.is_driver:
+                from django_tenants.utils import schema_context
+                try:
+                    with schema_context(instance.tenant_schema):
+                        from routing.models import Driver
+                        driver_profile = Driver.objects.filter(user=instance).first()
+                        if driver_profile:
+                            ret["vehicle_plate"] = driver_profile.vehicle_plate
+                            ret["vehicle_type"] = driver_profile.vehicle_type
+                            ret["warehouse_name"] = driver_profile.warehouse.name if driver_profile.warehouse else None
+                            ret["zone_name"] = driver_profile.zone.name if driver_profile.zone else None
+                except Exception:
+                    pass
+
         ret["company_id"] = company_id
         ret["company_name"] = company_name
         return ret
@@ -450,7 +472,24 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
 
 
 class SetPasswordSerializer(serializers.Serializer):
+    current_password = serializers.CharField(write_only=True, required=False, allow_blank=True)
     password = serializers.CharField(write_only=True, min_length=8)
+
+    def validate(self, attrs):
+        request = self.context.get("request")
+        if request and request.user:
+            user = request.user
+            if user.has_usable_password():
+                current_password = attrs.get("current_password")
+                if not current_password:
+                    raise serializers.ValidationError(
+                        {"current_password": "Current password is required."}
+                    )
+                if not user.check_password(current_password):
+                    raise serializers.ValidationError(
+                        {"current_password": "Incorrect current password."}
+                    )
+        return attrs
 
 
 class ForgotPasswordSerializer(serializers.Serializer):

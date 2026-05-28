@@ -25,23 +25,12 @@ class CleanSchema(Schema):
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-    # Delivery / EMS portal
-    path("api/ems/", include("routing.urls")),
-    # ERP portal
+    # ERP portal - public/shared endpoints only
     path(
         "api/erp/",
         include(
             [
                 path("tenants/", include("tenants.urls")),
-                path("", include("crm.urls")),
-                path("taxation/", include("taxation.urls")),
-                path("orders/", include("orders.urls")),
-                path("subscriptions/", include("subscriptions.urls")),
-                path("inventory/", include("inventory.urls")),
-                path("finance/", include("finance.urls")),
-                path("hr/", include("hr.urls")),
-                path("tracking/", include("tracking.urls")),
-                path("administration/", include("administration.urls")),
             ]
         ),
     ),

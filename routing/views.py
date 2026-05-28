@@ -34,6 +34,37 @@ class RouteViewSet(viewsets.ModelViewSet):
             ).distinct()
         return queryset
 
+    def perform_create(self, serializer):
+        """Auto-complete all previous incomplete routes for the driver when a new route is created."""
+        from django.db.models import Q
+        from django.utils import timezone
+
+        route = serializer.save()
+        driver = route.driver
+
+        if driver:
+            # Complete all previous incomplete routes for this driver
+            previous_routes = (
+                Route.objects.filter(
+                    Q(driver=driver) | Q(additional_drivers=driver),
+                    is_completed=False,
+                )
+                .exclude(id=route.id)
+                .distinct()
+            )
+            for prev_route in previous_routes:
+                prev_route.status = "completed"
+                prev_route.is_completed = True
+                prev_route.completed_at = timezone.now()
+                prev_route.save(
+                    update_fields=["status", "is_completed", "completed_at"]
+                )
+
+            # Reset driver profile
+            driver.on_trip = False
+            driver.is_available = True
+            driver.save(update_fields=["on_trip", "is_available"])
+
     @action(detail=True, methods=["post"], url_path="optimize")
     def optimize(self, request, pk=None):
         route = self.get_object()
@@ -173,7 +204,12 @@ class DailyReconciliationViewSet(viewsets.ModelViewSet):
 
 
 class ZoneViewSet(viewsets.ModelViewSet):
-    queryset = Zone.objects.select_related("assigned_driver")
     serializer_class = ZoneSerializer
     permission_classes = [IsAuthenticated]
     filterset_fields = ["is_active", "assigned_driver"]
+
+    def get_queryset(self):
+        from django.db import connection
+        if connection.schema_name == "public":
+            return Zone.objects.none()
+        return Zone.objects.select_related("assigned_driver")

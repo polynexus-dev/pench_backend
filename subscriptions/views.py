@@ -364,6 +364,13 @@ class SubscriptionViewSet(viewsets.ModelViewSet):
         from orders.models import Order, OrderStatus
 
         customer_id = request.query_params.get("customer_id")
+        user = request.user
+        if user and user.is_authenticated and user.is_customer:
+            from crm.models import Customer
+            customer_profile = Customer.objects.filter(user=user).first()
+            if customer_profile:
+                customer_id = str(customer_profile.id)
+
         if not customer_id:
             return Response(
                 {"detail": "customer_id query parameter is required."},

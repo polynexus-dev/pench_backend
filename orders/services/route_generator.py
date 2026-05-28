@@ -272,3 +272,89 @@ def regenerate_daily_routes_for_date(target_date):
             route.delete()
 
     return generate_daily_routes_for_date(target_date)
+
+
+def add_order_to_active_route_if_pending(order):
+    """
+    If a pending route exists for the order's customer's zone driver on the order's
+    delivery date, and the route has not started yet, automatically add the order
+    to the route and re-optimize the stops and geometry.
+    """
+    from orders.services.optimizer import optimize_route_ortools
+    from django.db import transaction
+
+    # 1. Resolve delivery date, customer zone, and driver
+    delivery_date = order.scheduled_delivery_date
+    if not delivery_date:
+        return
+
+    customer = getattr(order, "customer", None)
+    if not customer or not customer.zone:
+        return
+
+    driver_user = customer.zone.assigned_driver
+    if not driver_user:
+        return
+
+    # 2. Check if there is an existing, incomplete, unstarted route for this driver and date
+    route = Route.objects.filter(
+        driver=driver_user,
+        delivery_date=delivery_date,
+        is_completed=False,
+        started_at__isnull=True
+    ).first()
+
+    if not route:
+        return
+
+    # 3. Get all order IDs currently in the route stops, plus this new order ID
+    existing_order_ids = list(route.stops.values_list("order_id", flat=True))
+    
+    # If the order is already in the route stops, we don't need to do anything
+    if order.id in existing_order_ids:
+        return
+
+    all_order_ids = [str(oid) for oid in existing_order_ids] + [str(order.id)]
+
+    # 4. Resolve driver profile & warehouse location for pathfinder depot
+    driver_profile = getattr(driver_user, "driver_profile", None)
+    if not driver_profile:
+        from routing.models import Driver
+        driver_profile = Driver.objects.filter(user=driver_user).first()
+
+    warehouse_location = None
+    if driver_profile and driver_profile.warehouse:
+        warehouse = driver_profile.warehouse
+        if warehouse.latitude is not None and warehouse.longitude is not None:
+            warehouse_location = {
+                "longitude": float(warehouse.longitude),
+                "latitude": float(warehouse.latitude),
+            }
+
+    # 5. Optimize the updated set of orders
+    try:
+        optimized_orders, road_geometry = optimize_route_ortools(
+            all_order_ids, start_point=warehouse_location
+        )
+        
+        with transaction.atomic():
+            # Delete old stops for this route and recreate them in optimized order
+            route.stops.all().delete()
+            route.geometry = road_geometry
+            route.save(update_fields=["geometry"])
+            
+            stops = []
+            for index, opt_order in enumerate(optimized_orders):
+                stops.append(RouteStop(route=route, order=opt_order, sequence_number=index + 1))
+            RouteStop.objects.bulk_create(stops)
+            
+            # Log the change
+            DeliveryLog.objects.create(
+                action="Route Updated",
+                route=route,
+                order=order,
+                details=f"Automatically added order #{order.id} to route and re-optimized stops before route start.",
+            )
+    except Exception as e:
+        logger.error(f"Failed to automatically add order #{order.id} to route: {str(e)}")
+

@@ -164,3 +164,25 @@ class DeliveryLog(BaseModel):
 
     def __str__(self):
         return f"[{self.timestamp.strftime('%Y-%m-%d %H:%M:%S')}] {self.action}: {self.details[:50]}"
+
+
+from django.db.models.signals import post_save, post_delete
+from django.dispatch import receiver
+
+@receiver([post_save, post_delete], sender=RouteStop)
+def notify_route_stop_change(sender, instance, **kwargs):
+    if instance.route and instance.route.driver:
+        try:
+            from channels.layers import get_channel_layer
+            from asgiref.sync import async_to_sync
+            channel_layer = get_channel_layer()
+            if channel_layer:
+                async_to_sync(channel_layer.group_send)(
+                    f"driver_{instance.route.driver.id}",
+                    {
+                        "type": "route_updated",
+                        "route_id": str(instance.route.id)
+                    }
+                )
+        except Exception:
+            pass

@@ -226,10 +226,12 @@ def create_optimized_route(
         if driver_user:
             from orders.models import RouteStatus, OrderStatus, DeliveryLog
             from django.utils import timezone
+            from django.db.models import Q
 
             previous_active_routes = Route.objects.filter(
-                driver=driver_user, is_completed=False
-            )
+                Q(driver=driver_user) | Q(additional_drivers=driver_user),
+                is_completed=False,
+            ).distinct()
             for prev_route in previous_active_routes:
                 prev_route.status = RouteStatus.COMPLETED
                 prev_route.completed_at = timezone.now()

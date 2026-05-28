@@ -246,13 +246,16 @@ class SetPasswordView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
-        serializer = SetPasswordSerializer(data=request.data)
+        serializer = SetPasswordSerializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
 
         request.user.set_password(serializer.validated_data["password"])
         request.user.save()
 
-        return Response({"message": "Password set successfully."})
+        return Response({
+            "message": "Password set successfully.",
+            "user": UserSerializer(request.user).data
+        })
 
 
 class ForgotPasswordView(APIView):

@@ -15,6 +15,7 @@ if DEBUG:
         ".localhost",
         "nagpur.localhost",
         "pune.localhost",
+        "*",
     ]
 
 # ──────────────────────────────────────────────
@@ -123,7 +124,7 @@ MIDDLEWARE = [
     "core.middleware.TokenExpiryMiddleware",
 ]
 
-ROOT_URLCONF = "config.urls"
+ROOT_URLCONF = "config.urls_tenants"
 PUBLIC_SCHEMA_URLCONF = "config.urls"
 TENANT_URLCONF = "config.urls_tenants"
 

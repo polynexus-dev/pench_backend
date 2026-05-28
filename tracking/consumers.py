@@ -76,6 +76,11 @@ class TrackingConsumer(AsyncWebsocketConsumer):
                 )
             else:
                 await self.channel_layer.group_add("admins", self.channel_name)
+        else:
+            # Subscribe driver to their own personal group for route updates
+            await self.channel_layer.group_add(
+                f"driver_{self.user.id}", self.channel_name
+            )
 
         await self.accept()
         print("[WS Connect] ACCEPTED")
@@ -97,11 +102,16 @@ class TrackingConsumer(AsyncWebsocketConsumer):
                 )
 
     async def disconnect(self, close_code):
-        if hasattr(self, "user") and self.user.is_staff:
-            await self.channel_layer.group_discard("admins", self.channel_name)
-            if hasattr(self, "driver_id") and self.driver_id:
+        if hasattr(self, "user"):
+            if self.user.is_staff:
+                await self.channel_layer.group_discard("admins", self.channel_name)
+                if hasattr(self, "driver_id") and self.driver_id:
+                    await self.channel_layer.group_discard(
+                        f"driver_tracking_{self.driver_id}", self.channel_name
+                    )
+            else:
                 await self.channel_layer.group_discard(
-                    f"driver_tracking_{self.driver_id}", self.channel_name
+                    f"driver_{self.user.id}", self.channel_name
                 )
 
     async def receive(self, text_data):
@@ -165,6 +175,16 @@ class TrackingConsumer(AsyncWebsocketConsumer):
 
     async def broadcast_location(self, event):
         await self.send(text_data=json.dumps(event))
+
+    async def route_updated(self, event):
+        await self.send(
+            text_data=json.dumps(
+                {
+                    "type": "route_updated",
+                    "route_id": event.get("route_id"),
+                }
+            )
+        )
 
     def get_current_trail(self, user_id, active_route):
         """

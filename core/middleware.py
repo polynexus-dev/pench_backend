@@ -63,6 +63,25 @@ class TenantMiddleware:
         headers = dict(scope.get("headers", []))
         host = headers.get(b"host", b"").decode().split(":")[0]
 
+        # Extract tenant subdomain from query string if present
+        query_string = scope.get("query_string", b"").decode()
+        query_params = dict(
+            x.split("=") for x in query_string.split("&") if "=" in x
+        )
+        x_tenant = query_params.get("tenant")
+
+        if x_tenant:
+            x_tenant_clean = x_tenant.replace("_", "-")
+            host = f"{x_tenant_clean}.localhost"
+            print(f"[WS Tenant Override] Spoofed Host to: {host}")
+        else:
+            # Fallback to x-tenant header if present
+            x_tenant_header = headers.get(b"x-tenant", b"").decode()
+            if x_tenant_header:
+                x_tenant_header_clean = x_tenant_header.replace("_", "-")
+                host = f"{x_tenant_header_clean}.localhost"
+                print(f"[WS Tenant Header Override] Spoofed Host to: {host}")
+
         print(f"[WS Tenant] Host Header: {host}")
 
         tenant = await self.get_tenant(host)
@@ -103,6 +122,19 @@ class LocalDomainAutoRegisterMiddleware:
         from django.db import connection
         from django.conf import settings
 
+        # Check for custom X-Tenant header to spoof the host for django-tenants
+        x_tenant = request.headers.get("X-Tenant")
+        if x_tenant:
+            # Replace underscores with hyphens to satisfy RFC 1034/1035 constraints (no underscores in domains)
+            x_tenant_clean = x_tenant.replace("_", "-")
+            port_suffix = ""
+            host_header = request.META.get("HTTP_HOST", "")
+            if ":" in host_header:
+                port_suffix = ":" + host_header.split(":")[1]
+            spoofed_host = f"{x_tenant_clean}.localhost{port_suffix}"
+            request.META["HTTP_HOST"] = spoofed_host
+            print(f"[X-Tenant Override] Spoofed HTTP_HOST to: {spoofed_host}")
+
         host = request.get_host().split(":")[0]
 
         # Only allow auto-registration in local or development host environments
@@ -116,8 +148,14 @@ class LocalDomainAutoRegisterMiddleware:
         if not is_local:
             return self.get_response(request)
 
-        # 1. On-the-fly self-healing for city subdomains
-        if host and not Domain.objects.filter(domain=host).exists():
+        # Check if the host is a raw IPv4 address
+        is_ip = False
+        parts = host.split(".")
+        if len(parts) == 4 and all(p.isdigit() for p in parts):
+            is_ip = True
+
+        # 1. On-the-fly self-healing for city subdomains (skip for raw IP hosts)
+        if host and not is_ip and not Domain.objects.filter(domain=host).exists():
             parts = host.split(".")
             if len(parts) > 1:
                 subdomain_candidate = parts[0]
@@ -149,8 +187,8 @@ class LocalDomainAutoRegisterMiddleware:
                     pass
 
         # 2. Base IP/Domain logic: Only auto-register the primary entry points to Public
-        # Don't auto-register subdomains (which belong to cities)
-        is_potential_subdomain = host.count(".") > (4 if "nip.io" in host else 1)
+        # Don't auto-register subdomains (which belong to cities), unless it's a raw IP address
+        is_potential_subdomain = False if is_ip else (host.count(".") > (4 if "nip.io" in host else 1))
 
         if (
             host

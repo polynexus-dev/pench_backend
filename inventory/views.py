@@ -40,6 +40,13 @@ class ProductViewSet(viewsets.ModelViewSet):
     required_groups = ["Inventory_Managers", "ERP_Admins"]
     search_fields = ["name", "sku"]
 
+    def get_permissions(self):
+        if self.action in ["list", "retrieve"]:
+            from rest_framework.permissions import IsAuthenticated
+            return [IsAuthenticated()]
+        return super().get_permissions()
+
+
     def create(self, request, *args, **kwargs):
         """
         Supports creating multiple products in a single POST request.
