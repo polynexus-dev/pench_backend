@@ -343,7 +343,7 @@ class OrderViewSet(viewsets.ModelViewSet):
             from notifications.services import send_push_notification
             if order.customer and order.customer.user:
                 title = "🎉 Order Delivered!"
-                body = f"Your order #{order.id} has been successfully delivered. Thank you!"
+                body = "Woohoo! Your order has been delivered fresh to your doorstep. Enjoy! 🥛✨"
                 send_push_notification(
                     user=order.customer.user,
                     title=title,
@@ -410,7 +410,7 @@ class OrderViewSet(viewsets.ModelViewSet):
             from notifications.services import send_push_notification
             if order.customer and order.customer.user:
                 title = "⚠️ Delivery Attempt Failed"
-                body = f"We were unable to deliver your order #{order.id}. It has been marked as undelivered."
+                body = "We missed you today! We couldn't deliver your order, but we will try again on our next run. 🚚"
                 send_push_notification(
                     user=order.customer.user,
                     title=title,
@@ -453,7 +453,7 @@ class OrderViewSet(viewsets.ModelViewSet):
             try:
                 if order.customer and order.customer.user:
                     title = "🎉 Order Delivered!"
-                    body = f"Your order #{order.id} has been successfully delivered. Thank you!"
+                    body = "Woohoo! Your order has been delivered fresh to your doorstep. Enjoy! 🥛✨"
                     send_push_notification(
                         user=order.customer.user,
                         title=title,

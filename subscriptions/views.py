@@ -73,8 +73,8 @@ class SubscriptionViewSet(viewsets.ModelViewSet):
         try:
             from notifications.services import send_push_notification
             if subscription.customer and subscription.customer.user:
-                title = "⏸️ Subscription Paused"
-                body = f"Your subscription has been paused from {pause_start} to {pause_end}."
+                title = "⏸️ Vacation Mode: Active"
+                body = f"Your subscription is now paused from {pause_start} to {pause_end}. We'll miss you, see you soon! ✈️"
                 send_push_notification(
                     user=subscription.customer.user,
                     title=title,
@@ -105,8 +105,8 @@ class SubscriptionViewSet(viewsets.ModelViewSet):
         try:
             from notifications.services import send_push_notification
             if subscription.customer and subscription.customer.user:
-                title = "▶️ Subscription Resumed"
-                body = "Your subscription has been resumed successfully."
+                title = "▶️ Welcome Back!"
+                body = "Your subscription has been resumed. Your fresh deliveries start again! 🥛🎉"
                 send_push_notification(
                     user=subscription.customer.user,
                     title=title,

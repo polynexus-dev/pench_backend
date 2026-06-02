@@ -98,7 +98,7 @@ def start_trip_for_route(route_id, driver_user):
                 order = stop.order
                 if order.customer and order.customer.user:
                     title = "🚚 Out for Delivery!"
-                    body = f"Your order #{order.id} from Pench is on its way with the driver."
+                    body = "Get ready! Your Pench order is out for delivery and heading your way! 🚀"
                     send_push_notification(
                         user=order.customer.user,
                         title=title,
@@ -163,7 +163,7 @@ def stop_trip_for_route(route_id, driver_user):
                 order = stop.order
                 if order.customer and order.customer.user:
                     title = "⚠️ Delivery Attempt Failed"
-                    body = f"We were unable to deliver your order #{order.id} today. It has been marked as undelivered."
+                    body = "We missed you today! We couldn't deliver your order, but we will try again on our next run. 🚚"
                     send_push_notification(
                         user=order.customer.user,
                         title=title,
@@ -233,7 +233,7 @@ def auto_stop_active_trips_at_noon():
                     order = stop.order
                     if order.customer and order.customer.user:
                         title = "⚠️ Delivery Attempt Failed"
-                        body = f"We were unable to deliver your order #{order.id} today. It has been marked as undelivered."
+                        body = "We missed you today! We couldn't deliver your order, but we will try again on our next run. 🚚"
                         send_push_notification(
                             user=order.customer.user,
                             title=title,
