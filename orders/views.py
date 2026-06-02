@@ -510,6 +510,25 @@ class OrderViewSet(viewsets.ModelViewSet):
         except Exception as e:
             print(f"[Delivery Push Notification Error] {e}")
 
+        # Send push notification to the driver
+        try:
+            from notifications.services import send_push_notification
+            if hasattr(order, 'route_stop') and order.route_stop and order.route_stop.route:
+                driver_user = order.route_stop.route.driver
+                if driver_user:
+                    title = "📦 Delivery Confirmed!"
+                    customer_name = order.customer.name if order.customer else "Customer"
+                    body = f"Great work! Order delivered successfully to {customer_name}. 🌟"
+                    send_push_notification(
+                        user=driver_user,
+                        title=title,
+                        body=body,
+                        order=order,
+                        notification_type='order_status'
+                    )
+        except Exception as e:
+            print(f"[Driver Delivery Push Notification Error] {e}")
+
         # Broadcast real-time delivery notification to admins
         try:
             from asgiref.sync import async_to_sync
