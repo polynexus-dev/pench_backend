@@ -338,6 +338,22 @@ class OrderViewSet(viewsets.ModelViewSet):
                             user=user_recorded
                         )
 
+        # Send push notification to the customer
+        try:
+            from notifications.services import send_push_notification
+            if order.customer and order.customer.user:
+                title = "🎉 Order Delivered!"
+                body = f"Your order #{order.id} has been successfully delivered. Thank you!"
+                send_push_notification(
+                    user=order.customer.user,
+                    title=title,
+                    body=body,
+                    order=order,
+                    notification_type='order_status'
+                )
+        except Exception as e:
+            print(f"[Delivery Push Notification Error] {e}")
+
         # Broadcast real-time delivery notification to admins
         try:
             from asgiref.sync import async_to_sync
@@ -389,6 +405,22 @@ class OrderViewSet(viewsets.ModelViewSet):
                 order.pod_longitude = pod_lon
             order.save(update_fields=['status', 'delivered_at', 'pod_image', 'pod_latitude', 'pod_longitude'])
             
+        # Send push notification to customer
+        try:
+            from notifications.services import send_push_notification
+            if order.customer and order.customer.user:
+                title = "⚠️ Delivery Attempt Failed"
+                body = f"We were unable to deliver your order #{order.id}. It has been marked as undelivered."
+                send_push_notification(
+                    user=order.customer.user,
+                    title=title,
+                    body=body,
+                    order=order,
+                    notification_type='order_status'
+                )
+        except Exception as e:
+            print(f"[Undelivered Push Notification Error] {e}")
+            
         return Response(OrderSerializer(order).data)
 
     @action(detail=False, methods=['post'], url_path='mark-all-delivered')
@@ -409,8 +441,29 @@ class OrderViewSet(viewsets.ModelViewSet):
         if delivery_date:
             orders = orders.filter(scheduled_delivery_date=delivery_date)
             
+        # We need to fetch the customer/user for each order before we update them so we can send push notifications
+        orders_to_notify = list(orders.select_related('customer__user'))
+        
         from django.utils import timezone
         count = orders.update(status=OrderStatus.DELIVERED, delivered_at=timezone.now())
+        
+        # Send push notifications
+        from notifications.services import send_push_notification
+        for order in orders_to_notify:
+            try:
+                if order.customer and order.customer.user:
+                    title = "🎉 Order Delivered!"
+                    body = f"Your order #{order.id} has been successfully delivered. Thank you!"
+                    send_push_notification(
+                        user=order.customer.user,
+                        title=title,
+                        body=body,
+                        order=order,
+                        notification_type='order_status'
+                    )
+            except Exception as e:
+                print(f"[Bulk Delivery Push Notification Error] {e}")
+                
         return Response({'detail': f'Marked {count} orders as delivered.'})
 
 

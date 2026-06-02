@@ -87,11 +87,25 @@ def start_trip_for_route(route_id, driver_user):
                 driver_profile.save(update_fields=['is_available', 'on_trip'])
 
         # Mark all pending/confirmed orders in this route as IN_TRANSIT
-        stops = route.stops.select_related('order')
+        from notifications.services import send_push_notification
+        stops = route.stops.select_related('order__customer__user')
         for stop in stops:
             if stop.order.status in [OrderStatus.PENDING, OrderStatus.CONFIRMED]:
                 stop.order.status = OrderStatus.IN_TRANSIT
                 stop.order.save(update_fields=['status'])
+                
+                # Send out-for-delivery push notification
+                order = stop.order
+                if order.customer and order.customer.user:
+                    title = "🚚 Out for Delivery!"
+                    body = f"Your order #{order.id} from Pench is on its way with the driver."
+                    send_push_notification(
+                        user=order.customer.user,
+                        title=title,
+                        body=body,
+                        order=order,
+                        notification_type='order_status'
+                    )
 
         DeliveryLog.objects.create(
             action="Trip Started",
@@ -135,7 +149,8 @@ def stop_trip_for_route(route_id, driver_user):
                 driver_profile.save(update_fields=['is_available', 'on_trip'])
 
         # Set any non-delivered, non-cancelled orders inside this route to UNDELIVERED
-        stops = route.stops.select_related('order')
+        from notifications.services import send_push_notification
+        stops = route.stops.select_related('order__customer__user')
         undelivered_count = 0
         for stop in stops:
             if stop.order.status in [OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.IN_TRANSIT]:
@@ -143,6 +158,19 @@ def stop_trip_for_route(route_id, driver_user):
                 stop.order.delivered_at = timezone.now()
                 stop.order.save(update_fields=['status', 'delivered_at'])
                 undelivered_count += 1
+
+                # Send undelivered attempt push notification
+                order = stop.order
+                if order.customer and order.customer.user:
+                    title = "⚠️ Delivery Attempt Failed"
+                    body = f"We were unable to deliver your order #{order.id} today. It has been marked as undelivered."
+                    send_push_notification(
+                        user=order.customer.user,
+                        title=title,
+                        body=body,
+                        order=order,
+                        notification_type='order_status'
+                    )
 
                 DeliveryLog.objects.create(
                     action="Order Force Undelivered",
@@ -192,13 +220,27 @@ def auto_stop_active_trips_at_noon():
                     driver_profile.save(update_fields=['is_available', 'on_trip'])
 
             # Update remaining orders to undelivered
-            stops = route.stops.select_related('order')
+            from notifications.services import send_push_notification
+            stops = route.stops.select_related('order__customer__user')
             for stop in stops:
                 if stop.order.status in [OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.IN_TRANSIT]:
                     stop.order.status = OrderStatus.UNDELIVERED
                     stop.order.delivered_at = timezone.now()
                     stop.order.save(update_fields=['status', 'delivered_at'])
                     orders_affected += 1
+
+                    # Send undelivered attempt push notification
+                    order = stop.order
+                    if order.customer and order.customer.user:
+                        title = "⚠️ Delivery Attempt Failed"
+                        body = f"We were unable to deliver your order #{order.id} today. It has been marked as undelivered."
+                        send_push_notification(
+                            user=order.customer.user,
+                            title=title,
+                            body=body,
+                            order=order,
+                            notification_type='order_status'
+                        )
 
                     DeliveryLog.objects.create(
                         action="Noon Cutoff Stop",

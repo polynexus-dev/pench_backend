@@ -69,6 +69,22 @@ class SubscriptionViewSet(viewsets.ModelViewSet):
         subscription.pause_updated_by = request.user
         subscription.save()
 
+        # Send pause notification to customer
+        try:
+            from notifications.services import send_push_notification
+            if subscription.customer and subscription.customer.user:
+                title = "⏸️ Subscription Paused"
+                body = f"Your subscription has been paused from {pause_start} to {pause_end}."
+                send_push_notification(
+                    user=subscription.customer.user,
+                    title=title,
+                    body=body,
+                    subscription=subscription,
+                    notification_type='sub_status'
+                )
+        except Exception as e:
+            print(f"[Subscription Pause Push Notification Error] {e}")
+
         return Response(SubscriptionSerializer(subscription).data)
 
     @action(detail=True, methods=['post'], url_path='vacation')
@@ -84,6 +100,23 @@ class SubscriptionViewSet(viewsets.ModelViewSet):
         subscription.pause_end = None
         subscription.pause_updated_by = request.user
         subscription.save()
+
+        # Send resume notification to customer
+        try:
+            from notifications.services import send_push_notification
+            if subscription.customer and subscription.customer.user:
+                title = "▶️ Subscription Resumed"
+                body = "Your subscription has been resumed successfully."
+                send_push_notification(
+                    user=subscription.customer.user,
+                    title=title,
+                    body=body,
+                    subscription=subscription,
+                    notification_type='sub_status'
+                )
+        except Exception as e:
+            print(f"[Subscription Resume Push Notification Error] {e}")
+
         return Response(SubscriptionSerializer(subscription).data)
 
     @action(detail=True, methods=['post'], url_path='update-quantity')

@@ -66,6 +66,7 @@ TENANT_APPS = [
     'tracking',
     'administration',
     'django_celery_beat',
+    'notifications',
 ]
 
 INSTALLED_APPS = []
@@ -256,6 +257,19 @@ CSRF_COOKIE_SECURE = config('CSRF_COOKIE_SECURE', default=False, cast=bool)
 SECURE_PROXY_SSL_HEADER_RAW = config('SECURE_PROXY_SSL_HEADER', default='')
 if SECURE_PROXY_SSL_HEADER_RAW:
     SECURE_PROXY_SSL_HEADER = tuple(SECURE_PROXY_SSL_HEADER_RAW.split(','))
+
+# Firebase Configuration
+FIREBASE_TYPE = config('FIREBASE_TYPE', default='service_account')
+FIREBASE_PROJECT_ID = config('FIREBASE_PROJECT_ID', default='')
+FIREBASE_PRIVATE_KEY_ID = config('FIREBASE_PRIVATE_KEY_ID', default='')
+FIREBASE_PRIVATE_KEY = config('FIREBASE_PRIVATE_KEY', default='')
+FIREBASE_CLIENT_EMAIL = config('FIREBASE_CLIENT_EMAIL', default='')
+FIREBASE_CLIENT_ID = config('FIREBASE_CLIENT_ID', default='')
+FIREBASE_AUTH_URI = config('FIREBASE_AUTH_URI', default='https://accounts.google.com/o/oauth2/auth')
+FIREBASE_TOKEN_URI = config('FIREBASE_TOKEN_URI', default='https://oauth2.googleapis.com/token')
+FIREBASE_AUTH_PROVIDER_CERT_URL = config('FIREBASE_AUTH_PROVIDER_CERT_URL', default='https://www.googleapis.com/oauth2/v1/certs')
+FIREBASE_CLIENT_CERT_URL = config('FIREBASE_CLIENT_CERT_URL', default='')
+FIREBASE_UNIVERSE_DOMAIN = config('FIREBASE_UNIVERSE_DOMAIN', default='googleapis.com')
 
 try:
     from .local_settings import *
