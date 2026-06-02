@@ -5,6 +5,7 @@ from django.utils import timezone
 
 from orders.models import Route, RouteStatus, RouteStop, Order, OrderStatus, DeliveryLog
 from routing.models import Driver
+from notifications.services import send_push_notification
 
 logger = logging.getLogger(__name__)
 
@@ -112,6 +113,26 @@ def start_trip_for_route(route_id, driver_user):
             if stop.order.status in [OrderStatus.PENDING, OrderStatus.CONFIRMED]:
                 stop.order.status = OrderStatus.IN_TRANSIT
                 stop.order.save(update_fields=["status"])
+
+                # Send out-for-delivery push notification
+                order = stop.order
+                if order.customer and order.customer.user:
+                    title = "🚚 Out for Delivery!"
+                    body = "Exciting news! Your Pench order is on its way. See you soon! 🚚✨"
+                    try:
+                        send_push_notification(
+                            user=order.customer.user,
+                            title=title,
+                            body=body,
+                            order=order,
+                            notification_type='order_status'
+                        )
+                    except Exception as e:
+                        logger.error(
+                            "Failed to send dispatch notification for order %s: %s",
+                            order.id,
+                            e,
+                        )
 
         DeliveryLog.objects.create(
             action="Trip Started",

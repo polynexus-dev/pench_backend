@@ -73,6 +73,8 @@ class RequestOTPView(APIView):
         serializer = RequestOTPSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         phone = serializer.validated_data["phone"]
+        raw_phone = phone
+        last_10 = phone[-10:] if len(phone) >= 10 else phone
 
         # 1. Check if User already exists in Public Schema
         user = User.objects.filter(phone=phone).first()
@@ -137,6 +139,8 @@ class LoginOTPView(APIView):
         serializer.is_valid(raise_exception=True)
         phone = serializer.validated_data["phone"]
         code = serializer.validated_data["code"]
+        raw_phone = phone
+        last_10 = phone[-10:] if len(phone) >= 10 else phone
 
         # Validate OTP
         otp = OTP.objects.filter(
@@ -273,6 +277,8 @@ class ForgotPasswordView(APIView):
         serializer = ForgotPasswordSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         phone = serializer.validated_data["phone"]
+        raw_phone = phone
+        last_10 = phone[-10:] if len(phone) >= 10 else phone
 
         # 1. Check if User already exists in Public Schema
         user = User.objects.filter(phone=phone).first()

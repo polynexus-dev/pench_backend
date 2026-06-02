@@ -573,6 +573,22 @@ class OrderViewSet(viewsets.ModelViewSet):
                 ]
             )
 
+        # Send push notification to the customer
+        try:
+            from notifications.services import send_push_notification
+            if order.customer and order.customer.user:
+                title = "⚠️ Delivery Attempt Failed"
+                body = "We missed you today! We couldn't deliver your order, but we'll try again on our next run. 🚚"
+                send_push_notification(
+                    user=order.customer.user,
+                    title=title,
+                    body=body,
+                    order=order,
+                    notification_type='order_status'
+                )
+        except Exception as e:
+            print(f"[Delivery Attempt Failed Push Notification Error] {e}")
+
         return Response(OrderSerializer(order).data)
 
     @action(detail=False, methods=["post"], url_path="mark-all-delivered")
@@ -607,7 +623,34 @@ class OrderViewSet(viewsets.ModelViewSet):
 
         from django.utils import timezone
 
-        count = orders.update(status=OrderStatus.DELIVERED, delivered_at=timezone.now())
+        # Load the orders to send notifications
+        orders_to_notify = list(orders.select_related("customer__user"))
+
+        count = 0
+        from django.db import transaction
+        with transaction.atomic():
+            for order in orders_to_notify:
+                order.status = OrderStatus.DELIVERED
+                order.delivered_at = timezone.now()
+                order.save(update_fields=["status", "delivered_at"])
+                count += 1
+
+                # Send push notification
+                try:
+                    from notifications.services import send_push_notification
+                    if order.customer and order.customer.user:
+                        title = "🎉 Order Delivered!"
+                        body = "Woohoo! Your order has been delivered fresh to your doorstep. Enjoy! 🥛✨"
+                        send_push_notification(
+                            user=order.customer.user,
+                            title=title,
+                            body=body,
+                            order=order,
+                            notification_type='order_status'
+                        )
+                except Exception as e:
+                    print(f"[Delivery Push Notification Error] {e}")
+
         return Response({"detail": f"Marked {count} orders as delivered."})
 
 
