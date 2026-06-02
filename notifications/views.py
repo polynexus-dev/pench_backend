@@ -59,14 +59,14 @@ class NotificationListView(generics.ListAPIView):
     serializer_class = NotificationSerializer
 
     def get_queryset(self):
-        return Notification.objects.filter(recipient=self.request.user)
+        return Notification.objects.filter(recipient_id=self.request.user.id)
 
 
 class MarkReadView(APIView):
     permission_classes = [IsAuthenticated]
 
     def patch(self, request, pk):
-        notif = Notification.objects.filter(pk=pk, recipient=request.user).first()
+        notif = Notification.objects.filter(pk=pk, recipient_id=request.user.id).first()
         if not notif:
             return Response({'detail': 'Not found.'}, status=404)
         notif.is_read = True
@@ -79,7 +79,7 @@ class MarkAllReadView(APIView):
 
     def patch(self, request):
         count = Notification.objects.filter(
-            recipient=request.user, is_read=False
+            recipient_id=request.user.id, is_read=False
         ).update(is_read=True)
         return Response({'detail': f'{count} notifications marked as read.'})
 
@@ -103,11 +103,11 @@ class SaveFCMTokenView(APIView):
 
         obj, created = FCMToken.objects.get_or_create(
             token=token,
-            defaults={'user': request.user}
+            defaults={'user_id': request.user.id}
         )
         # If token exists but belongs to another user, re-assign (device switch)
-        if not created and obj.user != request.user:
-            obj.user = request.user
+        if not created and obj.user_id != request.user.id:
+            obj.user_id = request.user.id
             obj.save()
 
         return Response({'success': True, 'id': str(obj.id)}, status=200)
@@ -121,7 +121,7 @@ class ListFCMTokensView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        tokens = FCMToken.objects.filter(user=request.user)
+        tokens = FCMToken.objects.filter(user_id=request.user.id)
         return Response({'tokens': [t.token for t in tokens]})
 
 
