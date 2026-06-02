@@ -4,7 +4,7 @@ import sys
 
 # Set up Django environment
 sys.path.append(os.getcwd())
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 django.setup()
 
 from tenants.models import City, Domain, Company
@@ -16,36 +16,39 @@ print("=== STARTING SYSTEM INITIALIZATION ===")
 
 # 1. Create Company
 company, created = Company.objects.get_or_create(
-    code='polynexus',
-    defaults={'name': 'Polynexus Dev', 'is_active': True}
+    code="polynexus", defaults={"name": "Polynexus Dev", "is_active": True}
 )
 print(f"Company polynexus: {'CREATED' if created else 'EXISTS'}")
 
 # 2. Create Public Tenant
-public_tenant = City.objects.filter(schema_name='public').first()
+public_tenant = City.objects.filter(schema_name="public").first()
 if not public_tenant:
     public_tenant = City.objects.create(
-        schema_name='public',
-        name='Public',
-        state='National',
-        code='pub',
+        schema_name="public",
+        name="Public",
+        state="National",
+        code="pub",
         company=company,
-        is_active=True
+        is_active=True,
     )
     print("Created public tenant")
 else:
     print("Public tenant already exists")
 
 # 3. Create Public Domains
-Domain.objects.get_or_create(domain='localhost', defaults={'tenant': public_tenant, 'is_primary': True})
-Domain.objects.get_or_create(domain='127.0.0.1', defaults={'tenant': public_tenant, 'is_primary': False})
+Domain.objects.get_or_create(
+    domain="localhost", defaults={"tenant": public_tenant, "is_primary": True}
+)
+Domain.objects.get_or_create(
+    domain="127.0.0.1", defaults={"tenant": public_tenant, "is_primary": False}
+)
 print("Public domains registered")
 
 # 4. Create Tenant Cities (schemas)
 tenants_to_create = [
-    ('nagpur', 'Nagpur', 'nagpur.localhost', 'MH', 'NAG'),
-    ('pench-nagpur', 'Pench Nagpur', 'pench-nagpur.localhost', 'MH', 'PNAG'),
-    ('pune', 'Pune', 'pune.localhost', 'MH', 'PUN')
+    ("nagpur", "Nagpur", "nagpur.localhost", "MH", "NAG"),
+    ("pench-nagpur", "Pench Nagpur", "pench-nagpur.localhost", "MH", "PNAG"),
+    ("pune", "Pune", "pune.localhost", "MH", "PUN"),
 ]
 
 for schema_name, name, domain_name, state, code in tenants_to_create:
@@ -58,7 +61,7 @@ for schema_name, name, domain_name, state, code in tenants_to_create:
             state=state,
             code=code,
             company=company,
-            is_active=True
+            is_active=True,
         )
         print(f"Tenant schema '{schema_name}' created successfully")
     else:
@@ -66,20 +69,19 @@ for schema_name, name, domain_name, state, code in tenants_to_create:
 
     # Register domain for tenant
     Domain.objects.get_or_create(
-        domain=domain_name,
-        defaults={'tenant': tenant, 'is_primary': True}
+        domain=domain_name, defaults={"tenant": tenant, "is_primary": True}
     )
     # Also register extra local test domains
     Domain.objects.get_or_create(
         domain=f"{schema_name}-new.localhost",
-        defaults={'tenant': tenant, 'is_primary': False}
+        defaults={"tenant": tenant, "is_primary": False},
     )
     print(f"Domains registered for '{schema_name}'")
 
 # 5. Create Superuser in public schema (accounts app is shared)
-admin_username = 'admin'
-admin_email = 'admin@dairy.com'
-admin_password = 'admin' # The password you use to login in the local front-end
+admin_username = "admin"
+admin_email = "admin@dairy.com"
+admin_password = "admin"  # The password you use to login in the local front-end
 
 admin_user = User.objects.filter(username=admin_username).first()
 if not admin_user:
@@ -88,10 +90,10 @@ if not admin_user:
         username=admin_username,
         email=admin_email,
         password=admin_password,
-        first_name='Super',
-        last_name='Admin',
-        phone='9999999999',
-        is_erp_user=True
+        first_name="Super",
+        last_name="Admin",
+        phone="9999999999",
+        is_erp_user=True,
     )
     print("Superuser created successfully!")
 else:

@@ -19,7 +19,11 @@ def provision_city_schema_task(self, city_id: str):
         logger.error("provision_city_schema_task: City %s not found.", city_id)
         return
 
-    logger.info("Starting background schema provisioning for City: %s (%s)", city.name, city.schema_name)
+    logger.info(
+        "Starting background schema provisioning for City: %s (%s)",
+        city.name,
+        city.schema_name,
+    )
 
     try:
         # Create database schema and run all migrations
@@ -29,14 +33,22 @@ def provision_city_schema_task(self, city_id: str):
         city.is_active = True
         city.save()
 
-        logger.info("Successfully provisioned schema %s for City %s", city.schema_name, city.name)
+        logger.info(
+            "Successfully provisioned schema %s for City %s",
+            city.schema_name,
+            city.name,
+        )
     except Exception as e:
-        logger.exception("Error provisioning schema %s for City %s", city.schema_name, city.name)
+        logger.exception(
+            "Error provisioning schema %s for City %s", city.schema_name, city.name
+        )
         try:
             # Retry once on failure
             raise self.retry(exc=e)
         except self.MaxRetriesExceededError:
-            logger.error("Max retries exceeded for provisioning City %s schema", city.name)
+            logger.error(
+                "Max retries exceeded for provisioning City %s schema", city.name
+            )
             # Ensure it remains is_active = False so admins know it failed
             city.is_active = False
             city.save()

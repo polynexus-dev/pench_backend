@@ -27,88 +27,50 @@ if logistics_folder:
             break
 
 submit_undelivered_request = {
-  "name": "POST Submit Undelivered",
-  "request": {
-    "method": "POST",
-    "header": [
-      {
-        "key": "Authorization",
-        "value": "Bearer {{access_token}}"
-      }
-    ],
-    "body": {
-      "mode": "formdata",
-      "formdata": [
-        {
-          "key": "pod_image",
-          "type": "file",
-          "src": []
+    "name": "POST Submit Undelivered",
+    "request": {
+        "method": "POST",
+        "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+        "body": {
+            "mode": "formdata",
+            "formdata": [
+                {"key": "pod_image", "type": "file", "src": []},
+                {"key": "pod_latitude", "value": "21.1458", "type": "text"},
+                {"key": "pod_longitude", "value": "79.0882", "type": "text"},
+            ],
         },
-        {
-          "key": "pod_latitude",
-          "value": "21.1458",
-          "type": "text"
+        "url": {
+            "raw": "{{city_url}}/api/erp/orders/driver/{{last_id}}/submit-undelivered/",
+            "host": ["{{city_url}}"],
+            "path": [
+                "api",
+                "erp",
+                "orders",
+                "driver",
+                "{{last_id}}",
+                "submit-undelivered",
+            ],
         },
-        {
-          "key": "pod_longitude",
-          "value": "79.0882",
-          "type": "text"
-        }
-      ]
     },
-    "url": {
-      "raw": "{{city_url}}/api/erp/orders/driver/{{last_id}}/submit-undelivered/",
-      "host": [
-        "{{city_url}}"
-      ],
-      "path": [
-        "api",
-        "erp",
-        "orders",
-        "driver",
-        "{{last_id}}",
-        "submit-undelivered"
-      ]
-    }
-  },
-  "response": []
+    "response": [],
 }
 
 mark_undelivered_request = {
-  "name": "POST Mark Undelivered",
-  "request": {
-    "method": "POST",
-    "header": [
-      {
-        "key": "Authorization",
-        "value": "Bearer {{access_token}}"
-      }
-    ],
-    "body": {
-      "mode": "formdata",
-      "formdata": [
-        {
-          "key": "pod_image",
-          "type": "file",
-          "src": []
-        }
-      ]
+    "name": "POST Mark Undelivered",
+    "request": {
+        "method": "POST",
+        "header": [{"key": "Authorization", "value": "Bearer {{access_token}}"}],
+        "body": {
+            "mode": "formdata",
+            "formdata": [{"key": "pod_image", "type": "file", "src": []}],
+        },
+        "url": {
+            "raw": "{{city_url}}/api/erp/orders/{{last_id}}/mark-undelivered/",
+            "host": ["{{city_url}}"],
+            "path": ["api", "erp", "orders", "{{last_id}}", "mark-undelivered"],
+        },
     },
-    "url": {
-      "raw": "{{city_url}}/api/erp/orders/{{last_id}}/mark-undelivered/",
-      "host": [
-        "{{city_url}}"
-      ],
-      "path": [
-        "api",
-        "erp",
-        "orders",
-        "{{last_id}}",
-        "mark-undelivered"
-      ]
-    }
-  },
-  "response": []
+    "response": [],
 }
 
 injected_driver = False
@@ -116,14 +78,18 @@ injected_orders = False
 
 if driver_folder:
     driver_folder.setdefault("item", []).append(submit_undelivered_request)
-    print("[SUCCESS] Injected 'POST Submit Undelivered' to '00. SPECIAL: Driver Mobile App'")
+    print(
+        "[SUCCESS] Injected 'POST Submit Undelivered' to '00. SPECIAL: Driver Mobile App'"
+    )
     injected_driver = True
 else:
     print("[ERROR] Driver Mobile App folder not found!")
 
 if orders_folder:
     orders_folder.setdefault("item", []).append(mark_undelivered_request)
-    print("[SUCCESS] Injected 'POST Mark Undelivered' to '05. Logistics & Route Optimization / Orders (Order)'")
+    print(
+        "[SUCCESS] Injected 'POST Mark Undelivered' to '05. Logistics & Route Optimization / Orders (Order)'"
+    )
     injected_orders = True
 else:
     print("[ERROR] Orders (Order) folder not found!")

@@ -12,9 +12,9 @@ from tenants.models import City
 User = get_user_model()
 ACTIVE_SCHEMA = "pench-nagpur"
 
-print("="*60)
+print("=" * 60)
 print(f"CREATING TEST USERS IN SCHEMA: {ACTIVE_SCHEMA}")
-print("="*60)
+print("=" * 60)
 
 try:
     city = City.objects.get(schema_name=ACTIVE_SCHEMA)
@@ -39,15 +39,17 @@ if city:
                 "phone": "+919000000001",
                 "is_erp_user": True,
                 "is_staff": True,
-                "is_active": True
-            }
+                "is_active": True,
+            },
         )
         user_erp.set_password("password123")
         # Ensure correct flags if it existed
         user_erp.is_erp_user = True
         user_erp.is_staff = True
         user_erp.save()
-        print(f"User '{username_erp}' configured. Password: 'password123' | Created: {created}")
+        print(
+            f"User '{username_erp}' configured. Password: 'password123' | Created: {created}"
+        )
 
         # 2. Create Delivery Driver
         username_driver = "delivery_driver"
@@ -57,13 +59,15 @@ if city:
                 "email": "driver@pench.com",
                 "phone": "+919000000002",
                 "is_driver": True,
-                "is_active": True
-            }
+                "is_active": True,
+            },
         )
         user_driver.set_password("password123")
         user_driver.is_driver = True
         user_driver.save()
-        print(f"User '{username_driver}' configured. Password: 'password123' | Created: {created}")
+        print(
+            f"User '{username_driver}' configured. Password: 'password123' | Created: {created}"
+        )
 
         # 3. Create CRM Customer
         username_customer = "crm_customer"
@@ -73,12 +77,14 @@ if city:
                 "email": "customer@pench.com",
                 "phone": "+919000000003",
                 "is_customer": True,
-                "is_active": True
-            }
+                "is_active": True,
+            },
         )
         user_customer.set_password("password123")
         user_customer.is_customer = True
         user_customer.save()
-        print(f"User '{username_customer}' configured. Password: 'password123' | Created: {created}")
+        print(
+            f"User '{username_customer}' configured. Password: 'password123' | Created: {created}"
+        )
 
-print("="*60)
+print("=" * 60)

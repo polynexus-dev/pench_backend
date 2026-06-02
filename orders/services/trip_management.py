@@ -20,12 +20,12 @@ def lock_route_for_trip(route_id):
         return False
 
     route.is_locked = True
-    route.save(update_fields=['is_locked'])
-    
+    route.save(update_fields=["is_locked"])
+
     DeliveryLog.objects.create(
         action="Route Locked",
         route=route,
-        details=f"Route '{route.name}' has been locked. Modifying stops or order items is now disabled."
+        details=f"Route '{route.name}' has been locked. Modifying stops or order items is now disabled.",
     )
     logger.info("Route %s locked successfully.", route_id)
     return True
@@ -42,12 +42,12 @@ def unlock_route_for_trip(route_id):
         return False
 
     route.is_locked = False
-    route.save(update_fields=['is_locked'])
-    
+    route.save(update_fields=["is_locked"])
+
     DeliveryLog.objects.create(
         action="Route Unlocked",
         route=route,
-        details=f"Route '{route.name}' has been unlocked. Modifying stops or order items is now enabled."
+        details=f"Route '{route.name}' has been unlocked. Modifying stops or order items is now enabled.",
     )
     logger.info("Route %s unlocked successfully.", route_id)
     return True
@@ -64,10 +64,22 @@ def start_trip_for_route(route_id, driver_user):
         logger.error("start_trip_for_route: Route %s not found.", route_id)
         return None
 
-    is_manager = driver_user.is_superuser or getattr(driver_user, 'is_erp_user', False) or driver_user.groups.filter(name__in=['Logistics_Managers', 'ERP_Admins']).exists()
-    is_assigned = (route.driver == driver_user) or route.additional_drivers.filter(id=driver_user.id).exists()
+    is_manager = (
+        driver_user.is_superuser
+        or getattr(driver_user, "is_erp_user", False)
+        or driver_user.groups.filter(
+            name__in=["Logistics_Managers", "ERP_Admins"]
+        ).exists()
+    )
+    is_assigned = (route.driver == driver_user) or route.additional_drivers.filter(
+        id=driver_user.id
+    ).exists()
     if not is_assigned and not is_manager:
-        logger.warning("User %s attempted to start trip on Route %s which is assigned to another driver.", driver_user, route_id)
+        logger.warning(
+            "User %s attempted to start trip on Route %s which is assigned to another driver.",
+            driver_user,
+            route_id,
+        )
         raise PermissionError("This route is assigned to another driver.")
 
     with transaction.atomic():
@@ -76,7 +88,15 @@ def start_trip_for_route(route_id, driver_user):
         route.completed_at = None
         route.is_completed = False
         route.is_locked = True  # Automatically lock the route once started
-        route.save(update_fields=['status', 'started_at', 'completed_at', 'is_completed', 'is_locked'])
+        route.save(
+            update_fields=[
+                "status",
+                "started_at",
+                "completed_at",
+                "is_completed",
+                "is_locked",
+            ]
+        )
 
         # Update associated Driver Profile in routing app
         if route.driver:
@@ -84,36 +104,26 @@ def start_trip_for_route(route_id, driver_user):
             if driver_profile:
                 driver_profile.is_available = False
                 driver_profile.on_trip = True
-                driver_profile.save(update_fields=['is_available', 'on_trip'])
+                driver_profile.save(update_fields=["is_available", "on_trip"])
 
         # Mark all pending/confirmed orders in this route as IN_TRANSIT
-        from notifications.services import send_push_notification
-        stops = route.stops.select_related('order__customer__user')
+        stops = route.stops.select_related("order")
         for stop in stops:
             if stop.order.status in [OrderStatus.PENDING, OrderStatus.CONFIRMED]:
                 stop.order.status = OrderStatus.IN_TRANSIT
-                stop.order.save(update_fields=['status'])
-                
-                # Send out-for-delivery push notification
-                order = stop.order
-                if order.customer and order.customer.user:
-                    title = "🚚 Out for Delivery!"
-                    body = "Get ready! Your Pench order is out for delivery and heading your way! 🚀"
-                    send_push_notification(
-                        user=order.customer.user,
-                        title=title,
-                        body=body,
-                        order=order,
-                        notification_type='order_status'
-                    )
+                stop.order.save(update_fields=["status"])
 
         DeliveryLog.objects.create(
             action="Trip Started",
             route=route,
-            details=f"Driver {driver_user.get_full_name() or driver_user.username} started trip. Route status changed to IN_PROGRESS."
+            details=f"Driver {driver_user.get_full_name() or driver_user.username} started trip. Route status changed to IN_PROGRESS.",
         )
 
-    logger.info("Trip started successfully for Route %s by Driver %s", route_id, driver_user.username)
+    logger.info(
+        "Trip started successfully for Route %s by Driver %s",
+        route_id,
+        driver_user.username,
+    )
     return route
 
 
@@ -128,17 +138,29 @@ def stop_trip_for_route(route_id, driver_user):
         logger.error("stop_trip_for_route: Route %s not found.", route_id)
         return None
 
-    is_manager = driver_user.is_superuser or getattr(driver_user, 'is_erp_user', False) or driver_user.groups.filter(name__in=['Logistics_Managers', 'ERP_Admins']).exists()
-    is_assigned = (route.driver == driver_user) or route.additional_drivers.filter(id=driver_user.id).exists()
+    is_manager = (
+        driver_user.is_superuser
+        or getattr(driver_user, "is_erp_user", False)
+        or driver_user.groups.filter(
+            name__in=["Logistics_Managers", "ERP_Admins"]
+        ).exists()
+    )
+    is_assigned = (route.driver == driver_user) or route.additional_drivers.filter(
+        id=driver_user.id
+    ).exists()
     if not is_assigned and not is_manager:
-        logger.warning("User %s attempted to stop trip on Route %s which is assigned to another driver.", driver_user, route_id)
+        logger.warning(
+            "User %s attempted to stop trip on Route %s which is assigned to another driver.",
+            driver_user,
+            route_id,
+        )
         raise PermissionError("This route is assigned to another driver.")
 
     with transaction.atomic():
         route.status = RouteStatus.COMPLETED
         route.completed_at = timezone.now()
         route.is_completed = True
-        route.save(update_fields=['status', 'completed_at', 'is_completed'])
+        route.save(update_fields=["status", "completed_at", "is_completed"])
 
         # Free the driver
         if route.driver:
@@ -146,17 +168,20 @@ def stop_trip_for_route(route_id, driver_user):
             if driver_profile:
                 driver_profile.is_available = True
                 driver_profile.on_trip = False
-                driver_profile.save(update_fields=['is_available', 'on_trip'])
+                driver_profile.save(update_fields=["is_available", "on_trip"])
 
         # Set any non-delivered, non-cancelled orders inside this route to UNDELIVERED
-        from notifications.services import send_push_notification
-        stops = route.stops.select_related('order__customer__user')
+        stops = route.stops.select_related("order")
         undelivered_count = 0
         for stop in stops:
-            if stop.order.status in [OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.IN_TRANSIT]:
+            if stop.order.status in [
+                OrderStatus.PENDING,
+                OrderStatus.CONFIRMED,
+                OrderStatus.IN_TRANSIT,
+            ]:
                 stop.order.status = OrderStatus.UNDELIVERED
                 stop.order.delivered_at = timezone.now()
-                stop.order.save(update_fields=['status', 'delivered_at'])
+                stop.order.save(update_fields=["status", "delivered_at"])
                 undelivered_count += 1
 
                 # Send undelivered attempt push notification
@@ -176,16 +201,20 @@ def stop_trip_for_route(route_id, driver_user):
                     action="Order Force Undelivered",
                     route=route,
                     order=stop.order,
-                    details="Order marked as undelivered due to manual trip completion/stop."
+                    details="Order marked as undelivered due to manual trip completion/stop.",
                 )
 
         DeliveryLog.objects.create(
             action="Trip Completed",
             route=route,
-            details=f"Driver completed trip. Marked {undelivered_count} remaining orders as undelivered."
+            details=f"Driver completed trip. Marked {undelivered_count} remaining orders as undelivered.",
         )
 
-    logger.info("Trip completed successfully for Route %s. Undelivered orders: %d", route_id, undelivered_count)
+    logger.info(
+        "Trip completed successfully for Route %s. Undelivered orders: %d",
+        route_id,
+        undelivered_count,
+    )
     return route
 
 
@@ -198,8 +227,8 @@ def auto_stop_active_trips_at_noon():
     active_routes = Route.objects.filter(
         delivery_date=today,
         is_completed=False,
-        status__in=[RouteStatus.PENDING, RouteStatus.STARTED, RouteStatus.IN_PROGRESS]
-    ).select_related('driver')
+        status__in=[RouteStatus.PENDING, RouteStatus.STARTED, RouteStatus.IN_PROGRESS],
+    ).select_related("driver")
 
     stopped_count = 0
     orders_affected = 0
@@ -209,7 +238,7 @@ def auto_stop_active_trips_at_noon():
             route.status = RouteStatus.STOPPED
             route.is_completed = True
             route.completed_at = timezone.now()
-            route.save(update_fields=['status', 'is_completed', 'completed_at'])
+            route.save(update_fields=["status", "is_completed", "completed_at"])
 
             # Free the driver profile
             if route.driver:
@@ -217,16 +246,19 @@ def auto_stop_active_trips_at_noon():
                 if driver_profile:
                     driver_profile.is_available = True
                     driver_profile.on_trip = False
-                    driver_profile.save(update_fields=['is_available', 'on_trip'])
+                    driver_profile.save(update_fields=["is_available", "on_trip"])
 
             # Update remaining orders to undelivered
-            from notifications.services import send_push_notification
-            stops = route.stops.select_related('order__customer__user')
+            stops = route.stops.select_related("order")
             for stop in stops:
-                if stop.order.status in [OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.IN_TRANSIT]:
+                if stop.order.status in [
+                    OrderStatus.PENDING,
+                    OrderStatus.CONFIRMED,
+                    OrderStatus.IN_TRANSIT,
+                ]:
                     stop.order.status = OrderStatus.UNDELIVERED
                     stop.order.delivered_at = timezone.now()
-                    stop.order.save(update_fields=['status', 'delivered_at'])
+                    stop.order.save(update_fields=["status", "delivered_at"])
                     orders_affected += 1
 
                     # Send undelivered attempt push notification
@@ -246,17 +278,20 @@ def auto_stop_active_trips_at_noon():
                         action="Noon Cutoff Stop",
                         route=route,
                         order=stop.order,
-                        details="Order marked undelivered automatically at 12:00 PM cutoff."
+                        details="Order marked undelivered automatically at 12:00 PM cutoff.",
                     )
 
             DeliveryLog.objects.create(
                 action="Noon Cutoff Stop",
                 route=route,
-                details=f"Route automatically stopped at 12:00 PM cutoff. Affected orders: {orders_affected}"
+                details=f"Route automatically stopped at 12:00 PM cutoff. Affected orders: {orders_affected}",
             )
             stopped_count += 1
 
-    return {"stopped_routes_count": stopped_count, "orders_affected_count": orders_affected}
+    return {
+        "stopped_routes_count": stopped_count,
+        "orders_affected_count": orders_affected,
+    }
 
 
 def process_pre_delivery_product_cutoff():
@@ -264,5 +299,7 @@ def process_pre_delivery_product_cutoff():
     Runs at 6:00 AM cutoff time on delivery day.
     (Previously locked routes; now just logs that the cutoff has passed).
     """
-    logger.info("Cutoff 6:00 AM processing completed. No routes locked per new biker/rider model.")
+    logger.info(
+        "Cutoff 6:00 AM processing completed. No routes locked per new biker/rider model."
+    )
     return {"locked_routes_count": 0}

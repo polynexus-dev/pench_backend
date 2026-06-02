@@ -7,7 +7,7 @@ from tenants.models import City
 from orders.services.route_generator import generate_daily_routes_for_date
 from orders.services.trip_management import (
     process_pre_delivery_product_cutoff,
-    auto_stop_active_trips_at_noon
+    auto_stop_active_trips_at_noon,
 )
 
 logger = logging.getLogger(__name__)
@@ -24,19 +24,25 @@ def generate_next_day_routes_task(target_date_str=None):
     else:
         target_date = datetime.date.today() + datetime.timedelta(days=1)
 
-    logger.info("Executing Celery Task: generate_next_day_routes for date: %s", target_date)
-    
-    cities = City.objects.exclude(schema_name='public')
+    logger.info(
+        "Executing Celery Task: generate_next_day_routes for date: %s", target_date
+    )
+
+    cities = City.objects.exclude(schema_name="public")
     results = {}
 
     for city in cities:
-        logger.info("Running automatic route generation for City schema: %s", city.schema_name)
+        logger.info(
+            "Running automatic route generation for City schema: %s", city.schema_name
+        )
         with schema_context(city.schema_name):
             try:
                 stats = generate_daily_routes_for_date(target_date)
                 results[city.schema_name] = stats
             except Exception as e:
-                logger.exception("Failed to generate routes for City schema %s", city.schema_name)
+                logger.exception(
+                    "Failed to generate routes for City schema %s", city.schema_name
+                )
                 results[city.schema_name] = {"status": "failed", "error": str(e)}
 
     return results
@@ -49,18 +55,24 @@ def auto_lock_routes_at_6am_task():
     (Previously locked all routes; now just runs process_pre_delivery_product_cutoff logging).
     """
     logger.info("Executing Celery Task: auto_lock_routes_at_6am")
-    
-    cities = City.objects.exclude(schema_name='public')
+
+    cities = City.objects.exclude(schema_name="public")
     results = {}
 
     for city in cities:
-        logger.info("Running pre-delivery product cutoff check for City schema: %s", city.schema_name)
+        logger.info(
+            "Running pre-delivery product cutoff check for City schema: %s",
+            city.schema_name,
+        )
         with schema_context(city.schema_name):
             try:
                 stats = process_pre_delivery_product_cutoff()
                 results[city.schema_name] = stats
             except Exception as e:
-                logger.exception("Failed pre-delivery cutoff check for City schema %s", city.schema_name)
+                logger.exception(
+                    "Failed pre-delivery cutoff check for City schema %s",
+                    city.schema_name,
+                )
                 results[city.schema_name] = {"status": "failed", "error": str(e)}
 
     return results
@@ -73,8 +85,8 @@ def auto_stop_trips_at_12pm_task():
     any remaining active trips today and mark pending orders as undelivered.
     """
     logger.info("Executing Celery Task: auto_stop_trips_at_12pm")
-    
-    cities = City.objects.exclude(schema_name='public')
+
+    cities = City.objects.exclude(schema_name="public")
     results = {}
 
     for city in cities:
@@ -84,7 +96,9 @@ def auto_stop_trips_at_12pm_task():
                 stats = auto_stop_active_trips_at_noon()
                 results[city.schema_name] = stats
             except Exception as e:
-                logger.exception("Failed to auto stop trips for City schema %s", city.schema_name)
+                logger.exception(
+                    "Failed to auto stop trips for City schema %s", city.schema_name
+                )
                 results[city.schema_name] = {"status": "failed", "error": str(e)}
 
     return results

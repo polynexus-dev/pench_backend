@@ -3,7 +3,7 @@ import sys
 import django
 
 sys.path.append(os.getcwd())
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 django.setup()
 
 from django.db import connection
@@ -14,7 +14,9 @@ from tenants.models import City
 cities = City.objects.all()
 
 for city in cities:
-    print(f"Clearing raw_material_id and deleting stock records in tenant/city: {city.schema_name}")
+    print(
+        f"Clearing raw_material_id and deleting stock records in tenant/city: {city.schema_name}"
+    )
     try:
         with tenant_context(city):
             with connection.cursor() as cursor:

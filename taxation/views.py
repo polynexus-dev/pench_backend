@@ -9,5 +9,5 @@ class TaxRuleViewSet(viewsets.ModelViewSet):
 
 
 class ProductTaxCategoryViewSet(viewsets.ModelViewSet):
-    queryset = ProductTaxCategory.objects.all().select_related('product')
+    queryset = ProductTaxCategory.objects.all().select_related("product")
     serializer_class = ProductTaxCategorySerializer

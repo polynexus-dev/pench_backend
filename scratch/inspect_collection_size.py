@@ -12,6 +12,7 @@ print(f"File Size: {size_kb:.2f} KB ({size_bytes} bytes)")
 with open(path, "r", encoding="utf-8") as f:
     data = json.load(f)
 
+
 def count_items(items):
     folders = 0
     requests = 0
@@ -24,6 +25,7 @@ def count_items(items):
         else:
             requests += 1
     return folders, requests
+
 
 folders, requests = count_items(data.get("item", []))
 print(f"Total Folders: {folders}")

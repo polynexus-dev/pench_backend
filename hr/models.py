@@ -13,15 +13,10 @@ class Department(BaseModel):
 class Employee(BaseModel):
     # User is in SHARED schema
     user = models.OneToOneField(
-        'accounts.User',
-        on_delete=models.CASCADE,
-        related_name='employee_profile'
+        "accounts.User", on_delete=models.CASCADE, related_name="employee_profile"
     )
     department = models.ForeignKey(
-        Department,
-        on_delete=models.SET_NULL,
-        null=True,
-        related_name='employees'
+        Department, on_delete=models.SET_NULL, null=True, related_name="employees"
     )
     job_title = models.CharField(max_length=100)
     employee_id = models.CharField(max_length=50, unique=True)
@@ -38,10 +33,10 @@ class Employee(BaseModel):
     bank_ifsc = models.CharField(max_length=11, blank=True)
 
     class Meta:
-        ordering = ['user__last_name']
+        ordering = ["user__last_name"]
 
     def __str__(self):
-        return f'{self.user.get_full_name()} — {self.job_title}'
+        return f"{self.user.get_full_name()} — {self.job_title}"
 
 
 class SalaryStructure(BaseModel):
@@ -57,73 +52,89 @@ class SalaryStructure(BaseModel):
 
 
 class EmployeeSalary(BaseModel):
-    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='salary_history')
+    employee = models.ForeignKey(
+        Employee, on_delete=models.CASCADE, related_name="salary_history"
+    )
     salary_structure = models.ForeignKey(SalaryStructure, on_delete=models.PROTECT)
     effective_from = models.DateField()
     effective_to = models.DateField(null=True, blank=True)
 
     class Meta:
-        verbose_name_plural = 'Employee Salaries'
+        verbose_name_plural = "Employee Salaries"
 
     def __str__(self):
-        return f'{self.employee.employee_id} — {self.salary_structure.name}'
+        return f"{self.employee.employee_id} — {self.salary_structure.name}"
 
 
 class MonthlyPayrollStatus(models.TextChoices):
-    DRAFT = 'draft', 'Draft'
-    PROCESSED = 'processed', 'Processed'
-    PAID = 'paid', 'Paid'
+    DRAFT = "draft", "Draft"
+    PROCESSED = "processed", "Processed"
+    PAID = "paid", "Paid"
 
 
 class MonthlyPayroll(BaseModel):
-    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='payrolls')
+    employee = models.ForeignKey(
+        Employee, on_delete=models.CASCADE, related_name="payrolls"
+    )
     month = models.PositiveSmallIntegerField()
     year = models.PositiveSmallIntegerField()
-    
+
     basic = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     hra = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     da = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     incentive = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     deductions = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-    
+
     gross_salary = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     net_salary = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-    
-    status = models.CharField(max_length=20, choices=MonthlyPayrollStatus.choices, default=MonthlyPayrollStatus.DRAFT)
+
+    status = models.CharField(
+        max_length=20,
+        choices=MonthlyPayrollStatus.choices,
+        default=MonthlyPayrollStatus.DRAFT,
+    )
     processed_at = models.DateTimeField(null=True, blank=True)
     paid_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        unique_together = [('employee', 'month', 'year')]
+        unique_together = [("employee", "month", "year")]
 
     def __str__(self):
-        return f'{self.employee.employee_id} — {self.month}/{self.year}'
+        return f"{self.employee.employee_id} — {self.month}/{self.year}"
 
 
 class DocumentType(models.TextChoices):
-    AADHAAR = 'aadhaar', 'Aadhaar Card'
-    PAN = 'pan', 'PAN Card'
-    LICENCE = 'licence', 'Driving Licence'
-    OTHER = 'other', 'Other'
+    AADHAAR = "aadhaar", "Aadhaar Card"
+    PAN = "pan", "PAN Card"
+    LICENCE = "licence", "Driving Licence"
+    OTHER = "other", "Other"
 
 
 class EmployeeDocument(BaseModel):
-    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='documents')
+    employee = models.ForeignKey(
+        Employee, on_delete=models.CASCADE, related_name="documents"
+    )
     document_type = models.CharField(max_length=20, choices=DocumentType.choices)
     document_number = models.CharField(max_length=50)
-    document_file = models.FileField(upload_to='employee_docs/')
+    document_file = models.FileField(upload_to="employee_docs/")
     is_verified = models.BooleanField(default=False)
-    verified_by = models.ForeignKey('accounts.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='verified_docs')
+    verified_by = models.ForeignKey(
+        "accounts.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="verified_docs",
+    )
     verified_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
-        return f'{self.get_document_type_display()} — {self.employee.employee_id}'
+        return f"{self.get_document_type_display()} — {self.employee.employee_id}"
 
 
 class IncentiveMetric(models.TextChoices):
-    ON_TIME_PCT = 'on_time_pct', 'On-Time Delivery %'
-    COLLECTION_ACCURACY = 'collection_accuracy', 'Collection Accuracy'
-    TOTAL_DELIVERIES = 'total_deliveries', 'Total Deliveries'
+    ON_TIME_PCT = "on_time_pct", "On-Time Delivery %"
+    COLLECTION_ACCURACY = "collection_accuracy", "Collection Accuracy"
+    TOTAL_DELIVERIES = "total_deliveries", "Total Deliveries"
 
 
 class DeliveryIncentiveRule(BaseModel):
@@ -134,22 +145,24 @@ class DeliveryIncentiveRule(BaseModel):
     is_active = models.BooleanField(default=True)
 
     def __str__(self):
-        return f'{self.name} — {self.metric} > {self.threshold}'
+        return f"{self.name} — {self.metric} > {self.threshold}"
 
 
 class Attendance(BaseModel):
-    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='attendance_records')
+    employee = models.ForeignKey(
+        Employee, on_delete=models.CASCADE, related_name="attendance_records"
+    )
     date = models.DateField(auto_now_add=True)
     check_in = models.DateTimeField(auto_now_add=True)
     check_out = models.DateTimeField(null=True, blank=True)
-    
+
     # Tracking for logistics
     is_driver_ready = models.BooleanField(default=False)
     notes = models.TextField(blank=True)
 
     class Meta:
-        unique_together = ('employee', 'date')
-        ordering = ['-date', '-check_in']
+        unique_together = ("employee", "date")
+        ordering = ["-date", "-check_in"]
 
     def __str__(self):
-        return f'{self.employee.employee_id} — {self.date}'
+        return f"{self.employee.employee_id} — {self.date}"

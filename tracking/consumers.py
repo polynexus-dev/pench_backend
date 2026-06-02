@@ -2,6 +2,7 @@ import json
 import traceback
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
+
 try:
     from django.contrib.gis.geos import Point
 except ImportError:
@@ -12,18 +13,23 @@ from .models import DriverLocation, DriverTrail, HAS_GIS
 
 import math
 
+
 def calculate_distance(lon1, lat1, lon2, lat2):
     """
-    Calculate the great circle distance between two points 
+    Calculate the great circle distance between two points
     on the earth (specified in decimal degrees) in meters.
     """
     lon1, lat1, lon2, lat2 = map(math.radians, [lon1, lat1, lon2, lat2])
-    dlon = lon2 - lon1 
-    dlat = lat2 - lat1 
-    a = math.sin(dlat/2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon/2)**2
-    c = 2 * math.asin(math.sqrt(a)) 
+    dlon = lon2 - lon1
+    dlat = lat2 - lat1
+    a = (
+        math.sin(dlat / 2) ** 2
+        + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
+    )
+    c = 2 * math.asin(math.sqrt(a))
     r = 6371000  # Radius of earth in meters
     return c * r
+
 
 def calculate_trail_distance(coords):
     """
@@ -31,12 +37,11 @@ def calculate_trail_distance(coords):
     """
     if not coords or len(coords) < 2:
         return 0.0
-    
+
     total_dist = 0.0
     for i in range(len(coords) - 1):
         total_dist += calculate_distance(
-            coords[i][0], coords[i][1],
-            coords[i+1][0], coords[i+1][1]
+            coords[i][0], coords[i][1], coords[i + 1][0], coords[i + 1][1]
         )
     return round(total_dist / 1000.0, 2)
 
@@ -45,10 +50,14 @@ class TrackingConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         self.user = self.scope["user"]
         self.tenant = self.scope.get("tenant")
-        self.driver_id = self.scope.get("url_route", {}).get("kwargs", {}).get("driver_id")
-        
-        print(f"[WS Connect] User: {self.user}, Tenant: {self.tenant}, Driver ID: {self.driver_id}")
-        
+        self.driver_id = (
+            self.scope.get("url_route", {}).get("kwargs", {}).get("driver_id")
+        )
+
+        print(
+            f"[WS Connect] User: {self.user}, Tenant: {self.tenant}, Driver ID: {self.driver_id}"
+        )
+
         if self.user.is_anonymous or not self.tenant:
             print("[WS Connect] REJECTED: Anonymous or No Tenant")
             await self.close()
@@ -59,88 +68,124 @@ class TrackingConsumer(AsyncWebsocketConsumer):
             print("[WS Connect] REJECTED: Non-staff trying to track individual driver")
             await self.close()
             return
- 
+
         if self.user.is_staff:
             if self.driver_id:
-                await self.channel_layer.group_add(f"driver_tracking_{self.driver_id}", self.channel_name)
+                await self.channel_layer.group_add(
+                    f"driver_tracking_{self.driver_id}", self.channel_name
+                )
             else:
                 await self.channel_layer.group_add("admins", self.channel_name)
-        
+        else:
+            # Subscribe driver to their own personal group for route updates
+            await self.channel_layer.group_add(
+                f"driver_{self.user.id}", self.channel_name
+            )
+
         await self.accept()
         print("[WS Connect] ACCEPTED")
- 
+
         if self.user.is_staff:
             if self.driver_id:
                 initial_state = await self.get_initial_driver_state(self.driver_id)
-                await self.send(text_data=json.dumps({
-                    "type": "initial_state",
-                    "driver": initial_state
-                }))
+                await self.send(
+                    text_data=json.dumps(
+                        {"type": "initial_state", "driver": initial_state}
+                    )
+                )
             else:
                 initial_state = await self.get_initial_state()
-                await self.send(text_data=json.dumps({
-                    "type": "initial_state",
-                    "drivers": initial_state
-                }))
- 
+                await self.send(
+                    text_data=json.dumps(
+                        {"type": "initial_state", "drivers": initial_state}
+                    )
+                )
+
     async def disconnect(self, close_code):
-        if hasattr(self, 'user') and self.user.is_staff:
-            await self.channel_layer.group_discard("admins", self.channel_name)
-            if hasattr(self, 'driver_id') and self.driver_id:
-                await self.channel_layer.group_discard(f"driver_tracking_{self.driver_id}", self.channel_name)
- 
+        if hasattr(self, "user"):
+            if self.user.is_staff:
+                await self.channel_layer.group_discard("admins", self.channel_name)
+                if hasattr(self, "driver_id") and self.driver_id:
+                    await self.channel_layer.group_discard(
+                        f"driver_tracking_{self.driver_id}", self.channel_name
+                    )
+            else:
+                await self.channel_layer.group_discard(
+                    f"driver_{self.user.id}", self.channel_name
+                )
+
     async def receive(self, text_data):
         try:
             data = json.loads(text_data)
-            lat = data.get('lat')
-            lng = data.get('lng')
-            accuracy = data.get('accuracy')
- 
+            lat = data.get("lat")
+            lng = data.get("lng")
+            accuracy = data.get("accuracy")
+
             if lat and lng:
-                print(f"[WS Receive] Driver {self.user.username}: Lat={lat}, Lng={lng}, Acc={accuracy}")
+                print(
+                    f"[WS Receive] Driver {self.user.username}: Lat={lat}, Lng={lng}, Acc={accuracy}"
+                )
                 # Update Database and get full trail + distance + planned route coordinates
                 result = await self.update_driver_location(lat, lng, accuracy)
-                
+
                 # If safeguard triggered (ghost simulator), abort broadcast
                 if result is None or result[2] is None:
                     return
-                
-                snapped_lat, snapped_lng, trail_points, distance_km, planned_route = result
- 
+
+                snapped_lat, snapped_lng, trail_points, distance_km, planned_route = (
+                    result
+                )
+
                 payload = {
                     "type": "broadcast_location",
                     "driver_id": str(self.user.id),
                     "driver_name": self.user.get_full_name(),
                     "lat": snapped_lat,
                     "lng": snapped_lng,
-                    "trail": trail_points, # Snapped historical trail array of [lng, lat]
-                    "distance_km": distance_km, # Distance traveled in KM
-                    "planned_route": planned_route # Original planned road map coordinates
+                    "trail": trail_points,  # Snapped historical trail array of [lng, lat]
+                    "distance_km": distance_km,  # Distance traveled in KM
+                    "planned_route": planned_route,  # Original planned road map coordinates
                 }
 
                 # Broadcast to global Admins
                 await self.channel_layer.group_send("admins", payload)
 
                 # Broadcast to individual driver group
-                await self.channel_layer.group_send(f"driver_tracking_{self.user.id}", payload)
- 
+                await self.channel_layer.group_send(
+                    f"driver_tracking_{self.user.id}", payload
+                )
+
                 # Also send back to the sender (direct acknowledgment with trail)
-                await self.send(text_data=json.dumps({
-                    "type": "location_update_response",
-                    "driver_id": str(self.user.id),
-                    "lat": snapped_lat,
-                    "lng": snapped_lng,
-                    "trail": trail_points,
-                    "distance_km": distance_km,
-                    "planned_route": planned_route
-                }))
+                await self.send(
+                    text_data=json.dumps(
+                        {
+                            "type": "location_update_response",
+                            "driver_id": str(self.user.id),
+                            "lat": snapped_lat,
+                            "lng": snapped_lng,
+                            "trail": trail_points,
+                            "distance_km": distance_km,
+                            "planned_route": planned_route,
+                        }
+                    )
+                )
         except Exception as e:
             print(f"[WS Receive Error] CRASH: {str(e)}")
             traceback.print_exc()
- 
+
     async def broadcast_location(self, event):
         await self.send(text_data=json.dumps(event))
- 
+
+    async def route_updated(self, event):
+        await self.send(
+            text_data=json.dumps(
+                {
+                    "type": "route_updated",
+                    "route_id": event.get("route_id"),
+                }
+            )
+        )
+
     def get_current_trail(self, user_id, active_route):
         """
         Helper method to retrieve the continuous road-aligned trail for a driver.
@@ -149,28 +194,26 @@ class TrackingConsumer(AsyncWebsocketConsumer):
         """
         if active_route:
             historical_trails = DriverTrail.objects.filter(
-                user_id=user_id,
-                route=active_route
-            ).order_by('timestamp')
+                user_id=user_id, route=active_route
+            ).order_by("timestamp")
         else:
             from django.utils import timezone
             from datetime import timedelta
+
             time_threshold = timezone.now() - timedelta(hours=12)
             historical_trails = DriverTrail.objects.filter(
-                user_id=user_id,
-                route__isnull=True,
-                timestamp__gte=time_threshold
-            ).order_by('timestamp')
-            
+                user_id=user_id, route__isnull=True, timestamp__gte=time_threshold
+            ).order_by("timestamp")
+
         def get_cleaned_coords(t):
             loc = t.cleaned_location or t.location
             if not loc:
                 return None
-            if hasattr(loc, 'x'): 
+            if hasattr(loc, "x"):
                 return [loc.x, loc.y] if (loc.x != 0.0 or loc.y != 0.0) else None
-            if isinstance(loc, dict): 
-                lng = loc.get('lng') or 0.0
-                lat = loc.get('lat') or 0.0
+            if isinstance(loc, dict):
+                lng = loc.get("lng") or 0.0
+                lat = loc.get("lat") or 0.0
                 return [lng, lat] if (lng != 0.0 or lat != 0.0) else None
             return None
 
@@ -202,214 +245,299 @@ class TrackingConsumer(AsyncWebsocketConsumer):
             sampled_coords = unique_coords
 
         from routing.services.osrm_client import match_trail
+
         return match_trail(sampled_coords)
 
     @database_sync_to_async
     def update_driver_location(self, lat, lng, accuracy=None):
         try:
-            if not self.tenant or self.tenant.schema_name == 'public':
+            if not self.tenant or self.tenant.schema_name == "public":
                 return None, None, None, 0.0, []
- 
+
             with schema_context(self.tenant.schema_name):
                 p_lng = float(lng)
                 p_lat = float(lat)
-                
+
                 # 1. Snap the raw point immediately to the nearest road
                 from routing.services.osrm_client import snap_to_road
+
                 snapped_lng, snapped_lat = snap_to_road(p_lng, p_lat)
-                
+
                 if HAS_GIS and Point:
                     location_data = Point(p_lng, p_lat, srid=4326)
                     cleaned_location_data = Point(snapped_lng, snapped_lat, srid=4326)
                 else:
-                    location_data = {'lat': p_lat, 'lng': p_lng}
-                    cleaned_location_data = {'lat': snapped_lat, 'lng': snapped_lng}
-                
+                    location_data = {"lat": p_lat, "lng": p_lng}
+                    cleaned_location_data = {"lat": snapped_lat, "lng": snapped_lng}
+
                 # Retrieve the active route for this driver
                 from routing.models import Route, RouteStatus
+
                 active_route = Route.objects.filter(
-                    driver__user_id=self.user.id,
-                    status=RouteStatus.IN_PROGRESS
+                    driver__user_id=self.user.id, status=RouteStatus.IN_PROGRESS
                 ).first()
-                
+
                 # Planned route coordinates extraction
                 planned_coords = []
                 if active_route and active_route.geometry:
                     geom = active_route.geometry
-                    if hasattr(geom, 'coords'):
+                    if hasattr(geom, "coords"):
                         planned_coords = list(geom.coords)
                     elif isinstance(geom, str):
                         try:
                             import json
+
                             parsed = json.loads(geom)
-                            if isinstance(parsed, dict) and 'coordinates' in parsed:
-                                planned_coords = parsed['coordinates']
+                            if isinstance(parsed, dict) and "coordinates" in parsed:
+                                planned_coords = parsed["coordinates"]
                         except Exception:
                             pass
                         if not planned_coords:
                             try:
                                 pts = []
-                                for part in geom.replace('LINESTRING', '').replace('(', '').replace(')', '').strip().split(','):
+                                for part in (
+                                    geom.replace("LINESTRING", "")
+                                    .replace("(", "")
+                                    .replace(")", "")
+                                    .strip()
+                                    .split(",")
+                                ):
                                     coord = part.strip().split()
                                     if len(coord) >= 2:
                                         pts.append([float(coord[0]), float(coord[1])])
                                 planned_coords = pts
                             except Exception:
                                 pass
-                
+
                 # 0. Low Accuracy Filter
                 if accuracy is not None:
                     try:
                         if float(accuracy) > 40.0:
-                            print(f"[Tracking] Dropped point for {self.user.username}: Accuracy too low ({accuracy}m)")
-                            last_loc = DriverLocation.objects.filter(user_id=self.user.id).first()
+                            print(
+                                f"[Tracking] Dropped point for {self.user.username}: Accuracy too low ({accuracy}m)"
+                            )
+                            last_loc = DriverLocation.objects.filter(
+                                user_id=self.user.id
+                            ).first()
                             if last_loc:
-                                last_lat = last_loc.location.y if hasattr(last_loc.location, 'y') else last_loc.location.get('lat')
-                                last_lng = last_loc.location.x if hasattr(last_loc.location, 'x') else last_loc.location.get('lng')
+                                last_lat = (
+                                    last_loc.location.y
+                                    if hasattr(last_loc.location, "y")
+                                    else last_loc.location.get("lat")
+                                )
+                                last_lng = (
+                                    last_loc.location.x
+                                    if hasattr(last_loc.location, "x")
+                                    else last_loc.location.get("lng")
+                                )
                             else:
                                 last_lat, last_lng = snapped_lat, snapped_lng
-                            current_trail = self.get_current_trail(self.user.id, active_route)
-                            return last_lat, last_lng, current_trail, calculate_trail_distance(current_trail), planned_coords
+                            current_trail = self.get_current_trail(
+                                self.user.id, active_route
+                            )
+                            return (
+                                last_lat,
+                                last_lng,
+                                current_trail,
+                                calculate_trail_distance(current_trail),
+                                planned_coords,
+                            )
                     except (ValueError, TypeError):
                         pass
 
                 # Check for GPS Jitter / Movement Filter (8 meters threshold)
-                prev_trail = DriverTrail.objects.filter(
-                    user_id=self.user.id,
-                    route=active_route
-                ).order_by('-timestamp').first()
-                
+                prev_trail = (
+                    DriverTrail.objects.filter(user_id=self.user.id, route=active_route)
+                    .order_by("-timestamp")
+                    .first()
+                )
+
                 if prev_trail:
                     loc = prev_trail.location
-                    if hasattr(loc, 'x'):
+                    if hasattr(loc, "x"):
                         prev_lng, prev_lat = loc.x, loc.y
                     elif isinstance(loc, dict):
-                        prev_lng, prev_lat = loc.get('lng'), loc.get('lat')
+                        prev_lng, prev_lat = loc.get("lng"), loc.get("lat")
                     else:
                         prev_lng, prev_lat = None, None
-                        
+
                     if prev_lng is not None and prev_lat is not None:
                         dist = calculate_distance(p_lng, p_lat, prev_lng, prev_lat)
-                        
+
                         # Speed Outlier Filter (Reject impossible jumps)
                         from django.utils import timezone
-                        time_diff = (timezone.now() - prev_trail.timestamp).total_seconds()
+
+                        time_diff = (
+                            timezone.now() - prev_trail.timestamp
+                        ).total_seconds()
                         if time_diff > 0:
                             speed_kmh = (dist / time_diff) * 3.6
                             if speed_kmh > 150.0:
-                                print(f"[Tracking] Dropped outlier point for {self.user.username}: Impossible speed {speed_kmh:.1f} km/h")
-                                last_loc = DriverLocation.objects.filter(user_id=self.user.id).first()
+                                print(
+                                    f"[Tracking] Dropped outlier point for {self.user.username}: Impossible speed {speed_kmh:.1f} km/h"
+                                )
+                                last_loc = DriverLocation.objects.filter(
+                                    user_id=self.user.id
+                                ).first()
                                 if last_loc:
-                                    last_lat = last_loc.location.y if hasattr(last_loc.location, 'y') else last_loc.location.get('lat')
-                                    last_lng = last_loc.location.x if hasattr(last_loc.location, 'x') else last_loc.location.get('lng')
+                                    last_lat = (
+                                        last_loc.location.y
+                                        if hasattr(last_loc.location, "y")
+                                        else last_loc.location.get("lat")
+                                    )
+                                    last_lng = (
+                                        last_loc.location.x
+                                        if hasattr(last_loc.location, "x")
+                                        else last_loc.location.get("lng")
+                                    )
                                 else:
                                     last_lat, last_lng = snapped_lat, snapped_lng
-                                current_trail = self.get_current_trail(self.user.id, active_route)
-                                return last_lat, last_lng, current_trail, calculate_trail_distance(current_trail), planned_coords
+                                current_trail = self.get_current_trail(
+                                    self.user.id, active_route
+                                )
+                                return (
+                                    last_lat,
+                                    last_lng,
+                                    current_trail,
+                                    calculate_trail_distance(current_trail),
+                                    planned_coords,
+                                )
 
                         if dist < 8.0:
                             # STATIONARY GPS JITTER: Driver has not moved significantly.
                             # Skip creating a new DriverTrail point, but update live position.
                             DriverLocation.objects.update_or_create(
                                 user_id=self.user.id,
-                                defaults={'location': cleaned_location_data}
+                                defaults={"location": cleaned_location_data},
                             )
-                            current_trail = self.get_current_trail(self.user.id, active_route)
-                            return snapped_lat, snapped_lng, current_trail, calculate_trail_distance(current_trail), planned_coords
-                
+                            current_trail = self.get_current_trail(
+                                self.user.id, active_route
+                            )
+                            return (
+                                snapped_lat,
+                                snapped_lng,
+                                current_trail,
+                                calculate_trail_distance(current_trail),
+                                planned_coords,
+                            )
+
                 # 2. Update current live position (using snapped location for precision)
                 DriverLocation.objects.update_or_create(
-                    user_id=self.user.id,
-                    defaults={'location': cleaned_location_data}
+                    user_id=self.user.id, defaults={"location": cleaned_location_data}
                 )
-                
+
                 # 3. Create the new trail record (tagged with active_route)
                 DriverTrail.objects.create(
                     user_id=self.user.id,
                     route=active_route,
                     location=location_data,
-                    cleaned_location=cleaned_location_data
+                    cleaned_location=cleaned_location_data,
                 )
- 
+
                 # 4. Fetch the clean snapping-routed trail and calculate cumulative distance
                 current_trail = self.get_current_trail(self.user.id, active_route)
-                return snapped_lat, snapped_lng, current_trail, calculate_trail_distance(current_trail), planned_coords
- 
+                return (
+                    snapped_lat,
+                    snapped_lng,
+                    current_trail,
+                    calculate_trail_distance(current_trail),
+                    planned_coords,
+                )
+
         except Exception as e:
             print(f"[DB Sync Error] {str(e)}")
             traceback.print_exc()
             return [], 0.0, []
- 
+
     @database_sync_to_async
     def get_initial_state(self):
         try:
-            if not self.tenant or self.tenant.schema_name == 'public':
+            if not self.tenant or self.tenant.schema_name == "public":
                 return []
- 
+
             with schema_context(self.tenant.schema_name):
                 from django.utils import timezone
                 from datetime import timedelta
-                
+
                 time_threshold = timezone.now() - timedelta(hours=12)
-                
+
                 # Fetch all active driver locations updated in the last 12 hours
-                active_locations = DriverLocation.objects.select_related('user').filter(
+                active_locations = DriverLocation.objects.select_related("user").filter(
                     updated_at__gte=time_threshold
                 )
-                
+
                 drivers_state = []
                 for loc in active_locations:
                     driver = loc.user
-                    
+
                     # Get active route
                     from routing.models import Route, RouteStatus
+
                     active_route = Route.objects.filter(
-                        driver__user_id=driver.id,
-                        status=RouteStatus.IN_PROGRESS
+                        driver__user_id=driver.id, status=RouteStatus.IN_PROGRESS
                     ).first()
-                    
+
                     # Fetch their clean snapping-routed trail
                     trail_points = self.get_current_trail(driver.id, active_route)
                     distance_km = calculate_trail_distance(trail_points)
-                    
+
                     # Planned route coordinates extraction
                     planned_coords = []
                     if active_route and active_route.geometry:
                         geom = active_route.geometry
-                        if hasattr(geom, 'coords'):
+                        if hasattr(geom, "coords"):
                             planned_coords = list(geom.coords)
                         elif isinstance(geom, str):
                             try:
                                 import json
+
                                 parsed = json.loads(geom)
-                                if isinstance(parsed, dict) and 'coordinates' in parsed:
-                                    planned_coords = parsed['coordinates']
+                                if isinstance(parsed, dict) and "coordinates" in parsed:
+                                    planned_coords = parsed["coordinates"]
                             except Exception:
                                 pass
                             if not planned_coords:
                                 try:
                                     pts = []
-                                    for part in geom.replace('LINESTRING', '').replace('(', '').replace(')', '').strip().split(','):
+                                    for part in (
+                                        geom.replace("LINESTRING", "")
+                                        .replace("(", "")
+                                        .replace(")", "")
+                                        .strip()
+                                        .split(",")
+                                    ):
                                         coord = part.strip().split()
                                         if len(coord) >= 2:
-                                            pts.append([float(coord[0]), float(coord[1])])
+                                            pts.append(
+                                                [float(coord[0]), float(coord[1])]
+                                            )
                                     planned_coords = pts
                                 except Exception:
                                     pass
-                    
+
                     # Snapped lat/lng of current position
-                    current_lat = loc.location.y if hasattr(loc.location, 'y') else loc.location.get('lat')
-                    current_lng = loc.location.x if hasattr(loc.location, 'x') else loc.location.get('lng')
-                    
-                    drivers_state.append({
-                        "driver_id": str(driver.id),
-                        "driver_name": driver.get_full_name() or driver.username,
-                        "lat": current_lat,
-                        "lng": current_lng,
-                        "trail": trail_points,
-                        "distance_km": distance_km,
-                        "planned_route": planned_coords
-                    })
+                    current_lat = (
+                        loc.location.y
+                        if hasattr(loc.location, "y")
+                        else loc.location.get("lat")
+                    )
+                    current_lng = (
+                        loc.location.x
+                        if hasattr(loc.location, "x")
+                        else loc.location.get("lng")
+                    )
+
+                    drivers_state.append(
+                        {
+                            "driver_id": str(driver.id),
+                            "driver_name": driver.get_full_name() or driver.username,
+                            "lat": current_lat,
+                            "lng": current_lng,
+                            "trail": trail_points,
+                            "distance_km": distance_km,
+                            "planned_route": planned_coords,
+                        }
+                    )
                 return drivers_state
         except Exception as e:
             print(f"[Initial State Error] {str(e)}")
@@ -419,23 +547,25 @@ class TrackingConsumer(AsyncWebsocketConsumer):
     @database_sync_to_async
     def get_initial_driver_state(self, driver_id):
         try:
-            if not self.tenant or self.tenant.schema_name == 'public':
+            if not self.tenant or self.tenant.schema_name == "public":
                 return None
- 
+
             with schema_context(self.tenant.schema_name):
                 from django.utils import timezone
                 from datetime import timedelta
-                
+
                 time_threshold = timezone.now() - timedelta(hours=12)
-                
+
                 # Fetch active driver location updated in the last 12 hours
-                loc = DriverLocation.objects.select_related('user').filter(
-                    user_id=driver_id,
-                    updated_at__gte=time_threshold
-                ).first()
-                
+                loc = (
+                    DriverLocation.objects.select_related("user")
+                    .filter(user_id=driver_id, updated_at__gte=time_threshold)
+                    .first()
+                )
+
                 if not loc:
                     from accounts.models import User
+
                     driver = User.objects.filter(id=driver_id).first()
                     if not driver:
                         return None
@@ -446,40 +576,49 @@ class TrackingConsumer(AsyncWebsocketConsumer):
                         "lng": None,
                         "trail": [],
                         "distance_km": 0.0,
-                        "planned_route": []
+                        "planned_route": [],
                     }
-                
+
                 driver = loc.user
-                
+
                 # Get active route
                 from routing.models import Route, RouteStatus
+
                 active_route = Route.objects.filter(
-                    driver__user_id=driver.id,
-                    status=RouteStatus.IN_PROGRESS
+                    driver__user_id=driver.id, status=RouteStatus.IN_PROGRESS
                 ).first()
-                
+
                 # Fetch clean snapped trail
                 trail_points = self.get_current_trail(driver.id, active_route)
                 distance_km = calculate_trail_distance(trail_points)
-                
+
                 # Planned route coordinates extraction
                 planned_coords = []
                 if active_route and active_route.geometry:
                     geom = active_route.geometry
-                    if hasattr(geom, 'coords'):
+                    if hasattr(geom, "coords"):
                         planned_coords = list(geom.coords)
                     elif isinstance(geom, str):
                         try:
                             import json
+
                             parsed = json.loads(geom)
-                            if isinstance(parsed, dict) and 'coordinates' in parsed:
-                                planned_coords = parsed['coordinates']
+                            if isinstance(parsed, dict) and "coordinates" in parsed:
+                                planned_coords = parsed["coordinates"]
                         except Exception:
                             pass
-                
-                current_lat = loc.location.y if hasattr(loc.location, 'y') else loc.location.get('lat')
-                current_lng = loc.location.x if hasattr(loc.location, 'x') else loc.location.get('lng')
-                
+
+                current_lat = (
+                    loc.location.y
+                    if hasattr(loc.location, "y")
+                    else loc.location.get("lat")
+                )
+                current_lng = (
+                    loc.location.x
+                    if hasattr(loc.location, "x")
+                    else loc.location.get("lng")
+                )
+
                 return {
                     "driver_id": str(driver.id),
                     "driver_name": driver.get_full_name() or driver.username,
@@ -487,7 +626,7 @@ class TrackingConsumer(AsyncWebsocketConsumer):
                     "lng": current_lng,
                     "trail": trail_points,
                     "distance_km": distance_km,
-                    "planned_route": planned_coords
+                    "planned_route": planned_coords,
                 }
         except Exception as e:
             print(f"[Initial Driver State Error] {str(e)}")

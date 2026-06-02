@@ -3,8 +3,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search'
-HEADERS = {'User-Agent': 'DeliveryERP/1.0 (contact@yourcompany.com)'}
+NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
+HEADERS = {"User-Agent": "DeliveryERP/1.0 (contact@yourcompany.com)"}
 
 
 def geocode_address(address: str) -> tuple[float, float] | None:
@@ -15,16 +15,16 @@ def geocode_address(address: str) -> tuple[float, float] | None:
         (latitude, longitude) tuple, or None if not found.
     """
     params = {
-        'q': address,
-        'format': 'json',
-        'limit': 1,
+        "q": address,
+        "format": "json",
+        "limit": 1,
     }
     try:
         resp = requests.get(NOMINATIM_URL, params=params, headers=HEADERS, timeout=5)
         resp.raise_for_status()
         results = resp.json()
         if results:
-            return float(results[0]['lat']), float(results[0]['lon'])
+            return float(results[0]["lat"]), float(results[0]["lon"])
         logger.warning('Nominatim: no result for address "%s"', address)
         return None
     except requests.RequestException as exc:
@@ -45,12 +45,14 @@ def geocode_orders(orders) -> list[dict]:
         coords = geocode_address(order.delivery_address)
         if coords:
             lat, lon = coords
-            results.append({
-                'order_id': str(order.id),
-                'address': order.delivery_address,
-                'lat': lat,
-                'lon': lon,
-            })
+            results.append(
+                {
+                    "order_id": str(order.id),
+                    "address": order.delivery_address,
+                    "lat": lat,
+                    "lon": lon,
+                }
+            )
         else:
-            logger.warning('Skipping order %s — could not geocode address.', order.id)
+            logger.warning("Skipping order %s — could not geocode address.", order.id)
     return results

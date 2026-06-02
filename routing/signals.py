@@ -6,7 +6,7 @@ from django.dispatch import receiver
 logger = logging.getLogger(__name__)
 
 
-@receiver(post_save, sender='routing.TrackingEvent')
+@receiver(post_save, sender="routing.TrackingEvent")
 def on_tracking_event_saved(sender, instance, created, **kwargs):
     """
     Fires after every TrackingEvent save.
@@ -23,7 +23,7 @@ def on_tracking_event_saved(sender, instance, created, **kwargs):
     """
     if not created:
         return
-    if instance.status != 'delivered':
+    if instance.status != "delivered":
         return
     if not instance.order:
         return
@@ -34,7 +34,9 @@ def on_tracking_event_saved(sender, instance, created, **kwargs):
         with transaction.atomic():
             from inventory.services import deduct_stock_on_delivery
             from inventory.services.bottle_service import issue_bottles
-            from routing.services.reconciliation_service import generate_daily_reconciliation
+            from routing.services.reconciliation_service import (
+                generate_daily_reconciliation,
+            )
             from orders.models import OrderStatus
 
             # 1. Deduct stock
@@ -45,19 +47,18 @@ def on_tracking_event_saved(sender, instance, created, **kwargs):
 
             # 3. Update order status
             order.status = OrderStatus.DELIVERED
-            order.save(update_fields=['status'])
+            order.save(update_fields=["status"])
 
             # 4. Update/Generate daily reconciliation for the route
             generate_daily_reconciliation(instance.route.id)
 
             logger.info(
-                'Delivery complete hooks processed for order %s. Route: %s',
-                order.id, instance.route.id
+                "Delivery complete hooks processed for order %s. Route: %s",
+                order.id,
+                instance.route.id,
             )
 
     except Exception as exc:
-        logger.exception(
-            'Post-delivery hook failed for order %s: %s', order.id, exc
-        )
+        logger.exception("Post-delivery hook failed for order %s: %s", order.id, exc)
         # Re-raise so the caller knows something went wrong
         raise
