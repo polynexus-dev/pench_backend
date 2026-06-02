@@ -103,6 +103,8 @@ class RequestOTPView(APIView):
                             first_name=customer.name,
                         )
                         # Link the customer in the tenant schema to the new public user
+                        from django.db import connection
+                        connection.set_schema(city.schema_name)
                         customer.user = user
                         customer.save()
                         print(
@@ -307,6 +309,8 @@ class ForgotPasswordView(APIView):
                             first_name=customer.name,
                         )
                         # Link the customer in the tenant schema to the new public user
+                        from django.db import connection
+                        connection.set_schema(city.schema_name)
                         customer.user = user
                         customer.save()
                         print(
