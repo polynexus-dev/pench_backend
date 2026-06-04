@@ -972,6 +972,111 @@ class CustomerViewSet(viewsets.ModelViewSet):
                 pass
 
             # Stats collections
+            duplicates_merged = 0
+            duplicates_deleted = 0
+            duplicates_details = []
+
+            # ──────────────────────────────────────────────────────────
+            # PHASE 0: Clean up and merge duplicate customers
+            # ──────────────────────────────────────────────────────────
+            from collections import defaultdict
+            from django.db import transaction
+
+            all_customers = list(Customer.objects.all())
+            groups = defaultdict(list)
+            for c in all_customers:
+                name_clean = c.name.strip().lower() if c.name else ""
+                phone_clean = c.phone.strip() if c.phone else ""
+                if name_clean and phone_clean:
+                    groups[(name_clean, phone_clean)].append(c)
+
+            for (name_key, phone_key), group in groups.items():
+                if len(group) <= 1:
+                    continue
+
+                # Identify Primary customer
+                with_user = [c for c in group if c.user_id is not None]
+                if with_user:
+                    primary = min(with_user, key=lambda c: c.created_at)
+                else:
+                    primary = min(group, key=lambda c: c.created_at)
+
+                duplicates = [c for c in group if c.id != primary.id]
+
+                for dup in duplicates:
+                    if dup.user_id is not None:
+                        continue
+
+                    duplicates_details.append({
+                        "primary_customer_id": str(primary.id),
+                        "primary_customer_name": primary.name,
+                        "duplicate_customer_id": str(dup.id),
+                        "duplicate_customer_name": dup.name,
+                        "phone": phone_key
+                    })
+                    
+                    duplicates_merged += 1
+                    duplicates_deleted += 1
+
+                    if not dry_run:
+                        with transaction.atomic():
+                            # 1. Update Lead.referred_by
+                            from crm.models import Lead
+                            Lead.objects.filter(referred_by=dup).update(referred_by=primary)
+
+                            # 2. Update Order.customer
+                            from orders.models import Order
+                            Order.objects.filter(customer=dup).update(customer=primary)
+
+                            # 3. Update Subscription.customer
+                            from subscriptions.models import Subscription
+                            Subscription.objects.filter(customer=dup).update(customer=primary)
+
+                            # 4. Update BottleTransaction.customer
+                            from inventory.models import BottleTransaction
+                            BottleTransaction.objects.filter(customer=dup).update(customer=primary)
+
+                            # 5. Merge CustomerBottleBalance
+                            from inventory.models import CustomerBottleBalance
+                            for bal in CustomerBottleBalance.objects.filter(customer=dup):
+                                prim_bal, created = CustomerBottleBalance.objects.get_or_create(
+                                    customer=primary,
+                                    bottle_type=bal.bottle_type,
+                                    defaults={'balance': 0}
+                                )
+                                prim_bal.balance += bal.balance
+                                prim_bal.save()
+                                bal.delete()
+
+                            # 6. Merge CustomerProductPrice
+                            from inventory.models import CustomerProductPrice
+                            for cpp in CustomerProductPrice.objects.filter(customer=dup):
+                                if not CustomerProductPrice.objects.filter(customer=primary, product=cpp.product).exists():
+                                    cpp.customer = primary
+                                    cpp.save()
+                                else:
+                                    cpp.delete()
+
+                            # 7. Merge MonthlyBill
+                            from finance.models import MonthlyBill
+                            for bill in MonthlyBill.objects.filter(customer=dup):
+                                if not MonthlyBill.objects.filter(customer=primary, billing_month=bill.billing_month).exists():
+                                    bill.customer = primary
+                                    bill.save()
+                                else:
+                                    prim_bill = MonthlyBill.objects.get(customer=primary, billing_month=bill.billing_month)
+                                    for trans in bill.transactions.all():
+                                        trans.bill = prim_bill
+                                        trans.save()
+                                    prim_bill.total_amount += bill.total_amount
+                                    prim_bill.save()
+                                    prim_bill.reconcile()
+                                    bill.delete()
+
+                            # 8. Delete the duplicate Customer profile
+                            dup.delete()
+
+            # Stats collections
             c_to_u_checked = 0
             c_to_u_already_linked = 0
             c_to_u_linked_existing = 0
@@ -1216,6 +1321,11 @@ class CustomerViewSet(viewsets.ModelViewSet):
                 "message": "Dry-run check completed." if dry_run else "Sync refresh completed successfully.",
                 "dry_run": dry_run,
                 "tenant_schema": target_schema,
+                "duplicates_cleaned": {
+                    "merged": duplicates_merged,
+                    "deleted": duplicates_deleted,
+                    "details": duplicates_details
+                },
                 "customer_to_user": {
                     "checked": c_to_u_checked,
                     "already_linked": c_to_u_already_linked,
