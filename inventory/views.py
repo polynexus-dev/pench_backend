@@ -95,11 +95,11 @@ class ProductViewSet(viewsets.ModelViewSet):
 
 
 class StockViewSet(viewsets.ModelViewSet):
-    queryset = Stock.objects.select_related("product", "warehouse")
+    queryset = Stock.objects.select_related("raw_material", "warehouse")
     serializer_class = StockSerializer
     permission_classes = [IsERPUser, HasGroupPermission]
     required_groups = ["Inventory_Managers", "ERP_Admins"]
-    filterset_fields = ["warehouse", "product"]
+    filterset_fields = ["warehouse", "raw_material"]
 
     @action(detail=False, methods=["patch", "put"])
     def bulk_update(self, request):
