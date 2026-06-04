@@ -38,6 +38,7 @@ class OrderSerializer(serializers.ModelSerializer):
             "id",
             "customer",
             "customer_name",
+            "subscription",
             "status",
             "status_display",
             "scheduled_delivery_date",
@@ -52,6 +53,7 @@ class OrderSerializer(serializers.ModelSerializer):
             "pod_latitude",
             "pod_longitude",
             "delivered_at",
+            "is_special",
         ]
 
     def get_driver_name(self, obj):
@@ -127,6 +129,9 @@ class OrderSerializer(serializers.ModelSerializer):
             customer = validated_data.get("customer")
             if customer:
                 validated_data["delivery_address"] = customer.address
+
+        if validated_data.get("subscription") is None:
+            validated_data["is_special"] = True
 
         order = Order.objects.create(**validated_data)
 

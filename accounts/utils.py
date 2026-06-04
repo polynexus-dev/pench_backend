@@ -16,11 +16,13 @@ def generate_otp(phone):
     now = timezone.now()
 
     # 1. Throttling/Cooldown check
-    recent_otp = OTP.objects.filter(
-        phone=phone, created_at__gt=now - timedelta(seconds=60)
-    ).first()
-    if recent_otp:
-        raise ValueError("Please wait 60 seconds before requesting a new OTP.")
+    from django.conf import settings
+    if not settings.DEBUG:
+        recent_otp = OTP.objects.filter(
+            phone=phone, created_at__gt=now - timedelta(seconds=60)
+        ).first()
+        if recent_otp:
+            raise ValueError("Please wait 60 seconds before requesting a new OTP.")
 
     # 2. Invalidate previous unused active OTPs for the same phone number
     OTP.objects.filter(phone=phone, is_used=False).update(is_used=True)

@@ -208,11 +208,20 @@ class LoginOTPView(APIView):
                 if not domain:
                     domain = Domain.objects.filter(tenant=city).first()
 
-                response_data["tenant_domain"] = (
+                domain_val = (
                     domain.domain.replace("_", "-")
                     if domain and domain.domain
                     else f"{user.tenant_schema.replace('_', '-')}.{base_domain}"
                 )
+                response_data["tenant_domain"] = domain_val
+
+                # Format full URL domain_name for consistency with password login
+                scheme = "https" if request.is_secure() else "http"
+                port = ""
+                host_parts = request.get_host().split(":")
+                if len(host_parts) > 1:
+                    port = f":{host_parts[1]}"
+                response_data["domain_name"] = f"{scheme}://{domain_val}{port}"
 
                 # If driver, find their active route
                 if user.is_driver:
