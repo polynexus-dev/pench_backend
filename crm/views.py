@@ -231,20 +231,16 @@ class CustomerViewSet(viewsets.ModelViewSet):
             # Using Segoe UI for a more modern, premium look instead of basic Arial
             font_bold = ImageFont.truetype("C:\\Windows\\Fonts\\segoeuib.ttf", 60)
             font_small = ImageFont.truetype(
-                "C:\\Windows\\Fonts\\segoeui.ttf", 18
-            )  # Smaller Footer
-            font_title = ImageFont.truetype("C:\\Windows\\Fonts\\segoeuib.ttf", 45)
-            font_scan = ImageFont.truetype(
-                "C:\\Windows\\Fonts\\segoeuib.ttf", 35
-            )  # Smaller SCAN HERE
+                "C:\\Windows\\Fonts\\segoeuib.ttf", 26
+            )  # Bold & Larger Footer
+            font_title = ImageFont.truetype("C:\\Windows\\Fonts\\segoeuib.ttf", 60) # Larger Title
             font_customer = ImageFont.truetype(
-                "C:\\Windows\\Fonts\\segoeui.ttf", 28
-            )  # Customer Name
+                "C:\\Windows\\Fonts\\segoeuib.ttf", 40
+            )  # Bold & Larger ID
         except Exception:
             font_bold = ImageFont.load_default()
             font_small = ImageFont.load_default()
             font_title = ImageFont.load_default()
-            font_scan = ImageFont.load_default()
             font_customer = ImageFont.load_default()
 
         # 7. Add Text with Impact
@@ -263,22 +259,13 @@ class CustomerViewSet(viewsets.ModelViewSet):
         unique_num = str(customer.qr_code_id.int)[:6]
         display_text = f"ID: PENCH-{unique_num}"
 
-        # Draw the ID right beneath the QR code (tight gap)
+        # Draw the ID right beneath the QR code (centered in the green region)
         draw.text(
-            (canvas_width / 2, 650),
+            (canvas_width / 2, 680),
             display_text,
             fill=dark_bg,
             anchor="mm",
             font=font_customer,
-        )
-
-        # Smaller "SCAN HERE" close to the ID
-        draw.text(
-            (canvas_width / 2, 715),
-            "SCAN HERE",
-            fill=dark_bg,
-            anchor="mm",
-            font=font_scan,
         )
 
         # Small Footer sitting neatly at the bottom edge
