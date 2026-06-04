@@ -916,6 +916,322 @@ class CustomerViewSet(viewsets.ModelViewSet):
             status=status.HTTP_200_OK,
         )
 
+    @action(detail=False, methods=["get", "post"], url_path="sync-refresh-customers")
+    def sync_refresh_customers(self, request):
+        """
+        Synchronizes Customers and Users in both directions.
+        GET: Check inconsistencies (Dry-run mode, does not write to database).
+        POST: Performs the sync (creates or links missing accounts).
+        """
+        from accounts.models import User
+        from django_tenants.utils import schema_context
+        from django.db import connection
+        from django.core.exceptions import ObjectDoesNotExist
+
+        current_schema = connection.schema_name
+        target_schema = current_schema
+        
+        if current_schema == "public":
+            # 1. Check if a specific schema is passed in query params or POST body
+            param_schema = request.query_params.get("tenant_schema") or request.data.get("tenant_schema")
+            if param_schema:
+                target_schema = param_schema
+            # 2. Otherwise fallback to the authenticated user's tenant schema
+            elif request.user and getattr(request.user, "tenant_schema", None):
+                target_schema = request.user.tenant_schema
+
+        if target_schema == "public":
+            return Response(
+                {"error": "This action cannot be performed in the public schema context. Please specify a tenant_schema or login as a tenant user."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Determine dry-run status
+        dry_run = request.method == "GET"
+        if not dry_run:
+            val = request.data.get("dry_run")
+            if val is not None:
+                if isinstance(val, str):
+                    dry_run = val.lower() == "true"
+                else:
+                    dry_run = bool(val)
+            
+            qp_val = request.query_params.get("dry_run")
+            if qp_val is not None:
+                dry_run = qp_val.lower() == "true"
+
+        with schema_context(target_schema):
+            # 1. Fetch current schema's default company name for new Customer profiles
+            comp_name = ""
+            try:
+                from tenants.models import City
+                city = City.objects.filter(schema_name=target_schema).select_related("company").first()
+                if city and city.company:
+                    comp_name = city.company.name
+            except Exception:
+                pass
+
+            # Stats collections
+            c_to_u_checked = 0
+            c_to_u_already_linked = 0
+            c_to_u_linked_existing = 0
+            c_to_u_created_new = 0
+            c_to_u_details = []
+
+            # ──────────────────────────────────────────────────────────
+            # DIRECTION 1: Customer -> User (Syncing Customers to Public Users)
+            # ──────────────────────────────────────────────────────────
+            customers = Customer.objects.all()
+            for customer in customers:
+                connection.set_schema(target_schema)
+                c_to_u_checked += 1
+
+                # If already linked, check if we need to update/verify the User settings
+                if customer.user:
+                    c_to_u_already_linked += 1
+                    user = customer.user
+
+                    # Verify that the user flags and tenant_schema are correct
+                    user_updated = False
+                    if not user.is_customer:
+                        user.is_customer = True
+                        user_updated = True
+                    if user.tenant_schema != target_schema:
+                        user.tenant_schema = target_schema
+                        user_updated = True
+
+                    if user_updated and not dry_run:
+                        user.save(update_fields=['is_customer', 'tenant_schema'])
+                    continue
+
+                # Not linked. Search public User table by phone or email
+                user = None
+                if customer.phone:
+                    phone_clean = customer.phone.strip()
+                    if phone_clean:
+                        user = User.objects.filter(phone=phone_clean).first()
+                        if not user and len(phone_clean) >= 10:
+                            last_10 = phone_clean[-10:]
+                            user = User.objects.filter(phone__endswith=last_10).first()
+
+                if not user and customer.email:
+                    email_clean = customer.email.strip()
+                    if email_clean:
+                        user = User.objects.filter(email__iexact=email_clean).first()
+
+                if user:
+                    # Check if this user is already linked to another Customer profile
+                    if Customer.objects.filter(user=user).exclude(id=customer.id).exists():
+                        c_to_u_details.append({
+                            "customer_id": str(customer.id),
+                            "customer_name": customer.name,
+                            "phone": customer.phone,
+                            "email": customer.email,
+                            "action": "skipped_conflict_user_already_linked",
+                            "user_id": user.id,
+                            "username": user.username
+                        })
+                        continue
+
+                    # Link existing user
+                    c_to_u_linked_existing += 1
+                    c_to_u_details.append({
+                        "customer_id": str(customer.id),
+                        "customer_name": customer.name,
+                        "phone": customer.phone,
+                        "email": customer.email,
+                        "action": "linked_existing_user",
+                        "user_id": user.id,
+                        "username": user.username
+                    })
+
+                    if not dry_run:
+                        user.is_customer = True
+                        user.tenant_schema = target_schema
+                        user.save(update_fields=['is_customer', 'tenant_schema'])
+                        
+                        connection.set_schema(target_schema)
+                        customer.user = user
+                        customer.save(update_fields=['user'])
+                else:
+                    # Create a new User
+                    c_to_u_created_new += 1
+
+                    # Determine username
+                    username = None
+                    if customer.phone:
+                        username = customer.phone.strip()
+                    elif customer.email:
+                        username = customer.email.strip()
+                    else:
+                        username = customer.name.lower().replace(" ", "")
+
+                    if not username:
+                        username = f"cust_{str(customer.id)[:8]}"
+
+                    # Ensure username uniqueness
+                    base_username = username
+                    counter = 1
+                    while User.objects.filter(username=username).exists():
+                        username = f"{base_username}_{counter}"
+                        counter += 1
+
+                    c_to_u_details.append({
+                        "customer_id": str(customer.id),
+                        "customer_name": customer.name,
+                        "phone": customer.phone,
+                        "email": customer.email,
+                        "action": "created_new_user",
+                        "username": username
+                    })
+
+                    if not dry_run:
+                        name_parts = customer.name.split(None, 1)
+                        first_name = name_parts[0] if name_parts else customer.name
+                        last_name = name_parts[1] if len(name_parts) > 1 else ""
+
+                        new_user = User.objects.create(
+                            username=username,
+                            phone=customer.phone.strip() if customer.phone else None,
+                            email=customer.email.strip() if customer.email else f"{username}@penchfoods.in",
+                            first_name=first_name,
+                            last_name=last_name,
+                            is_customer=True,
+                            tenant_schema=target_schema,
+                            is_active=True
+                        )
+                        new_user.set_unusable_password()
+                        new_user.save()
+
+                        # Auto assign to Customers group
+                        from django.contrib.auth.models import Group
+                        group, _ = Group.objects.get_or_create(name="Customers")
+                        new_user.groups.add(group)
+
+                        connection.set_schema(target_schema)
+                        customer.user = new_user
+                        customer.save(update_fields=['user'])
+
+            # Stats collections for Direction 2
+            u_to_c_checked = 0
+            u_to_c_already_linked = 0
+            u_to_c_linked_existing = 0
+            u_to_c_created_new = 0
+            u_to_c_details = []
+
+            # ──────────────────────────────────────────────────────────
+            # DIRECTION 2: User -> Customer (Syncing Public Users to Customers)
+            # ──────────────────────────────────────────────────────────
+            connection.set_schema(target_schema)
+            customer_users = User.objects.filter(is_customer=True, tenant_schema=target_schema)
+            for user in customer_users:
+                connection.set_schema(target_schema)
+                u_to_c_checked += 1
+
+                # Check if Customer profile exists linked to this user
+                customer = Customer.objects.filter(user=user).first()
+                if customer:
+                    u_to_c_already_linked += 1
+                    continue
+
+                # Not linked. Search Customer by phone or email
+                customer = None
+                if user.phone:
+                    phone_clean = user.phone.strip()
+                    if phone_clean:
+                        customer = Customer.objects.filter(phone=phone_clean).first()
+                        if not customer and len(phone_clean) >= 10:
+                            last_10 = phone_clean[-10:]
+                            customer = Customer.objects.filter(phone__endswith=last_10).first()
+
+                if not customer and user.email:
+                    email_clean = user.email.strip()
+                    if email_clean:
+                        customer = Customer.objects.filter(email__iexact=email_clean).first()
+
+                if customer:
+                    if customer.user and customer.user != user:
+                        u_to_c_details.append({
+                            "user_id": user.id,
+                            "username": user.username,
+                            "phone": user.phone,
+                            "email": user.email,
+                            "action": "skipped_conflict_customer_already_linked",
+                            "customer_id": str(customer.id),
+                            "customer_name": customer.name
+                        })
+                        customer = None  # Fallback to create a new profile
+
+                if customer:
+                    # Link existing Customer to this User
+                    u_to_c_linked_existing += 1
+                    u_to_c_details.append({
+                        "user_id": user.id,
+                        "username": user.username,
+                        "phone": user.phone,
+                        "email": user.email,
+                        "action": "linked_existing_customer",
+                        "customer_id": str(customer.id),
+                        "customer_name": customer.name
+                    })
+
+                    if not dry_run:
+                        connection.set_schema(target_schema)
+                        customer.user = user
+                        customer.save(update_fields=['user'])
+                else:
+                    # Create a new Customer profile
+                    u_to_c_created_new += 1
+
+                    email = user.email or f"{user.username}_{user.id}@penchfoods.in"
+                    base_email = email
+                    counter = 1
+                    while Customer.objects.filter(email=email).exists():
+                        name_part, domain_part = base_email.split("@", 1) if "@" in base_email else (base_email, "penchfoods.in")
+                        email = f"{name_part}_{counter}@{domain_part}"
+                        counter += 1
+
+                    u_to_c_details.append({
+                        "user_id": user.id,
+                        "username": user.username,
+                        "phone": user.phone,
+                        "email": email,
+                        "action": "created_new_customer",
+                        "customer_name": f"{user.first_name} {user.last_name}".strip() or user.username
+                    })
+
+                    if not dry_run:
+                        connection.set_schema(target_schema)
+                        Customer.objects.create(
+                            user=user,
+                            name=f"{user.first_name} {user.last_name}".strip() or user.username,
+                            company=comp_name,
+                            email=email,
+                            phone=user.phone or "",
+                            address="",
+                            is_active=user.is_active
+                        )
+
+            return Response({
+                "message": "Dry-run check completed." if dry_run else "Sync refresh completed successfully.",
+                "dry_run": dry_run,
+                "tenant_schema": target_schema,
+                "customer_to_user": {
+                    "checked": c_to_u_checked,
+                    "already_linked": c_to_u_already_linked,
+                    "linked_existing_user": c_to_u_linked_existing,
+                    "created_new_user": c_to_u_created_new,
+                    "details": c_to_u_details
+                },
+                "user_to_customer": {
+                    "checked": u_to_c_checked,
+                    "already_linked": u_to_c_already_linked,
+                    "linked_existing_customer": u_to_c_linked_existing,
+                    "created_new_customer": u_to_c_created_new,
+                    "details": u_to_c_details
+                }
+            }, status=status.HTTP_200_OK)
+
 
 class LeadViewSet(viewsets.ModelViewSet):
     queryset = Lead.objects.all()
