@@ -31,7 +31,7 @@ class OrderViewSet(viewsets.ModelViewSet):
         """
         ERP users can do everything. Customers can list, retrieve, create, update, and destroy their own orders.
         """
-        if self.action in ["list", "retrieve", "create", "partial_update", "update", "destroy"]:
+        if self.action in ["list", "retrieve", "create", "partial_update", "update", "destroy", "special_orders"]:
             return [IsAuthenticated()]
         # Management actions require ERP permissions
         return [IsERPUser(), HasGroupPermission()]
@@ -367,6 +367,20 @@ class OrderViewSet(viewsets.ModelViewSet):
             except Order.DoesNotExist:
                 continue
         return Response(updated, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=["get"], url_path="special")
+    def special_orders(self, request):
+        """Returns all special/extra orders (non-subscription orders)."""
+        qs = self.get_queryset().filter(is_special=True)
+        # Additional filters from query params
+        customer_id = request.query_params.get("customer")
+        if customer_id:
+            qs = qs.filter(customer_id=customer_id)
+        date = request.query_params.get("scheduled_delivery_date")
+        if date:
+            qs = qs.filter(scheduled_delivery_date=date)
+        serializer = self.get_serializer(qs, many=True)
+        return Response(serializer.data)
 
     @action(detail=True, methods=["post"], url_path="mark-delivered")
     def mark_delivered(self, request, pk=None):

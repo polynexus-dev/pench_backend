@@ -39,6 +39,10 @@ class Order(BaseModel):
     delivery_address = models.TextField()
     delivery_notes = models.TextField(blank=True)
     total = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    is_special = models.BooleanField(
+        default=False,
+        help_text="True if this is a one-time special/extra order placed outside of any subscription."
+    )
     pod_image = models.ImageField(upload_to="pod_images/", null=True, blank=True)
     pod_latitude = models.DecimalField(
         max_digits=12, decimal_places=9, null=True, blank=True

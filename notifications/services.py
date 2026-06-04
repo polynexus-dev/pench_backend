@@ -42,14 +42,21 @@ def send_push_notification(user, title, body, data=None, order=None, subscriptio
             if notif:
                 fcm_data['notification_id'] = str(notif.id)
 
+            # Select the correct Android notification channel
+            # Drivers get delivery_updates; customers get order_updates
+            driver_types = {'route_update', 'delivery_update', 'general'}
+            channel_id = 'delivery_updates' if notification_type in driver_types else 'order_updates'
+            fcm_data['channel_id'] = channel_id  # expose to client data payload too
+
             if len(tokens) == 1:
-                fcm_service.send_to_device(tokens[0], title, body, fcm_data)
+                fcm_service.send_to_device(tokens[0], title, body, fcm_data, channel_id=channel_id)
             else:
-                fcm_service.send_to_multiple_devices(tokens, title, body, fcm_data)
+                fcm_service.send_to_multiple_devices(tokens, title, body, fcm_data, channel_id=channel_id)
         else:
             logger.info('[Notification Service] No FCM tokens registered for user: %s', user.username)
     except Exception as exc:
         logger.error('[Notification Service] FCM dispatch failed: %s', exc)
+
 
     # 3. WebSocket Broadcast
     try:

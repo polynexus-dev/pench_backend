@@ -38,7 +38,7 @@ def _init_firebase():
     firebase_admin.initialize_app(cred)
 
 
-def send_to_device(fcm_token: str, title: str, body: str, data: dict = None) -> str:
+def send_to_device(fcm_token: str, title: str, body: str, data: dict = None, channel_id: str = 'order_updates') -> str:
     """
     Send a push notification to a single device.
     Returns the FCM message ID.
@@ -54,7 +54,7 @@ def send_to_device(fcm_token: str, title: str, body: str, data: dict = None) -> 
             priority='high',
             notification=messaging.AndroidNotification(
                 sound='default',
-                channel_id='default',
+                channel_id=channel_id,
             ),
         ),
     )
@@ -63,7 +63,7 @@ def send_to_device(fcm_token: str, title: str, body: str, data: dict = None) -> 
     return response
 
 
-def send_to_multiple_devices(fcm_tokens: list, title: str, body: str, data: dict = None) -> dict:
+def send_to_multiple_devices(fcm_tokens: list, title: str, body: str, data: dict = None, channel_id: str = 'order_updates') -> dict:
     """
     Send a push notification to multiple devices at once.
     Returns { success_count, failure_count, responses }.
@@ -79,7 +79,7 @@ def send_to_multiple_devices(fcm_tokens: list, title: str, body: str, data: dict
             priority='high',
             notification=messaging.AndroidNotification(
                 sound='default',
-                channel_id='default',
+                channel_id=channel_id,
             ),
         ),
     )
