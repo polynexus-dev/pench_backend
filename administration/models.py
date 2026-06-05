@@ -50,6 +50,16 @@ class AdminConfiguration(BaseModel):
         default="#007bff",
         help_text="Hex code for the primary theme color.",
     )
+    company_upi_id = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Company UPI VPA (e.g., company@okaxis)",
+    )
+    company_upi_name = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Company Display Name for UPI (e.g., Pench Foods)",
+    )
 
     class Meta:
         verbose_name = "Admin Configuration"

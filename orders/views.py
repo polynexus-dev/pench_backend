@@ -397,6 +397,28 @@ class OrderViewSet(viewsets.ModelViewSet):
         pod_lat = request.data.get("pod_latitude")
         pod_lon = request.data.get("pod_longitude")
 
+        payment_method = request.data.get("payment_method")
+        amount_collected = request.data.get("amount_collected")
+        payment_transaction_id = request.data.get("payment_transaction_id", "")
+
+        from orders.models import PaymentMethod, PaymentStatus
+
+        # Validate payment_method
+        if payment_method not in PaymentMethod.values:
+            payment_method = PaymentMethod.ON_ACCOUNT
+
+        if amount_collected is not None:
+            try:
+                amount_collected = float(amount_collected)
+            except (ValueError, TypeError):
+                amount_collected = 0.0
+        else:
+            amount_collected = 0.0
+
+        payment_status = PaymentStatus.PENDING
+        if payment_method in [PaymentMethod.CASH, PaymentMethod.UPI] and amount_collected > 0:
+            payment_status = PaymentStatus.PAID
+
         # Check if POD is required for this tenant
         from administration.models import AdminConfiguration
 
@@ -421,6 +443,12 @@ class OrderViewSet(viewsets.ModelViewSet):
                 order.pod_latitude = pod_lat
             if pod_lon:
                 order.pod_longitude = pod_lon
+
+            order.payment_method = payment_method
+            order.amount_collected = amount_collected
+            order.payment_transaction_id = payment_transaction_id
+            order.payment_status = payment_status
+
             order.save(
                 update_fields=[
                     "status",
@@ -428,6 +456,10 @@ class OrderViewSet(viewsets.ModelViewSet):
                     "pod_image",
                     "pod_latitude",
                     "pod_longitude",
+                    "payment_method",
+                    "amount_collected",
+                    "payment_transaction_id",
+                    "payment_status",
                 ]
             )
 

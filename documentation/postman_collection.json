@@ -341,7 +341,7 @@
                         ],
                         "body": {
                             "mode": "raw",
-                            "raw": "{\"bottles_returned\": 2}"
+                            "raw": "{\n    \"bottles_returned\": 2,\n    \"payment_method\": \"cash\",\n    \"amount_collected\": 40.0,\n    \"payment_transaction_id\": \"\"\n}"
                         },
                         "url": {
                             "raw": "{{city_url}}/api/erp/orders/driver/{{order_id}}/submit-delivery/",
@@ -391,7 +391,7 @@
                                 },
                                 "body": {
                                     "mode": "raw",
-                                    "raw": "\"{\\\"bottles_returned\\\": 2}\""
+                                    "raw": "\"{\\n    \\\"bottles_returned\\\": 2,\\n    \\\"payment_method\\\": \\\"cash\\\",\\n    \\\"amount_collected\\\": 40.0,\\n    \\\"payment_transaction_id\\\": \\\"\\\"\\n}\""
                                 }
                             },
                             "status": "OK",
@@ -6544,7 +6544,7 @@
                                 ],
                                 "body": {
                                     "mode": "raw",
-                                    "raw": "{\n    \"bottles_returned\": 2\n}"
+                                    "raw": "{\n    \"bottles_returned\": 2,\n    \"payment_method\": \"cash\",\n    \"amount_collected\": 40.0,\n    \"payment_transaction_id\": \"\"\n}"
                                 },
                                 "url": {
                                     "raw": "{{city_url}}/api/erp/orders/{{order_id}}/mark-delivered/",
@@ -6592,7 +6592,7 @@
                                         },
                                         "body": {
                                             "mode": "raw",
-                                            "raw": "\"{\\n    \\\"bottles_returned\\\": 2\\n}\""
+                                            "raw": "\"{\\n    \\\"bottles_returned\\\": 2,\\n    \\\"payment_method\\\": \\\"cash\\\",\\n    \\\"amount_collected\\\": 40.0,\\n    \\\"payment_transaction_id\\\": \\\"\\\"\\n}\""
                                         }
                                     },
                                     "status": "OK",
@@ -9974,7 +9974,7 @@
                                 },
                                 "body": {
                                     "mode": "raw",
-                                    "raw": "{\n    \"customer\": 1,\n    \"product\": 1,\n    \"quantity\": 1,\n    \"frequency\": \"daily\",\n    \"start_date\": \"2026-05-01\",\n    \"status\": \"active\"\n}"
+                                    "raw": "[\n    {\n        \"customer\": \"CUSTOMER_1_UUID\",\n        \"frequency\": \"daily\",\n        \"start_date\": \"2026-06-06\",\n        \"delivery_address\": \"123 Main Street, Nagpur\",\n        \"special_instructions\": \"Leave at gate\",\n        \"items\": [\n            {\n                \"product\": \"PRODUCT_1_UUID\",\n                \"quantity\": 2\n            }\n        ]\n    },\n    {\n        \"customer\": \"CUSTOMER_2_UUID\",\n        \"frequency\": \"alternate\",\n        \"start_date\": \"2026-06-06\",\n        \"delivery_address\": \"456 Central Ave, Nagpur\",\n        \"special_instructions\": \"Ring bell\",\n        \"items\": [\n            {\n                \"product\": \"PRODUCT_2_UUID\",\n                \"quantity\": 1\n            }\n        ]\n    }\n]"
                                 }
                             }
                         },
@@ -10727,7 +10727,7 @@
                                 },
                                 "body": {
                                     "mode": "raw",
-                                    "raw": "{\n    \"maintenance_mode\": false\n}"
+                                    "raw": "{\n    \"maintenance_mode\": false,\n    \"company_upi_id\": \"merchant@bank\",\n    \"company_upi_name\": \"Pench Foods\"\n}"
                                 }
                             }
                         },
@@ -10787,7 +10787,7 @@
                                 },
                                 "body": {
                                     "mode": "raw",
-                                    "raw": "{\n    \"maintenance_mode\": false\n}"
+                                    "raw": "{\n    \"maintenance_mode\": false,\n    \"company_upi_id\": \"merchant@bank\",\n    \"company_upi_name\": \"Pench Foods\"\n}"
                                 }
                             }
                         },

@@ -1315,7 +1315,11 @@ def generate_collection():
         config_crud = make_crud_folder(
             "Admin Config (AdminConfiguration)", "Admin Config", "Admin Configs",
             ["api", "erp", "administration", "config"], "city_url",
-            create_body={"maintenance_mode": False}
+            create_body={
+                "maintenance_mode": False,
+                "company_upi_id": "merchant@bank",
+                "company_upi_name": "Pench Foods"
+            }
         )
         admin_folder["item"] = [config_crud]
 
@@ -1364,6 +1368,97 @@ def generate_collection():
             }
         ]
         live_folder["item"] = live_reqs
+
+    # Update POST Submit Delivery (under Driver Mobile App) & POST Mark Delivered (under Orders) with payment fields
+    driver_app = find_folder(coll["item"], "00. SPECIAL: Driver Mobile App")
+    if driver_app:
+        for item in driver_app.get("item", []):
+            if item.get("name") == "POST Submit Delivery":
+                delivery_body = {
+                    "bottles_returned": 2,
+                    "payment_method": "cash",
+                    "amount_collected": 40.00,
+                    "payment_transaction_id": ""
+                }
+                item["request"]["body"] = {
+                    "mode": "raw",
+                    "raw": json.dumps(delivery_body, indent=4)
+                }
+                for resp in item.get("response", []):
+                    if "originalRequest" in resp and "body" in resp["originalRequest"]:
+                        resp["originalRequest"]["body"] = {
+                            "mode": "raw",
+                            "raw": json.dumps(json.dumps(delivery_body, indent=4))
+                        }
+
+    logis_folder = find_folder(coll["item"], "05. Logistics")
+    if logis_folder:
+        orders_folder = find_folder(logis_folder.get("item", []), "Orders")
+        if orders_folder:
+            for item in orders_folder.get("item", []):
+                if item.get("name") == "POST Mark Delivered":
+                    delivery_body = {
+                        "bottles_returned": 2,
+                        "payment_method": "cash",
+                        "amount_collected": 40.00,
+                        "payment_transaction_id": ""
+                    }
+                    item["request"]["body"] = {
+                        "mode": "raw",
+                        "raw": json.dumps(delivery_body, indent=4)
+                    }
+                    for resp in item.get("response", []):
+                        if "originalRequest" in resp and "body" in resp["originalRequest"]:
+                            resp["originalRequest"]["body"] = {
+                                "mode": "raw",
+                                "raw": json.dumps(json.dumps(delivery_body, indent=4))
+                            }
+
+    # Update POST Create Subscription with the new bulk format template
+    sub_folder = find_folder(coll["item"], "09. Subscriptions")
+    if sub_folder:
+        sub_crud = find_folder(sub_folder.get("item", []), "Subscriptions (Subscription)")
+        if sub_crud:
+            for item in sub_crud.get("item", []):
+                if item.get("name") == "POST Create Subscription":
+                    bulk_body = [
+                        {
+                            "customer": "CUSTOMER_1_UUID",
+                            "frequency": "daily",
+                            "start_date": "2026-06-06",
+                            "delivery_address": "123 Main Street, Nagpur",
+                            "special_instructions": "Leave at gate",
+                            "items": [
+                                {
+                                    "product": "PRODUCT_1_UUID",
+                                    "quantity": 2
+                                }
+                            ]
+                        },
+                        {
+                            "customer": "CUSTOMER_2_UUID",
+                            "frequency": "alternate",
+                            "start_date": "2026-06-06",
+                            "delivery_address": "456 Central Ave, Nagpur",
+                            "special_instructions": "Ring bell",
+                            "items": [
+                                {
+                                    "product": "PRODUCT_2_UUID",
+                                    "quantity": 1
+                                }
+                            ]
+                        }
+                    ]
+                    item["request"]["body"] = {
+                        "mode": "raw",
+                        "raw": json.dumps(bulk_body, indent=4)
+                    }
+                    for resp in item.get("response", []):
+                        if "originalRequest" in resp and "body" in resp["originalRequest"]:
+                            resp["originalRequest"]["body"] = {
+                                "mode": "raw",
+                                "raw": json.dumps(json.dumps(bulk_body, indent=4))
+                            }
 
     with open("documentation/postman_collection.json", "w") as f:
         json.dump(coll, f, indent=4)

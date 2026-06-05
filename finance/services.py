@@ -30,6 +30,18 @@ def generate_monthly_bill_for_customer(customer, year, month):
     if total_amount == 0:
         return None  # No bill needed if nothing delivered
 
+    # Calculate payments collected by driver during this period
+    payment_stats = Order.objects.filter(
+        customer=customer,
+        status=OrderStatus.DELIVERED,
+        payment_method__in=["cash", "upi"],
+        payment_status="paid",
+        scheduled_delivery_date__gte=start_date,
+        scheduled_delivery_date__lt=end_date,
+    ).aggregate(paid_sum=Sum("amount_collected"))
+
+    collected_on_delivery = payment_stats["paid_sum"] or 0
+
     # 3. Create Bill
     with transaction.atomic():
         invoice_num = f"INV-{customer.id.hex[:6].upper()}-{year}{month:02d}"
@@ -43,6 +55,19 @@ def generate_monthly_bill_for_customer(customer, year, month):
                 "invoice_number": invoice_num,
             },
         )
+
+        if collected_on_delivery > 0:
+            from .models import Transaction
+            Transaction.objects.update_or_create(
+                bill=bill,
+                payment_method="cash_upi_delivery",
+                defaults={
+                    "amount": collected_on_delivery,
+                    "notes": f"Aggregated cash/UPI payments collected on delivery for {start_date.strftime('%B %Y')}",
+                    "transaction_id": f"COLL-{customer.id.hex[:6].upper()}-{year}{month:02d}",
+                }
+            )
+
         return bill
 
 

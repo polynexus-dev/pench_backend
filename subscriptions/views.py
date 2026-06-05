@@ -12,21 +12,50 @@ class SubscriptionViewSet(viewsets.ModelViewSet):
 
     def create(self, request, *args, **kwargs):
         """
-        Supports creating multiple subscriptions in one request.
+        Supports creating multiple subscriptions or a single subscription in one request.
+        Payload can be:
+        1. A flat JSON array of subscriptions: [ { ... }, { ... } ]
+        2. A wrapped JSON object: { "subscriptions": [ { ... }, { ... } ] }
+        3. A single subscription: { ... }
+        Supports passing "product" and "quantity" in the root of subscription objects
+        which are automatically mapped to the nested "items" list.
         """
-        from django.db import connection
+        from django.db import transaction, connection
 
         print(f"[DEBUG] Create Subscriptions hit. Schema: {connection.schema_name}")
-        print(f"[DEBUG] Payload Type: {type(request.data)}")
         print(f"[DEBUG] Payload Data: {request.data}")
 
-        is_many = isinstance(request.data, list)
-        if not is_many:
-            return super().create(request, *args, **kwargs)
+        def preprocess_subscription(item):
+            if isinstance(item, dict) and "items" not in item and "product" in item:
+                qty = item.get("quantity", 1)
+                item["items"] = [{"product": item["product"], "quantity": qty}]
+            return item
 
-        serializer = self.get_serializer(data=request.data, many=True)
-        serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
+        data = request.data
+        is_many = False
+
+        if isinstance(data, list):
+            data = [preprocess_subscription(item) for item in data]
+            is_many = True
+        elif isinstance(data, dict):
+            if "subscriptions" in data and isinstance(data["subscriptions"], list):
+                data = [preprocess_subscription(item) for item in data["subscriptions"]]
+                is_many = True
+            else:
+                data = preprocess_subscription(data)
+                is_many = False
+
+        if not is_many:
+            serializer = self.get_serializer(data=data)
+            serializer.is_valid(raise_exception=True)
+            self.perform_create(serializer)
+            headers = self.get_success_headers(serializer.data)
+            return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+        with transaction.atomic():
+            serializer = self.get_serializer(data=data, many=True)
+            serializer.is_valid(raise_exception=True)
+            self.perform_create(serializer)
 
         print(f"[DEBUG] Created {len(serializer.data)} subscriptions.")
         return Response(serializer.data, status=status.HTTP_201_CREATED)

@@ -54,6 +54,10 @@ class OrderSerializer(serializers.ModelSerializer):
             "pod_longitude",
             "delivered_at",
             "is_special",
+            "payment_method",
+            "amount_collected",
+            "payment_transaction_id",
+            "payment_status",
         ]
 
     def get_driver_name(self, obj):
@@ -189,6 +193,19 @@ class RouteStopSerializer(serializers.ModelSerializer):
     product_list = serializers.SerializerMethodField()
     subscription_details = serializers.SerializerMethodField()
 
+    payment_method = serializers.CharField(
+        source="order.payment_method", read_only=True
+    )
+    amount_collected = serializers.DecimalField(
+        source="order.amount_collected", max_digits=10, decimal_places=2, read_only=True
+    )
+    payment_transaction_id = serializers.CharField(
+        source="order.payment_transaction_id", read_only=True
+    )
+    payment_status = serializers.CharField(
+        source="order.payment_status", read_only=True
+    )
+
     class Meta:
         model = RouteStop
         fields = [
@@ -210,6 +227,10 @@ class RouteStopSerializer(serializers.ModelSerializer):
             "pod_image",
             "product_list",
             "subscription_details",
+            "payment_method",
+            "amount_collected",
+            "payment_transaction_id",
+            "payment_status",
         ]
 
     def get_latitude(self, obj):
@@ -317,6 +338,9 @@ class RouteSerializer(serializers.ModelSerializer):
 
     additional_driver_names = serializers.SerializerMethodField()
 
+    company_upi_id = serializers.SerializerMethodField()
+    company_upi_name = serializers.SerializerMethodField()
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         from accounts.models import User
@@ -334,6 +358,15 @@ class RouteSerializer(serializers.ModelSerializer):
         return [
             drv.get_full_name() or drv.username for drv in obj.additional_drivers.all()
         ]
+
+    def get_company_upi_id(self, obj):
+        from administration.models import AdminConfiguration
+        return AdminConfiguration.get_solo().company_upi_id
+
+    def get_company_upi_name(self, obj):
+        from administration.models import AdminConfiguration
+        config = AdminConfiguration.get_solo()
+        return config.company_upi_name or config.company_name
 
     class Meta:
         model = Route
@@ -353,6 +386,8 @@ class RouteSerializer(serializers.ModelSerializer):
             "dispatch_bottles_500ml",
             "additional_drivers",
             "additional_driver_names",
+            "company_upi_id",
+            "company_upi_name",
         ]
 
     def get_route_geometry(self, obj):

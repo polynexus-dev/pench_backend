@@ -12,10 +12,10 @@ import time
 original_getaddrinfo = socket.getaddrinfo
 
 
-def patched_getaddrinfo(*args):
-    if args[0] in ["pune.localhost", "nagpur.localhost"]:
-        return original_getaddrinfo("127.0.0.1", *args[1:])
-    return original_getaddrinfo(*args)
+def patched_getaddrinfo(*args, **kwargs):
+    if args and args[0] in ["pune.localhost", "nagpur.localhost"]:
+        return original_getaddrinfo("127.0.0.1", *args[1:], **kwargs)
+    return original_getaddrinfo(*args, **kwargs)
 
 
 socket.getaddrinfo = patched_getaddrinfo

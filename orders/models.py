@@ -21,6 +21,18 @@ class OrderStatus(models.TextChoices):
     UNDELIVERED = "undelivered", "Undelivered"
 
 
+class PaymentMethod(models.TextChoices):
+    CASH = "cash", "Cash"
+    UPI = "upi", "UPI"
+    ON_ACCOUNT = "on_account", "On Account (Monthly Bill)"
+
+
+class PaymentStatus(models.TextChoices):
+    PENDING = "pending", "Pending"
+    PAID = "paid", "Paid"
+    FAILED = "failed", "Failed"
+
+
 class Order(BaseModel):
     customer = models.ForeignKey(
         "crm.Customer", on_delete=models.PROTECT, related_name="orders"
@@ -51,6 +63,26 @@ class Order(BaseModel):
         max_digits=12, decimal_places=9, null=True, blank=True
     )
     delivered_at = models.DateTimeField(null=True, blank=True)
+    payment_method = models.CharField(
+        max_length=20,
+        choices=PaymentMethod.choices,
+        default=PaymentMethod.ON_ACCOUNT,
+    )
+    amount_collected = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0.00,
+    )
+    payment_transaction_id = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="UPI Transaction Ref / UTR",
+    )
+    payment_status = models.CharField(
+        max_length=20,
+        choices=PaymentStatus.choices,
+        default=PaymentStatus.PENDING,
+    )
 
     class Meta:
         ordering = ["-created_at"]
