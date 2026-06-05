@@ -62,6 +62,133 @@ class CustomerViewSet(viewsets.ModelViewSet):
 
         return Response(updated_customers, status=status.HTTP_200_OK)
 
+    @action(detail=False, methods=["post"], url_path="bulk-delete")
+    def bulk_delete(self, request):
+        """
+        Deletes multiple customers and their dependencies.
+        Accepts:
+          - A list of customer UUIDs: `["uuid1", "uuid2"]`
+          - A dict wrapper: `{"ids": ["uuid1", "uuid2"]}` or `{"customer_ids": ["uuid1", "uuid2"]}`
+        """
+        import uuid
+        from django.db import transaction, models
+        from accounts.models import User
+        from orders.models import Order
+        from finance.models import MonthlyBill
+
+        data = request.data
+        customer_ids = None
+
+        if isinstance(data, list):
+            customer_ids = data
+        elif isinstance(data, dict):
+            customer_ids = data.get("ids") or data.get("customer_ids")
+
+        if not customer_ids or not isinstance(customer_ids, list):
+            return Response(
+                {
+                    "detail": "Expected a list of customer IDs, either as a flat JSON array or wrapped in 'ids' or 'customer_ids'."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Parse and validate UUIDs
+        cleaned_ids = []
+        for cid in customer_ids:
+            try:
+                cleaned_ids.append(uuid.UUID(str(cid)))
+            except (ValueError, TypeError):
+                continue
+
+        if not cleaned_ids:
+            return Response(
+                {"detail": "No valid UUIDs found in the provided list of customer IDs."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Filter customers in the active schema context
+        customers_qs = Customer.objects.filter(id__in=cleaned_ids)
+        if not customers_qs.exists():
+            return Response(
+                {"detail": "No customers found matching the provided IDs."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Build list of deleted customers metadata to return
+        deleted_details = []
+        for cust in customers_qs:
+            deleted_details.append(
+                {
+                    "id": str(cust.id),
+                    "name": cust.name,
+                    "email": cust.email,
+                }
+            )
+
+        # Extract user IDs linked to the selected customers before deletion
+        user_ids = list(
+            customers_qs.exclude(user__isnull=True).values_list(
+                "user_id", flat=True
+            )
+        )
+
+        try:
+            with transaction.atomic():
+                # 1. Delete protected Orders
+                order_del_count, _ = Order.objects.filter(
+                    customer__in=customers_qs
+                ).delete()
+
+                # 2. Delete protected MonthlyBills
+                bill_del_count, _ = MonthlyBill.objects.filter(
+                    customer__in=customers_qs
+                ).delete()
+
+                # 3. Delete Customer profiles (cascades: Subscription, CustomerBottleBalance, CustomerProductPrice)
+                cust_del_count, _ = customers_qs.delete()
+
+                # 4. Safely handle associated User accounts (shared app)
+                user_del_count = 0
+                if user_ids:
+                    # Users to delete (no other role flags)
+                    users_to_delete = User.objects.filter(id__in=user_ids).exclude(
+                        models.Q(is_staff=True)
+                        | models.Q(is_superuser=True)
+                        | models.Q(is_erp_user=True)
+                        | models.Q(is_driver=True)
+                    )
+                    user_del_count, _ = users_to_delete.delete()
+
+                    # Users to keep (have other roles) -> clear is_customer flag
+                    users_to_keep = User.objects.filter(id__in=user_ids).filter(
+                        models.Q(is_staff=True)
+                        | models.Q(is_superuser=True)
+                        | models.Q(is_erp_user=True)
+                        | models.Q(is_driver=True)
+                    )
+                    for user in users_to_keep:
+                        user.is_customer = False
+                        user.save(update_fields=["is_customer"])
+
+            return Response(
+                {
+                    "message": f"Successfully deleted {len(deleted_details)} customers and their dependencies.",
+                    "deleted_customers": deleted_details,
+                    "summary": {
+                        "orders_deleted": order_del_count,
+                        "monthly_bills_deleted": bill_del_count,
+                        "customer_profiles_deleted": cust_del_count,
+                        "user_accounts_deleted": user_del_count,
+                    },
+                },
+                status=status.HTTP_200_OK,
+            )
+        except Exception as e:
+            return Response(
+                {"detail": f"An error occurred during deletion: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
     def _generate_qr_label_image(self, request, customer):
         import qrcode
         import os

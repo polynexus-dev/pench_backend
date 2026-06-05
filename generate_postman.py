@@ -647,14 +647,35 @@ def generate_collection():
                     }
                 }
             }
+            bulk_delete_req = {
+                "name": "POST Bulk Delete Customers",
+                "request": {
+                    "method": "POST",
+                    "header": [
+                        {"key": "Authorization", "value": "Bearer {{access_token}}"},
+                        {"key": "Content-Type", "value": "application/json"}
+                    ],
+                    "body": {
+                        "mode": "raw",
+                        "raw": "{\n    \"ids\": [\n        \"CUSTOMER_UUID_1\",\n        \"CUSTOMER_UUID_2\"\n    ]\n}"
+                    },
+                    "url": {
+                        "raw": "{{city_url}}/api/erp/customers/bulk-delete/",
+                        "host": ["{{city_url}}"],
+                        "path": ["api", "erp", "customers", "bulk-delete", ""]
+                    }
+                }
+            }
             # Avoid duplicates
             cust_folder["item"] = [item for item in cust_folder.get("item", []) if "Resolve Customer QR" not in item.get("name", "")]
             cust_folder["item"] = [item for item in cust_folder.get("item", []) if "Auto-Assign Zones" not in item.get("name", "")]
             cust_folder["item"] = [item for item in cust_folder.get("item", []) if "Bulk Download QR" not in item.get("name", "")]
+            cust_folder["item"] = [item for item in cust_folder.get("item", []) if "Bulk Delete Customers" not in item.get("name", "")]
             cust_folder["item"].append(qr_resolve_req)
             cust_folder["item"].append(auto_assign_req)
             cust_folder["item"].append(bulk_download_qr_req)
             cust_folder["item"].append(bulk_download_qr_post_req)
+            cust_folder["item"].append(bulk_delete_req)
 
     # --- Inventory & Warehousing ---
     inv = find_folder(coll["item"], "04. Inventory & Warehousing")

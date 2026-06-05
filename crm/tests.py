@@ -503,3 +503,116 @@ class CustomerBulkQRTestCase(TenantTestCase):
         response = self.client.get(url, HTTP_HOST="tenant.test.com")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["Content-Type"], "image/png")
+
+
+class CustomerBulkDeleteTestCase(TenantTestCase):
+    @classmethod
+    def setup_tenant(cls, tenant):
+        tenant.name = "Test City"
+        tenant.state = "Test State"
+        tenant.code = "TST"
+        tenant.create_schema(sync_schema=True)
+
+    def setUp(self):
+        super().setUp()
+        # Disconnect signals during setUp so they don't interfere
+        pre_save.disconnect(auto_assign_customer_zone, sender=Customer)
+        post_save.disconnect(auto_assign_customers_on_zone_change, sender=Zone)
+
+        connection.set_tenant(self.tenant)
+        User = get_user_model()
+
+        # Create authorized CRM Manager user
+        self.manager_user = User.objects.create_user(
+            username="crm_manager_del",
+            email="manager_del@example.com",
+            password="testpassword",
+            phone="9000000030",
+            tenant_schema="test",
+        )
+        crm_group, _ = Group.objects.get_or_create(name="CRM_Managers")
+        self.manager_user.groups.add(crm_group)
+
+        # Restore tenant context
+        connection.set_tenant(self.tenant)
+
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.manager_user)
+
+    def tearDown(self):
+        pre_save.connect(auto_assign_customer_zone, sender=Customer)
+        post_save.connect(auto_assign_customers_on_zone_change, sender=Zone)
+        super().tearDown()
+
+    def test_bulk_delete_success(self):
+        connection.set_tenant(self.tenant)
+        User = get_user_model()
+        from inventory.models import Product
+        from subscriptions.models import Subscription
+        from orders.models import Order
+        from finance.models import MonthlyBill
+        import datetime
+
+        # Create a product
+        product = Product.objects.create(name="Test Product", sku="TST-DEL-PROD", unit_price=15.0)
+
+        # Customer 1: Normal customer user to be fully deleted
+        user1 = User.objects.create_user(
+            username="del_user1", email="u1@example.com", phone="9000000031", is_customer=True, tenant_schema="test"
+        )
+        cust1 = Customer.objects.get(user=user1)
+
+        sub1 = Subscription.objects.create(customer=cust1, start_date=datetime.date.today())
+        ord1 = Order.objects.create(customer=cust1, subscription=sub1, delivery_address="Add 1")
+        bill1 = MonthlyBill.objects.create(
+            customer=cust1, billing_month=datetime.date.today().replace(day=1),
+            due_date=datetime.date.today(), invoice_number="INV-DEL-1"
+        )
+
+        # Customer 2: Customer user who is also a driver (should NOT be deleted, is_customer set to False)
+        user2 = User.objects.create_user(
+            username="del_user2", email="u2@example.com", phone="9000000032", is_customer=True, is_driver=True, tenant_schema="test"
+        )
+        cust2 = Customer.objects.get(user=user2)
+
+        # Call endpoint
+        url = "/api/erp/customers/bulk-delete/"
+        payload = {"ids": [str(cust1.id), str(cust2.id)]}
+        response = self.client.post(url, payload, format="json", HTTP_HOST="tenant.test.com")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("summary", response.data)
+
+        # Verify database state
+        self.assertFalse(Customer.objects.filter(id=cust1.id).exists())
+        self.assertFalse(Customer.objects.filter(id=cust2.id).exists())
+        self.assertFalse(Order.objects.filter(id=ord1.id).exists())
+        self.assertFalse(MonthlyBill.objects.filter(id=bill1.id).exists())
+        self.assertFalse(Subscription.objects.filter(id=sub1.id).exists())
+
+        # Verify User 1 is deleted
+        self.assertFalse(User.objects.filter(id=user1.id).exists())
+
+        # Verify User 2 is NOT deleted, but is_customer is False
+        user2.refresh_from_db()
+        self.assertTrue(User.objects.filter(id=user2.id).exists())
+        self.assertFalse(user2.is_customer)
+        self.assertTrue(user2.is_driver)
+
+    def test_bulk_delete_invalid_ids(self):
+        connection.set_tenant(self.tenant)
+        url = "/api/erp/customers/bulk-delete/"
+        
+        # Test non-list
+        response = self.client.post(url, {"ids": "not-a-list"}, format="json", HTTP_HOST="tenant.test.com")
+        self.assertEqual(response.status_code, 400)
+
+        # Test invalid UUID format
+        response = self.client.post(url, ["invalid-uuid"], format="json", HTTP_HOST="tenant.test.com")
+        self.assertEqual(response.status_code, 400)
+
+        # Test non-existent customers
+        import uuid
+        response = self.client.post(url, [str(uuid.uuid4())], format="json", HTTP_HOST="tenant.test.com")
+        self.assertEqual(response.status_code, 404)
+

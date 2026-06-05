@@ -3920,6 +3920,39 @@
                                     ]
                                 }
                             }
+                        },
+                        {
+                            "name": "POST Bulk Delete Customers",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    },
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"ids\": [\n        \"CUSTOMER_UUID_1\",\n        \"CUSTOMER_UUID_2\"\n    ]\n}"
+                                },
+                                "url": {
+                                    "raw": "{{city_url}}/api/erp/customers/bulk-delete/",
+                                    "host": [
+                                        "{{city_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "erp",
+                                        "customers",
+                                        "bulk-delete",
+                                        ""
+                                    ]
+                                }
+                            }
                         }
                     ]
                 },
