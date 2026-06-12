@@ -54,6 +54,40 @@ def is_exists_error(exc: Exception) -> bool:
             or "duplicatetable" in msg)
 
 
+def prepare_migration_tables(migration_obj):
+    """
+    Inspects the operations of a migration.
+    If a table to be created already exists, drops it to ensure the migration can apply cleanly.
+    """
+    from django.db.migrations.operations.models import CreateModel
+    
+    with connection.cursor() as cursor:
+        # Get current schema name
+        cursor.execute("SELECT current_schema();")
+        current_schema = cursor.fetchone()[0]
+        
+        for operation in migration_obj.operations:
+            if isinstance(operation, CreateModel):
+                db_table = operation.options.get('db_table')
+                if not db_table:
+                    # Standard Django table name generation
+                    db_table = f"{migration_obj.app_label}_{operation.name.lower()}"
+                
+                # Check if table exists in the current schema
+                cursor.execute("""
+                    SELECT EXISTS (
+                        SELECT FROM information_schema.tables 
+                        WHERE table_schema = %s 
+                        AND table_name = %s
+                    );
+                """, [current_schema, db_table])
+                exists = cursor.fetchone()[0]
+                
+                if exists:
+                    warn(f"[{current_schema}] Table '{db_table}' already exists. Dropping to ensure a clean run of {migration_obj.app_label}.{migration_obj.name}.")
+                    cursor.execute(f"DROP TABLE IF EXISTS {connection.ops.quote_name(db_table)} CASCADE;")
+
+
 def apply_all_pending(schema_label: str):
     """
     Apply every pending migration for whatever schema the connection
@@ -96,6 +130,12 @@ def apply_all_pending(schema_label: str):
             continue
 
         migration_obj = executor.loader.get_migration(app_label, mig_name)
+
+        # Drop any tables that this migration will create if they already exist
+        try:
+            prepare_migration_tables(migration_obj)
+        except Exception as prep_exc:
+            warn(f"[{schema_label}] Failed to prepare tables for {label}: {prep_exc}")
 
         try:
             # apply_migration internally wraps in atomic() / savepoint.
@@ -296,13 +336,18 @@ def cleanup_inconsistent_migrations(schema_label: str):
                             queue.append(child.key)
 
         info(f"[{schema_label}] Removing the following migration records from django_migrations to restore consistency: {descendants}")
-        with connection.cursor() as cursor:
-            for app_label, migration_name in descendants:
-                cursor.execute(
-                    "DELETE FROM django_migrations WHERE app = %s AND name = %s",
-                    [app_label, migration_name]
-                )
-        ok(f"[{schema_label}] Inconsistent migration records deleted successfully.")
+        from django.db import transaction
+        try:
+            with transaction.atomic():
+                with connection.cursor() as cursor:
+                    for app_label, migration_name in descendants:
+                        cursor.execute(
+                            "DELETE FROM django_migrations WHERE app = %s AND name = %s",
+                            [app_label, migration_name]
+                        )
+            ok(f"[{schema_label}] Inconsistent migration records deleted successfully.")
+        except Exception as delete_exc:
+            err(f"[{schema_label}] Failed to delete inconsistent records: {delete_exc}")
 
         # Verify that check_consistent_history now passes
         try:
