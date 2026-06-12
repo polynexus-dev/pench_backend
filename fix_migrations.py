@@ -20,6 +20,14 @@ import os
 import sys
 import subprocess
 
+# Reconfigure stdout/stderr to use UTF-8 encoding (especially on Windows to prevent UnicodeEncodeError when printing emojis)
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
 import django
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
@@ -154,6 +162,7 @@ def step_makemigrations():
 def step_shared():
     banner("STEP 2 · Shared (public) schema")
     connection.set_schema_to_public()
+    cleanup_inconsistent_migrations("public")
     apply_all_pending("public")
 
 
@@ -182,6 +191,7 @@ def step_tenants():
 
     for tenant in tenants:
         with schema_context(tenant.schema_name):
+            cleanup_inconsistent_migrations(tenant.schema_name)
             apply_all_pending(tenant.schema_name)
 
 
@@ -245,6 +255,67 @@ def step_pre_migration_cleanup():
             info("tenants_city table exists. Database has been initialized.")
 
 
+def cleanup_inconsistent_migrations(schema_label: str):
+    """
+    Checks if there are applied migrations in the database that have unapplied dependencies.
+    If found, deletes the applied records of those migrations from django_migrations,
+    making the history consistent so Django can re-evaluate and apply/fake them.
+    """
+    # Ensure the django_migrations tracking table is present
+    from django.db.migrations.recorder import MigrationRecorder
+    recorder = MigrationRecorder(connection)
+    recorder.ensure_schema()
+
+    from django.db.migrations.loader import MigrationLoader
+    loader = MigrationLoader(connection, ignore_no_migrations=True)
+    applied = loader.applied_migrations  # set of (app_label, migration_name)
+    node_map = loader.graph.node_map
+
+    to_delete = set()
+    for migration in applied:
+        if migration in node_map:
+            node = node_map[migration]
+            for parent in node.parents:
+                if parent.key not in applied:
+                    warn(f"[{schema_label}] Migration {migration} is marked as applied, but its dependency {parent.key} is not applied.")
+                    to_delete.add(migration)
+                    break
+
+    if to_delete:
+        # We need to recursively add any children of these nodes, since if we unapply X,
+        # any Y that depends on X must also be unapplied.
+        descendants = set()
+        queue = list(to_delete)
+        while queue:
+            node_key = queue.pop(0)
+            if node_key not in descendants:
+                descendants.add(node_key)
+                if node_key in node_map:
+                    for child in node_map[node_key].children:
+                        if child.key in applied:
+                            queue.append(child.key)
+
+        info(f"[{schema_label}] Removing the following migration records from django_migrations to restore consistency: {descendants}")
+        with connection.cursor() as cursor:
+            for app_label, migration_name in descendants:
+                cursor.execute(
+                    "DELETE FROM django_migrations WHERE app = %s AND name = %s",
+                    [app_label, migration_name]
+                )
+        ok(f"[{schema_label}] Inconsistent migration records deleted successfully.")
+
+        # Verify that check_consistent_history now passes
+        try:
+            # Recreate loader to verify
+            loader = MigrationLoader(connection, ignore_no_migrations=True)
+            loader.check_consistent_history(connection)
+            ok(f"[{schema_label}] Database migration history is now consistent!")
+        except Exception as e:
+            warn(f"[{schema_label}] History still inconsistent after cleanup: {e}")
+    else:
+        info(f"[{schema_label}] Database migration history is consistent.")
+
+
 # ─────────────────────────────────────────────────────────────
 
 def main():
@@ -253,6 +324,7 @@ def main():
     print(f"{'#' * 58}")
     try:
         step_pre_migration_cleanup()
+        cleanup_inconsistent_migrations("public")
         step_makemigrations()
         step_shared()
         step_tenants()
