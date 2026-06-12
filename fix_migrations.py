@@ -202,6 +202,48 @@ def step_summary():
     else:
         ok("All migrations in sync ✨")
 
+# ─────────────────────────────────────────────────────────────
+
+def step_pre_migration_cleanup():
+    banner("STEP 0 · Pre-migration database consistency check")
+    connection.set_schema_to_public()
+    
+    # Check if django_migrations table exists
+    with connection.cursor() as cursor:
+        cursor.execute("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                AND table_name = 'django_migrations'
+            );
+        """)
+        migrations_exists = cursor.fetchone()[0]
+        
+        if not migrations_exists:
+            info("django_migrations table does not exist yet. No cleanup needed.")
+            return
+
+        # Check if tenants_city table exists
+        cursor.execute("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                AND table_name = 'tenants_city'
+            );
+        """)
+        tenants_city_exists = cursor.fetchone()[0]
+
+        if not tenants_city_exists:
+            # The base table tenants_city does not exist, but django_migrations does.
+            # This indicates an inconsistent or partially reset database.
+            # We must clear django_migrations to allow Django to apply everything from scratch.
+            warn("tenants_city table does not exist, but django_migrations table is present.")
+            warn("Clearing django_migrations to prevent InconsistentMigrationHistory errors.")
+            cursor.execute("TRUNCATE public.django_migrations CASCADE;")
+            ok("Successfully truncated django_migrations in public schema.")
+        else:
+            info("tenants_city table exists. Database has been initialized.")
+
 
 # ─────────────────────────────────────────────────────────────
 
@@ -210,6 +252,7 @@ def main():
     print("  🛠   PENCH — Smart Migration Fix  (Python API mode)")
     print(f"{'#' * 58}")
     try:
+        step_pre_migration_cleanup()
         step_makemigrations()
         step_shared()
         step_tenants()
