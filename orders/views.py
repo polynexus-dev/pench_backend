@@ -1096,13 +1096,13 @@ class RouteViewSet(viewsets.ModelViewSet):
 
         with transaction.atomic():
             # 2. Find and merge duplicate routes for each driver
-            active_routes = Route.objects.filter(
-                delivery_date=target_date, is_completed=False
-            ).prefetch_related("stops")
+            all_routes = Route.objects.filter(
+                delivery_date=target_date
+            ).prefetch_related("stops__order")
 
             # Group active routes by driver User ID
             driver_routes = {}
-            for r in active_routes:
+            for r in all_routes:
                 if r.driver_id:
                     driver_routes.setdefault(r.driver_id, []).append(r)
 
@@ -1111,11 +1111,25 @@ class RouteViewSet(viewsets.ModelViewSet):
                     # Collect all stops/orders across all routes for this driver
                     all_order_ids = set()
                     for r in routes:
-                        all_order_ids.update(
-                            str(stop.order_id) for stop in r.stops.all()
-                        )
+                        for stop in r.stops.all():
+                            all_order_ids.add(str(stop.order_id))
+                            # If the order was marked undelivered (e.g. by auto-closing), reset it to pending
+                            if stop.order.status == OrderStatus.UNDELIVERED:
+                                stop.order.status = OrderStatus.PENDING
+                                stop.order.delivered_at = None
+                                stop.order.save(update_fields=["status", "delivered_at"])
 
+                    # Pick the best primary route to survive:
+                    # Prefer the one that is not completed and/or is started
+                    routes.sort(key=lambda r: (r.is_completed, r.started_at is None))
                     primary_route = routes[0]
+                    
+                    # If the primary route was completed, reactivate it
+                    if primary_route.is_completed:
+                        primary_route.is_completed = False
+                        primary_route.status = RouteStatus.PENDING
+                        primary_route.save(update_fields=["is_completed", "status"])
+
                     # Delete extra duplicate routes
                     for extra_route in routes[1:]:
                         extra_route.stops.all().delete()
