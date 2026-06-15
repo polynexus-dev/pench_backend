@@ -150,6 +150,9 @@ with schema_context(city.schema_name):
         f"Created previous route ID: {prev_route.id} (is_completed={prev_route.is_completed}) with 3 stops."
     )
 
+    # Ensure no routes exist for this driver on today before starting
+    Route.objects.filter(driver=driver_user, delivery_date=datetime.date.today()).delete()
+
     # Now create a new route for this driver using create_optimized_route
     new_ord = Order.objects.create(
         customer=customer,

@@ -196,13 +196,31 @@ def generate_daily_routes_for_date(target_date):
         grouped_orders.setdefault(key, []).append(order)
 
     for (warehouse, driver_user, driver_profile), z_orders in grouped_orders.items():
-        # Check if an incomplete/active route already exists for this driver (User) and date
-        if Route.objects.filter(
+        # Check if an existing route already covers this driver+date.
+        # If so, we still call create_optimized_route which will UPDATE it in-place
+        # with the full set of pending orders (existing + new).
+        existing_route = Route.objects.filter(
             driver=driver_user, delivery_date=target_date, is_completed=False
-        ).exists():
-            msg = f"Route for driver {driver_user.username} on {target_date} already exists. Skipping duplicate creation."
-            logger.info(msg)
-            continue
+        ).first()
+
+        if existing_route:
+            # Merge: include orders already on the route + new orders from subscriptions
+            existing_order_ids = set(
+                str(oid)
+                for oid in existing_route.stops.values_list("order_id", flat=True)
+            )
+            new_order_ids = set(str(o.id) for o in z_orders)
+            merged_order_ids = list(existing_order_ids | new_order_ids)
+
+            # If no new orders were added, skip entirely
+            if not (new_order_ids - existing_order_ids):
+                msg = f"Route for driver {driver_user.username} on {target_date} already exists and has no new orders. Skipping."
+                logger.info(msg)
+                continue
+
+            order_ids = merged_order_ids
+        else:
+            order_ids = [str(o.id) for o in z_orders]
 
         # Resolve warehouse_location coordinates for pathfinder depot
         warehouse_location = None
@@ -211,8 +229,6 @@ def generate_daily_routes_for_date(target_date):
                 "longitude": float(warehouse.longitude),
                 "latitude": float(warehouse.latitude),
             }
-
-        order_ids = [str(o.id) for o in z_orders]
         route_count = Route.objects.filter(delivery_date=target_date).count()
         route_name = f"{warehouse.name} - {driver_user.get_full_name() or driver_user.username} - {target_date.strftime('%Y-%m-%d')} #{route_count + 1}"
 

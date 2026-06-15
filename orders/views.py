@@ -1063,6 +1063,193 @@ class RouteViewSet(viewsets.ModelViewSet):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
+    @action(detail=False, methods=["post"], url_path="refresh-and-merge")
+    def refresh_and_merge(self, request):
+        """
+        Refreshes and merges duplicate routes for a single driver,
+        and assigns any unassigned pending/confirmed orders to the next available active route.
+        """
+        import datetime
+        from django.db import transaction
+        from orders.models import Order, OrderStatus, Route, RouteStop
+        from orders.services import create_optimized_route
+        from routing.models import Driver
+
+        # 1. Resolve date
+        date_str = request.data.get("date") or request.data.get("delivery_date")
+        if date_str:
+            try:
+                target_date = datetime.date.fromisoformat(date_str)
+            except ValueError:
+                try:
+                    target_date = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
+                except ValueError:
+                    return Response(
+                        {"detail": "Invalid date format. Expected YYYY-MM-DD."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+        else:
+            target_date = datetime.date.today()
+
+        routes_merged = 0
+        orders_assigned = 0
+
+        with transaction.atomic():
+            # 2. Find and merge duplicate routes for each driver
+            active_routes = Route.objects.filter(
+                delivery_date=target_date, is_completed=False
+            ).prefetch_related("stops")
+
+            # Group active routes by driver User ID
+            driver_routes = {}
+            for r in active_routes:
+                if r.driver_id:
+                    driver_routes.setdefault(r.driver_id, []).append(r)
+
+            for driver_id, routes in driver_routes.items():
+                if len(routes) > 1:
+                    # Collect all stops/orders across all routes for this driver
+                    all_order_ids = set()
+                    for r in routes:
+                        all_order_ids.update(
+                            str(stop.order_id) for stop in r.stops.all()
+                        )
+
+                    primary_route = routes[0]
+                    # Delete extra duplicate routes
+                    for extra_route in routes[1:]:
+                        extra_route.stops.all().delete()
+                        extra_route.delete()
+                        routes_merged += 1
+
+                    # Resolve warehouse & warehouse_location for primary driver
+                    warehouse = None
+                    warehouse_location = None
+                    driver_profile = Driver.objects.filter(user_id=driver_id).first()
+                    if driver_profile:
+                        warehouse = driver_profile.warehouse
+                        if warehouse and warehouse.latitude is not None and warehouse.longitude is not None:
+                            warehouse_location = {
+                                "longitude": float(warehouse.longitude),
+                                "latitude": float(warehouse.latitude),
+                            }
+
+                    # Re-optimize/recreate stops on primary_route in-place
+                    create_optimized_route(
+                        primary_route.name,
+                        primary_route.driver,
+                        target_date,
+                        list(all_order_ids),
+                        warehouse=warehouse,
+                        warehouse_location=warehouse_location,
+                    )
+
+            # 3. Find pending/confirmed orders for this date that are not on any route
+            unassigned_orders = Order.objects.filter(
+                scheduled_delivery_date=target_date,
+                status__in=[OrderStatus.PENDING, OrderStatus.CONFIRMED],
+                route_stop__isnull=True,
+            ).select_related("customer__zone", "customer__zone__assigned_driver")
+
+            # Resolve all driver profiles to match warehouses
+            driver_profiles = {
+                dp.user_id: dp for dp in Driver.objects.select_related("warehouse").all()
+            }
+
+            for order in unassigned_orders:
+                customer = order.customer
+                zone = customer.zone if customer else None
+                assigned_driver = zone.assigned_driver if zone else None
+
+                target_route = None
+
+                # Option A: Check if the assigned driver already has a route
+                if assigned_driver:
+                    target_route = Route.objects.filter(
+                        driver=assigned_driver,
+                        delivery_date=target_date,
+                        is_completed=False,
+                    ).first()
+
+                # Option B: Fallback to next available active route for the zone's driver's warehouse
+                if not target_route and zone:
+                    driver_profile = driver_profiles.get(assigned_driver.id) if assigned_driver else None
+                    warehouse = driver_profile.warehouse if driver_profile else None
+                    if warehouse:
+                        # Find any active route on that date associated with that warehouse
+                        target_route = Route.objects.filter(
+                            delivery_date=target_date,
+                            is_completed=False,
+                            driver__driver_profile__warehouse=warehouse,
+                        ).first()
+
+                # Option C: Fallback to any active incomplete route on that date
+                if not target_route:
+                    target_route = Route.objects.filter(
+                        delivery_date=target_date,
+                        is_completed=False,
+                    ).first()
+
+                # Option D: If no route exists at all, but we have a driver assigned to the zone, create a new route
+                if not target_route and assigned_driver:
+                    driver_profile = driver_profiles.get(assigned_driver.id)
+                    warehouse = driver_profile.warehouse if driver_profile else None
+                    warehouse_location = None
+                    if warehouse and warehouse.latitude is not None and warehouse.longitude is not None:
+                        warehouse_location = {
+                            "longitude": float(warehouse.longitude),
+                            "latitude": float(warehouse.latitude),
+                        }
+                    
+                    route_count = Route.objects.filter(delivery_date=target_date).count()
+                    route_name = f"{zone.name} - {assigned_driver.get_full_name() or assigned_driver.username} - {target_date.strftime('%Y-%m-%d')} #{route_count + 1}"
+                    
+                    target_route = create_optimized_route(
+                        route_name,
+                        assigned_driver,
+                        target_date,
+                        [str(order.id)],
+                        warehouse=warehouse,
+                        warehouse_location=warehouse_location,
+                    )
+                    orders_assigned += 1
+                    continue
+
+                # If we found a target route, add the order to it and re-optimize
+                if target_route:
+                    # Get existing orders on that route
+                    existing_order_ids = list(target_route.stops.values_list("order_id", flat=True))
+                    merged_order_ids = list(set(str(oid) for oid in existing_order_ids) | {str(order.id)})
+
+                    driver_profile = driver_profiles.get(target_route.driver_id)
+                    warehouse = driver_profile.warehouse if driver_profile else None
+                    warehouse_location = None
+                    if warehouse and warehouse.latitude is not None and warehouse.longitude is not None:
+                        warehouse_location = {
+                            "longitude": float(warehouse.longitude),
+                            "latitude": float(warehouse.latitude),
+                        }
+
+                    create_optimized_route(
+                        target_route.name,
+                        target_route.driver,
+                        target_date,
+                        merged_order_ids,
+                        warehouse=warehouse,
+                        warehouse_location=warehouse_location,
+                    )
+                    orders_assigned += 1
+
+        return Response(
+            {
+                "status": "success",
+                "date": str(target_date),
+                "routes_merged": routes_merged,
+                "orders_assigned": orders_assigned,
+            },
+            status=status.HTTP_200_OK,
+        )
+
 
 class DriverViewSet(viewsets.ViewSet):
     """
