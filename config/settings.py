@@ -153,7 +153,14 @@ CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {
-            "hosts": [config("REDIS_URL", default="redis://127.0.0.1:6379/0")],
+            "hosts": [
+                {
+                    "address": config("REDIS_URL", default="redis://127.0.0.1:6379/0"),
+                    "health_check_interval": 30,
+                    "socket_keepalive": True,
+                    "retry_on_timeout": True,
+                }
+            ],
         },
     },
 }
