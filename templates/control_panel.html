@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pench | Route Control Center</title>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-dark: hsl(222, 47%, 7%);
+            --bg-card: rgba(30, 41, 59, 0.4);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --primary: hsl(250, 89%, 65%);
+            --primary-glow: hsla(250, 89%, 65%, 0.3);
+            --primary-hover: hsl(250, 89%, 70%);
+            --success: hsl(142, 71%, 45%);
+            --success-glow: hsla(142, 71%, 45%, 0.3);
+            --danger: hsl(346, 84%, 55%);
+            --danger-glow: hsla(346, 84%, 55%, 0.3);
+            --danger-hover: hsl(346, 84%, 60%);
+            --text-light: hsl(210, 40%, 98%);
+            --text-muted: hsl(215, 20%, 65%);
+            --console-bg: hsl(222, 47%, 4%);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Outfit', sans-serif;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            background-image: 
+                radial-gradient(at 0% 0%, hsla(253, 16%, 7%, 1) 0, transparent 50%), 
+                radial-gradient(at 50% 0%, hsla(250, 89%, 15%, 0.2) 0, transparent 50%),
+                radial-gradient(at 100% 0%, hsla(346, 84%, 10%, 0.15) 0, transparent 50%);
+            color: var(--text-light);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
+
+        header {
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            padding: 1.25rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .logo-mark {
+            width: 2rem;
+            height: 2rem;
+            background: linear-gradient(135deg, var(--primary), #c084fc);
+            border-radius: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 1.2rem;
+            color: white;
+            box-shadow: 0 0 15px var(--primary-glow);
+        }
+
+        .logo-text {
+            font-size: 1.35rem;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            background: linear-gradient(to right, #ffffff, #c8d2e6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 0.5rem 0.85rem;
+            border-radius: 2rem;
+            border: 1px solid var(--border-color);
+            font-size: 0.85rem;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--danger);
+            box-shadow: 0 0 8px var(--danger-glow);
+        }
+
+        .status-dot.active {
+            background: var(--success);
+            box-shadow: 0 0 10px var(--success-glow);
+        }
+
+        main {
+            flex: 1;
+            max-width: 1400px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 2rem;
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 2rem;
+        }
+
+        @media (max-width: 1024px) {
+            main {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .panel {
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+            border-radius: 1.25rem;
+            padding: 1.75rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            height: fit-content;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
+        }
+
+        .panel-title {
+            font-size: 1.15rem;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            color: #ffffff;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            padding-bottom: 0.75rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .form-group label {
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .form-group input, .form-group select {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--border-color);
+            border-radius: 0.75rem;
+            padding: 0.85rem 1.1rem;
+            color: white;
+            font-size: 0.95rem;
+            outline: none;
+        }
+
+        .form-group input:focus, .form-group select:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 10px var(--primary-glow);
+        }
+
+        .dashboard {
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+
+        .cards-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+
+        @media (max-width: 768px) {
+            .cards-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .action-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+            border-radius: 1.25rem;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .action-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+        }
+
+        .action-card.generate::before {
+            background: linear-gradient(to right, var(--primary), #a855f7);
+        }
+
+        .action-card.reverse::before {
+            background: linear-gradient(to right, var(--danger), #f43f5e);
+        }
+
+        .card-header {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .card-title {
+            font-size: 1.35rem;
+            font-weight: 600;
+            color: white;
+        }
+
+        .card-desc {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            line-height: 1.4;
+        }
+
+        .btn {
+            padding: 0.95rem 1.5rem;
+            border: none;
+            border-radius: 0.75rem;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            color: white;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .btn-generate {
+            background: linear-gradient(135deg, var(--primary), #9333ea);
+        }
+
+        .btn-generate:hover:not(:disabled) {
+            background: linear-gradient(135deg, var(--primary-hover), #a855f7);
+            box-shadow: 0 0 20px var(--primary-glow);
+            transform: translateY(-2px);
+        }
+
+        .btn-reverse {
+            background: linear-gradient(135deg, var(--danger), #e11d48);
+        }
+
+        .btn-reverse:hover:not(:disabled) {
+            background: linear-gradient(135deg, var(--danger-hover), #f43f5e);
+            box-shadow: 0 0 20px var(--danger-glow);
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+            box-shadow: none !important;
+        }
+
+        .console-container {
+            background: var(--console-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 1.25rem;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.5);
+            flex: 1;
+            min-height: 350px;
+        }
+
+        .console-header {
+            background: rgba(255, 255, 255, 0.02);
+            padding: 0.85rem 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .console-tab {
+            font-size: 0.85rem;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .console-tab::before {
+            content: '';
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #cbd5e1;
+        }
+
+        .console-tab.running::before {
+            background: var(--primary);
+            box-shadow: 0 0 8px var(--primary);
+            animation: pulse 1.5s infinite;
+        }
+
+        .console-actions {
+            display: flex;
+            gap: 0.75rem;
+        }
+
+        .console-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            cursor: pointer;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+        }
+
+        .console-btn:hover {
+            color: white;
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .console-body {
+            padding: 1.5rem;
+            overflow-y: auto;
+            flex: 1;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.85rem;
+            line-height: 1.6;
+            color: #34d399; /* retro terminals use green/emerald */
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            max-height: 500px;
+        }
+
+        .console-line {
+            word-break: break-all;
+            white-space: pre-wrap;
+            border-left: 2px solid transparent;
+            padding-left: 0.75rem;
+        }
+
+        .console-line.info {
+            color: #38bdf8;
+            border-left-color: #0284c7;
+        }
+
+        .console-line.success {
+            color: #34d399;
+            border-left-color: #059669;
+        }
+
+        .console-line.warn {
+            color: #fbbf24;
+            border-left-color: #d97706;
+        }
+
+        .console-line.error {
+            color: #f87171;
+            border-left-color: #dc2626;
+        }
+
+        /* Login Overlay */
+        #login-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(11, 15, 25, 0.95);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+        }
+
+        .login-card {
+            background: rgba(30, 41, 59, 0.6);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+            padding: 3rem 2.5rem;
+            border-radius: 1.5rem;
+            width: 100%;
+            max-width: 420px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+            gap: 1.75rem;
+        }
+
+        .login-header {
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .login-header h2 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            background: linear-gradient(to right, #ffffff, #94a3b8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .login-header p {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .spinner {
+            width: 1rem;
+            height: 1rem;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 0.8s linear infinite;
+            display: inline-block;
+        }
+
+        .alert-bar {
+            background: rgba(245, 158, 11, 0.1);
+            border: 1px solid rgba(245, 158, 11, 0.2);
+            color: #f59e0b;
+            padding: 1rem;
+            border-radius: 0.75rem;
+            font-size: 0.85rem;
+            line-height: 1.4;
+            display: flex;
+            gap: 0.75rem;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="brand">
+            <div class="logo-mark">P</div>
+            <div class="logo-text">Pench Route Control Center</div>
+        </div>
+        <div class="status-badge">
+            <span id="status-dot" class="status-dot"></span>
+            <span id="status-text">Not Authenticated</span>
+        </div>
+    </header>
+
+    <!-- Login Modal overlay -->
+    <div id="login-overlay">
+        <div class="login-card">
+            <div class="login-header">
+                <h2>Admin Access</h2>
+                <p>Authenticate with your Logistics Manager credentials</p>
+            </div>
+            
+            <div class="form-group">
+                <label>Host Environment</label>
+                <input type="text" id="host" value="pune.localhost:8000">
+            </div>
+
+            <div class="form-group">
+                <label>Username (Staff / Logistics)</label>
+                <input type="text" id="username" placeholder="Enter username or phone number">
+            </div>
+
+            <div class="form-group">
+                <label>Password</label>
+                <input type="password" id="password" placeholder="••••••••">
+            </div>
+
+            <button id="login-btn" class="btn btn-generate" style="margin-top: 0.5rem;">
+                <span id="login-btn-text">Authenticate</span>
+            </button>
+            
+            <p id="login-error" style="color: var(--danger); font-size: 0.85rem; text-align: center; display: none; margin-top: -0.5rem;"></p>
+        </div>
+    </div>
+
+    <!-- Main Workspace -->
+    <main>
+        <!-- Left Side Controls Panel -->
+        <section class="panel">
+            <h3 class="panel-title">Parameters</h3>
+            
+            <div class="form-group">
+                <label>Target Delivery Date</label>
+                <input type="date" id="target-date">
+            </div>
+
+            <div class="form-group" style="margin-top: 0.5rem;">
+                <label>Connected Host</label>
+                <input type="text" id="connected-host" disabled style="background: rgba(255,255,255,0.02); color: var(--text-muted);">
+            </div>
+
+            <div class="form-group" style="margin-top: auto; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.05);">
+                <button id="logout-btn" class="btn" style="background: rgba(255,255,255,0.05); color: var(--text-light); font-size: 0.85rem; padding: 0.6rem;">
+                    Sign Out / Switch Host
+                </button>
+            </div>
+        </section>
+
+        <!-- Right Side Dashboard -->
+        <section class="dashboard">
+            <div class="alert-bar">
+                <span style="font-size: 1.25rem;">⚠️</span>
+                <div>
+                    <strong>Testing Environment Active</strong><br>
+                    These actions directly mutate database objects. "Clear/Reverse" deletes routes, route stops, and automatically generated subscription orders for the selected date. Ensure you are targeting the correct tenant schema.
+                </div>
+            </div>
+
+            <div class="cards-grid">
+                <!-- Action Card 1: Daily Route Generation -->
+                <div class="action-card generate">
+                    <div class="card-header">
+                        <h4 class="card-title">Run Daily Generation</h4>
+                        <p class="card-desc">Process subscriptions, create orders, and run optimization to build daily routes for the selected target date.</p>
+                    </div>
+                    <button id="btn-trigger" class="btn btn-generate">
+                        <span>Trigger Daily Generation</span>
+                    </button>
+                </div>
+
+                <!-- Action Card 2: Reversal / Clearing -->
+                <div class="action-card reverse">
+                    <div class="card-header">
+                        <h4 class="card-title">Reverse / Clear Routes</h4>
+                        <p class="card-desc">Delete all routes, stops, and subscription-created orders for the target date to reset testing status.</p>
+                    </div>
+                    <button id="btn-clear" class="btn btn-reverse">
+                        <span>Clear Daily Generation</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Terminal Console Logs -->
+            <div class="console-container">
+                <div class="console-header">
+                    <div class="console-tab" id="console-status-tab">Console Logs</div>
+                    <div class="console-actions">
+                        <button class="console-btn" id="btn-clear-console">Clear Console</button>
+                    </div>
+                </div>
+                <div class="console-body" id="console-output">
+                    <div class="console-line info">Pench Route Control Center initialized. Ready to receive commands.</div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        // Set default date to tomorrow
+        const dateInput = document.getElementById('target-date');
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        dateInput.value = tomorrow.toISOString().split('T')[0];
+
+        // Global state
+        let token = localStorage.getItem('pench_admin_token') || '';
+        let host = localStorage.getItem('pench_admin_host') || window.location.host;
+
+        // Elements
+        const loginOverlay = document.getElementById('login-overlay');
+        const loginBtn = document.getElementById('login-btn');
+        const loginError = document.getElementById('login-error');
+        const usernameInput = document.getElementById('username');
+        const passwordInput = document.getElementById('password');
+        const hostInput = document.getElementById('host');
+        const logoutBtn = document.getElementById('logout-btn');
+        const connectedHostInput = document.getElementById('connected-host');
+        
+        const btnTrigger = document.getElementById('btn-trigger');
+        const btnClear = document.getElementById('btn-clear');
+        const consoleOutput = document.getElementById('console-output');
+        const consoleStatusTab = document.getElementById('console-status-tab');
+        const btnClearConsole = document.getElementById('btn-clear-console');
+
+        const statusDot = document.getElementById('status-dot');
+        const statusText = document.getElementById('status-text');
+
+        // Setup environment values
+        hostInput.value = host;
+        connectedHostInput.value = host;
+
+        // Console Log helper
+        function log(msg, type = 'info') {
+            const line = document.createElement('div');
+            line.className = `console-line ${type}`;
+            
+            // Format object payloads
+            if (typeof msg === 'object') {
+                line.textContent = `[${new Date().toLocaleTimeString()}] \n` + JSON.stringify(msg, null, 2);
+            } else {
+                line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            }
+            
+            consoleOutput.appendChild(line);
+            consoleOutput.scrollTop = consoleOutput.scrollHeight;
+        }
+
+        // Initialize session
+        function checkAuth() {
+            if (token) {
+                loginOverlay.style.display = 'none';
+                statusDot.className = 'status-dot active';
+                statusText.textContent = 'Authenticated';
+                connectedHostInput.value = host;
+                log('Authentication token successfully restored from storage.', 'success');
+            } else {
+                loginOverlay.style.display = 'flex';
+                statusDot.className = 'status-dot';
+                statusText.textContent = 'Not Authenticated';
+            }
+        }
+
+        // Login Function
+        async function handleLogin() {
+            const userVal = usernameInput.value.trim();
+            const passVal = passwordInput.value;
+            const hostVal = hostInput.value.trim();
+
+            if (!userVal || !passVal || !hostVal) {
+                loginError.textContent = 'Please fill out all fields.';
+                loginError.style.display = 'block';
+                return;
+            }
+
+            loginBtn.disabled = true;
+            loginBtn.innerHTML = '<span class="spinner"></span> Authenticating...';
+            loginError.style.display = 'none';
+
+            // Resolve protocol
+            const protocol = window.location.protocol;
+            const loginUrl = `${protocol}//${hostVal}/api/accounts/login/`;
+
+            try {
+                const response = await fetch(loginUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: userVal, password: passVal })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.detail || 'Authentication failed. Please check credentials.');
+                }
+
+                const data = await response.json();
+                token = data.access;
+                host = hostVal;
+                
+                // Save to localStorage
+                localStorage.setItem('pench_admin_token', token);
+                localStorage.setItem('pench_admin_host', host);
+
+                checkAuth();
+                log(`Successfully authenticated with server ${host}`, 'success');
+            } catch (err) {
+                loginError.textContent = err.message;
+                loginError.style.display = 'block';
+                log(`Authentication error: ${err.message}`, 'error');
+            } finally {
+                loginBtn.disabled = false;
+                loginBtn.innerHTML = 'Authenticate';
+            }
+        }
+
+        // Logout
+        function handleLogout() {
+            token = '';
+            localStorage.removeItem('pench_admin_token');
+            checkAuth();
+            log('Signed out successfully. Token cleared.', 'warn');
+        }
+
+        // Trigger Daily Generation
+        async function triggerGeneration() {
+            const dateVal = dateInput.value;
+            if (!dateVal) {
+                log('Please select a target delivery date.', 'error');
+                return;
+            }
+
+            if (!confirm(`Are you sure you want to trigger daily route generation for date: ${dateVal}?`)) {
+                return;
+            }
+
+            setLoading(true, 'Generating...');
+            log(`Initiating daily generation request for ${dateVal}...`, 'info');
+
+            const protocol = window.location.protocol;
+            const targetUrl = `${protocol}//${host}/api/erp/orders/routes/trigger-daily-generation/`;
+
+            try {
+                const response = await fetch(targetUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ date: dateVal })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    log(`Daily generation success for ${dateVal}!`, 'success');
+                    log(data, 'success');
+                } else {
+                    throw new Error(data.detail || JSON.stringify(data));
+                }
+            } catch (err) {
+                log(`Generation request failed: ${err.message}`, 'error');
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        // Clear Daily Generation
+        async function clearGeneration() {
+            const dateVal = dateInput.value;
+            if (!dateVal) {
+                log('Please select a target delivery date.', 'error');
+                return;
+            }
+
+            if (!confirm(`⚠️ WARNING ⚠️\n\nThis will permanently DELETE all routes, stops, and subscription-created orders for: ${dateVal}.\n\nAre you absolutely sure you want to proceed?`)) {
+                return;
+            }
+
+            setLoading(true, 'Clearing...');
+            log(`Initiating clear/reverse request for ${dateVal}...`, 'warn');
+
+            const protocol = window.location.protocol;
+            const targetUrl = `${protocol}//${host}/api/erp/orders/routes/clear-daily-generation/`;
+
+            try {
+                const response = await fetch(targetUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ date: dateVal })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    log(`Daily generation successfully cleared/reversed for ${dateVal}!`, 'success');
+                    log(data, 'success');
+                } else {
+                    throw new Error(data.detail || JSON.stringify(data));
+                }
+            } catch (err) {
+                log(`Clear request failed: ${err.message}`, 'error');
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        // Set UI loading states
+        function setLoading(isLoading, text = '') {
+            if (isLoading) {
+                btnTrigger.disabled = true;
+                btnTrigger.innerHTML = `<span class="spinner"></span> Processing...`;
+                btnTrigger.style.opacity = '0.7';
+                
+                btnTrigger.disabled = true;
+                btnClear.disabled = true;
+                btnClear.innerHTML = `<span class="spinner"></span> Processing...`;
+                btnClear.style.opacity = '0.7';
+
+                consoleStatusTab.className = 'console-tab running';
+                consoleStatusTab.textContent = text;
+            } else {
+                btnTrigger.disabled = false;
+                btnTrigger.innerHTML = 'Trigger Daily Generation';
+                btnTrigger.style.opacity = '1';
+
+                btnClear.disabled = false;
+                btnClear.innerHTML = 'Clear Daily Generation';
+                btnClear.style.opacity = '1';
+
+                consoleStatusTab.className = 'console-tab';
+                consoleStatusTab.textContent = 'Console Logs';
+            }
+        }
+
+        // Event Listeners
+        loginBtn.addEventListener('click', handleLogin);
+        logoutBtn.addEventListener('click', handleLogout);
+        btnTrigger.addEventListener('click', triggerGeneration);
+        btnClear.addEventListener('click', clearGeneration);
+        btnClearConsole.addEventListener('click', () => {
+            consoleOutput.innerHTML = '';
+            log('Console cleared.', 'info');
+        });
+
+        // Initialize Page
+        checkAuth();
+    </script>
+</body>
+</html>

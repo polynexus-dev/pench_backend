@@ -953,6 +953,101 @@ class RouteViewSet(viewsets.ModelViewSet):
             status=status.HTTP_200_OK,
         )
 
+    @action(detail=False, methods=["post"], url_path="trigger-daily-generation")
+    def trigger_daily_generation(self, request):
+        """
+        Manually trigger the full daily route generation process for a specific date.
+        Generates orders from subscriptions and builds optimized routes.
+        """
+        date_str = request.data.get("date")
+        if not date_str:
+            return Response({"detail": "Missing target 'date' in payload (format: YYYY-MM-DD)."}, status=400)
+        
+        try:
+            import datetime
+            target_date = datetime.date.fromisoformat(date_str)
+        except ValueError:
+            return Response({"detail": "Invalid date format. Use YYYY-MM-DD."}, status=400)
+
+        from orders.services.route_generator import generate_daily_routes_for_date
+        
+        # Run generation
+        try:
+            summary = generate_daily_routes_for_date(target_date)
+        except Exception as e:
+            import traceback
+            print("================================== EXCEPTION IN TRIGGER_DAILY_GENERATION ==================================")
+            traceback.print_exc()
+            print("==========================================================================================================")
+            raise e
+        return Response({
+            "message": f"Daily route generation completed for {date_str}.",
+            "summary": summary
+        })
+
+    @action(detail=False, methods=["post"], url_path="clear-daily-generation")
+    def clear_daily_generation(self, request):
+        """
+        Manually clear/reverse the route generation for a specific date.
+        Deletes all routes, route stops, and orders created for that date.
+        """
+        date_str = request.data.get("date")
+        if not date_str:
+            return Response({"detail": "Missing target 'date' in payload (format: YYYY-MM-DD)."}, status=400)
+            
+        try:
+            import datetime
+            target_date = datetime.date.fromisoformat(date_str)
+        except ValueError:
+            return Response({"detail": "Invalid date format. Use YYYY-MM-DD."}, status=400)
+
+        from orders.models import Route, Order, RouteStop
+        from django.db import transaction
+
+        with transaction.atomic():
+            # Find routes for that date
+            routes = Route.objects.filter(delivery_date=target_date)
+            routes_count = routes.count()
+            
+            # Delete route stops associated with these routes
+            stops_count = RouteStop.objects.filter(route__delivery_date=target_date).delete()[0]
+            
+            # Delete routes
+            routes.delete()
+            
+            # Delete orders created automatically from subscriptions for this date
+            # We identify them by having a subscription reference
+            orders_deleted = Order.objects.filter(
+                scheduled_delivery_date=target_date,
+                subscription__isnull=False
+            ).delete()[0]
+
+        return Response({
+            "message": f"Successfully reversed/cleared daily generation for {date_str}.",
+            "details": {
+                "deleted_routes": routes_count,
+                "deleted_route_stops": stops_count,
+                "deleted_subscription_orders": orders_deleted
+            }
+        })
+
+    @action(detail=False, methods=["get"], url_path="control-panel", permission_classes=[])
+    def control_panel(self, request):
+        """
+        Render the manual testing control panel page.
+        """
+        import os
+        from django.conf import settings
+        from django.http import HttpResponse
+
+        template_path = os.path.join(settings.BASE_DIR, "templates", "control_panel.html")
+        try:
+            with open(template_path, "r", encoding="utf-8") as f:
+                html_content = f.read()
+            return HttpResponse(html_content, content_type="text/html")
+        except Exception as e:
+            return HttpResponse(f"Error loading control panel: {e}", status=500)
+
     @action(detail=True, methods=["get"], url_path="geojson")
     def geojson(self, request, pk=None):
         route = self.get_object()
