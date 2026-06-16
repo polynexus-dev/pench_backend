@@ -90,12 +90,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.prod
-    command: >
-      bash -c "rm -f /app/beat/celerybeat.prod.pid &&
-               celery -A config beat -l info
-               --scheduler django_celery_beat.schedulers:DatabaseScheduler
-               --schedule /app/beat/celerybeat-schedule-prod
-               --pidfile /app/beat/celerybeat.prod.pid"
+    command: bash -c "rm -f /app/beat/celerybeat.prod.pid && celery -A config beat -l info --scheduler=django_celery_beat.schedulers:DatabaseScheduler --schedule=/app/beat/celerybeat-schedule-prod --pidfile=/app/beat/celerybeat.prod.pid"
     environment:
       - SECRET_KEY=${SECRET_KEY}
       - DEBUG=0

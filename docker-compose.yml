@@ -91,12 +91,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.dev
-    command: >
-      bash -c "rm -f /app/beat/celerybeat.pid &&
-               celery -A config beat -l info
-               --scheduler django_celery_beat.schedulers:DatabaseScheduler
-               --schedule /app/beat/celerybeat-schedule
-               --pidfile /app/beat/celerybeat.pid"
+    command: bash -c "rm -f /app/beat/celerybeat.pid && celery -A config beat -l info --scheduler=django_celery_beat.schedulers:DatabaseScheduler --schedule=/app/beat/celerybeat-schedule --pidfile=/app/beat/celerybeat.pid"
     environment:
       - SECRET_KEY=${SECRET_KEY:-django-insecure-docker-dev-key-change-in-prod}
       - HAS_GDAL=True
