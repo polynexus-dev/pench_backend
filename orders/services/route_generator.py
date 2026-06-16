@@ -317,6 +317,7 @@ def add_order_to_active_route_if_pending(order):
         driver=driver_user,
         delivery_date=delivery_date,
         is_completed=False,
+        is_locked=False,
         started_at__isnull=True
     ).first()
 

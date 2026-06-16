@@ -111,28 +111,8 @@ class Command(BaseCommand):
                     )
                 )
 
-                # 2. auto_lock_routes_at_6am at 6:00 AM daily (Asia/Kolkata timezone)
-                schedule_6am, _ = CrontabSchedule.objects.get_or_create(
-                    minute="0",
-                    hour="6",
-                    day_of_week="*",
-                    day_of_month="*",
-                    month_of_year="*",
-                    timezone="Asia/Kolkata",
-                )
-                PeriodicTask.objects.update_or_create(
-                    task="orders.tasks.auto_lock_routes_at_6am",
-                    defaults={
-                        "name": "Auto Lock Routes at 6 AM",
-                        "crontab": schedule_6am,
-                        "enabled": True,
-                    },
-                )
-                self.stdout.write(
-                    self.style.SUCCESS(
-                        "Successfully configured: Auto Lock Routes at 6 AM"
-                    )
-                )
+                # 2. auto_lock_routes_at_6am is deprecated/disabled. Clean up any existing periodic task.
+                PeriodicTask.objects.filter(task="orders.tasks.auto_lock_routes_at_6am").delete()
 
                 # 3. auto_stop_trips_at_12pm at 12:00 PM daily (Asia/Kolkata timezone)
                 schedule_12pm, _ = CrontabSchedule.objects.get_or_create(

@@ -1394,10 +1394,47 @@ class DriverViewSet(viewsets.ViewSet):
                     {"detail": "No active route found for today."}, status=404
                 )
 
-            # If the route is started/in progress, make sure all non-delivered/non-cancelled/undelivered orders are IN_TRANSIT
             from orders.models import RouteStatus, OrderStatus
 
-            if route.status == RouteStatus.IN_PROGRESS or route.started_at is not None:
+            # If the route is not locked and not started yet, automatically refresh it with any new unassigned orders for this driver's zones
+            if not route.is_locked and route.started_at is None:
+                unassigned_orders = Order.objects.filter(
+                    scheduled_delivery_date=route.delivery_date,
+                    status__in=[OrderStatus.PENDING, OrderStatus.CONFIRMED],
+                    route_stop__isnull=True,
+                    customer__zone__assigned_driver=user,
+                )
+                if unassigned_orders.exists():
+                    from routing.models import Driver
+                    driver_profile = Driver.objects.filter(user=user).first()
+                    warehouse = driver_profile.warehouse if driver_profile else None
+                    warehouse_location = None
+                    if warehouse and warehouse.latitude is not None and warehouse.longitude is not None:
+                        warehouse_location = {
+                            "longitude": float(warehouse.longitude),
+                            "latitude": float(warehouse.latitude),
+                        }
+
+                    existing_order_ids = list(route.stops.values_list("order_id", flat=True))
+                    new_order_ids = list(unassigned_orders.values_list("id", flat=True))
+                    all_order_ids = list(set(str(oid) for oid in existing_order_ids) | set(str(noid) for noid in new_order_ids))
+
+                    route = create_optimized_route(
+                        route.name,
+                        user,
+                        route.delivery_date,
+                        all_order_ids,
+                        warehouse=warehouse,
+                        warehouse_location=warehouse_location,
+                    )
+                    route = (
+                        Route.objects.filter(id=route.id)
+                        .prefetch_related("stops__order__customer")
+                        .first()
+                    )
+
+            # If the route is started/in progress, make sure all non-delivered/non-cancelled/undelivered orders are IN_TRANSIT
+            elif route.status == RouteStatus.IN_PROGRESS or route.started_at is not None:
                 updated_any = False
                 for stop in route.stops.all():
                     if stop.order.status in [

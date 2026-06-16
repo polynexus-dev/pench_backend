@@ -243,6 +243,8 @@ def create_optimized_route(
                 driver=driver_user,
                 delivery_date=date,
                 is_completed=False,
+                is_locked=False,
+                started_at__isnull=True,
             ).first()
 
         if existing_route:

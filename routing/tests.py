@@ -374,3 +374,160 @@ class TestDriverTripStatus(TenantTestCase):
         self.assertTrue(response.data["on_trip"])
         self.assertIsNotNone(response.data["active_route"])
         self.assertTrue(response.data["active_route"]["is_started"])
+
+
+class TestDriverRouteAutoRefresh(TenantTestCase):
+    """Unit tests for driver route auto-refresh when new orders come."""
+
+    @classmethod
+    def setup_tenant(cls, tenant):
+        tenant.name = "Test City"
+        tenant.state = "Test State"
+        tenant.code = "TST"
+        tenant.create_schema(sync_schema=True)
+
+    def setUp(self):
+        super().setUp()
+        from django.contrib.auth import get_user_model
+        from django.contrib.auth.models import Group
+        from routing.models import Zone, Driver
+        from rest_framework.test import APIClient
+        from orders.models import Route, Order, OrderStatus, RouteStop
+        from django.conf import settings
+        import datetime
+
+        User = get_user_model()
+        self.driver_user = User.objects.create_user(
+            username="test_driver_refresh",
+            email="driver_refresh@example.com",
+            password="testpassword",
+            is_driver=True,
+            tenant_schema="test",
+        )
+        drivers_group, _ = Group.objects.get_or_create(name="Drivers")
+        self.driver_user.groups.add(drivers_group)
+
+        self.driver_profile, _ = Driver.objects.get_or_create(
+            user=self.driver_user,
+            defaults={
+                "vehicle_plate": "TEST-1234",
+                "is_available": True,
+                "on_trip": False,
+            },
+        )
+
+        self.zone = Zone.objects.create(
+            name="North Zone", assigned_driver=self.driver_user
+        )
+
+        HAS_GIS = getattr(settings, "HAS_GDAL", False)
+        if HAS_GIS:
+            from django.contrib.gis.geos import Point
+            loc = Point(79.0, 21.0)
+            loc2 = Point(79.01, 21.01)
+        else:
+            loc = {"longitude": 79.0, "latitude": 21.0}
+            loc2 = {"longitude": 79.01, "latitude": 21.01}
+
+        from crm.models import Customer
+        self.customer = Customer.objects.create(
+            name="Test Customer 1",
+            email="cust1@example.com",
+            zone=self.zone,
+            location=loc,
+        )
+        self.customer2 = Customer.objects.create(
+            name="Test Customer 2",
+            email="cust2@example.com",
+            zone=self.zone,
+            location=loc2,
+        )
+
+        # Create today's route with order 1
+        self.order1 = Order.objects.create(
+            customer=self.customer,
+            scheduled_delivery_date=datetime.date.today(),
+            status=OrderStatus.PENDING,
+            total=50.00,
+        )
+        self.route = Route.objects.create(
+            name="Test Driver Refresh Route",
+            driver=self.driver_user,
+            delivery_date=datetime.date.today(),
+        )
+        self.stop1 = RouteStop.objects.create(
+            route=self.route, order=self.order1, sequence_number=1
+        )
+
+        # Force OSRM mocks to prevent real API requests
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.driver_user)
+
+    @patch("orders.services.optimizer.get_osrm_distance_matrix")
+    @patch("orders.services.optimizer.get_osrm_route_geometry")
+    def test_my_route_auto_refreshes_before_lock(self, mock_geom, mock_matrix):
+        from orders.models import Order, OrderStatus
+        import datetime
+
+        mock_matrix.return_value = [
+            [0, 100, 200],
+            [100, 0, 150],
+            [200, 150, 0]
+        ]
+        mock_geom.return_value = None
+
+        # Initially 1 stop
+        self.assertEqual(self.route.stops.count(), 1)
+
+        # A new order comes for customer2 (in the same driver's zone)
+        new_order = Order.objects.create(
+            customer=self.customer2,
+            scheduled_delivery_date=datetime.date.today(),
+            status=OrderStatus.PENDING,
+            total=75.00,
+        )
+
+        # Call my-route
+        url = "/api/drivers/my-route/"
+        response = self.client.get(url, HTTP_HOST="tenant.test.com")
+        self.assertEqual(response.status_code, 200)
+
+        # Check response has 2 stops now
+        self.assertEqual(len(response.data["stops"]), 2)
+        
+        # Verify route in database has 2 stops
+        self.assertEqual(self.route.stops.count(), 2)
+
+    @patch("orders.services.optimizer.get_osrm_distance_matrix")
+    @patch("orders.services.optimizer.get_osrm_route_geometry")
+    def test_my_route_does_not_refresh_after_lock(self, mock_geom, mock_matrix):
+        from orders.models import Order, OrderStatus
+        import datetime
+
+        mock_matrix.return_value = [
+            [0, 100, 200],
+            [100, 0, 150],
+            [200, 150, 0]
+        ]
+        mock_geom.return_value = None
+
+        # Lock the route
+        self.route.is_locked = True
+        self.route.save()
+
+        # A new order comes
+        new_order = Order.objects.create(
+            customer=self.customer2,
+            scheduled_delivery_date=datetime.date.today(),
+            status=OrderStatus.PENDING,
+            total=75.00,
+        )
+
+        # Call my-route
+        url = "/api/drivers/my-route/"
+        response = self.client.get(url, HTTP_HOST="tenant.test.com")
+        self.assertEqual(response.status_code, 200)
+
+        # Check response still has only 1 stop
+        self.assertEqual(len(response.data["stops"]), 1)
+        self.assertEqual(self.route.stops.count(), 1)
