@@ -1,0 +1,237 @@
+[POST] 00. SPECIAL: Driver Mobile App / POST Driver Check-in -> {{city_url}}/api/ems/drivers/check-in/
+[GET] 00. SPECIAL: Driver Mobile App / GET My Active Route -> {{city_url}}/api/erp/orders/driver/my-route/
+[GET] 00. SPECIAL: Driver Mobile App / GET Trip Status -> {{city_url}}/api/erp/orders/driver/trip-status/
+[POST] 00. SPECIAL: Driver Mobile App / POST Start Trip -> {{city_url}}/api/erp/orders/driver/{{route_id}}/start-trip/
+[POST] 00. SPECIAL: Driver Mobile App / POST Submit Delivery -> {{city_url}}/api/erp/orders/driver/{{order_id}}/submit-delivery/
+[POST] 00. SPECIAL: Driver Mobile App / POST Complete Trip -> {{city_url}}/api/erp/orders/driver/{{route_id}}/complete-trip/
+[GET] 00. SPECIAL: Driver Mobile App / GET Resolve QR Code -> {{city_url}}/api/erp/orders/driver/resolve-qr/{{qr_id}}/
+[POST] 01. Auth & Registration / POST Standard Login -> {{base_url}}/api/accounts/login/
+[GET] 01. Auth & Registration / GET Me (Profile) -> {{base_url}}/api/accounts/me/
+[POST] 01. Auth & Registration / POST Request OTP -> {{base_url}}/api/accounts/request-otp/
+[POST] 01. Auth & Registration / POST Login OTP -> {{base_url}}/api/accounts/login-otp/
+[POST] 01. Auth & Registration / User Registration (Templates) / Register: SuperAdmin -> {{base_url}}/api/accounts/register/
+[POST] 01. Auth & Registration / User Registration (Templates) / Register: Staff -> {{base_url}}/api/accounts/register/
+[POST] 01. Auth & Registration / User Registration (Templates) / Register: Manager -> {{base_url}}/api/accounts/register/
+[POST] 01. Auth & Registration / User Registration (Templates) / Register: Driver -> {{base_url}}/api/accounts/register/
+[POST] 01. Auth & Registration / User Registration (Templates) / Register: Customer (Mandatory Fields) -> {{base_url}}/api/accounts/register/
+[GET] 01. Auth & Registration / Global Users (User) / GET List Users -> {{base_url}}/api/accounts/users/
+[POST] 01. Auth & Registration / Global Users (User) / POST Create User -> {{base_url}}/api/accounts/users/
+[GET] 01. Auth & Registration / Global Users (User) / GET Single User -> {{base_url}}/api/accounts/users/{{last_id}}/
+[PATCH] 01. Auth & Registration / Global Users (User) / PATCH Update User -> {{base_url}}/api/accounts/users/{{last_id}}/
+[DELETE] 01. Auth & Registration / Global Users (User) / DELETE User -> {{base_url}}/api/accounts/users/{{last_id}}/
+[POST] 01. Auth & Registration / POST Token Refresh -> {{base_url}}/api/accounts/login/refresh/
+[POST] 01. Auth & Registration / POST Forgot Password -> {{base_url}}/api/accounts/forgot-password/
+[POST] 01. Auth & Registration / POST Reset Password -> {{base_url}}/api/accounts/reset-password/
+[GET] 01. Auth & Registration / Permissions (Permission) / GET List Permissions -> {{base_url}}/api/accounts/permissions/
+[POST] 01. Auth & Registration / Permissions (Permission) / POST Create Permission -> {{base_url}}/api/accounts/permissions/
+[GET] 01. Auth & Registration / Permissions (Permission) / GET Single Permission -> {{base_url}}/api/accounts/permissions/{{last_id}}/
+[PATCH] 01. Auth & Registration / Permissions (Permission) / PATCH Update Permission -> {{base_url}}/api/accounts/permissions/{{last_id}}/
+[DELETE] 01. Auth & Registration / Permissions (Permission) / DELETE Permission -> {{base_url}}/api/accounts/permissions/{{last_id}}/
+[GET] 01. Auth & Registration / User Groups (Group) / GET List Groups -> {{base_url}}/api/accounts/groups/
+[POST] 01. Auth & Registration / User Groups (Group) / POST Create Group -> {{base_url}}/api/accounts/groups/
+[GET] 01. Auth & Registration / User Groups (Group) / GET Single Group -> {{base_url}}/api/accounts/groups/{{last_id}}/
+[PATCH] 01. Auth & Registration / User Groups (Group) / PATCH Update Group -> {{base_url}}/api/accounts/groups/{{last_id}}/
+[DELETE] 01. Auth & Registration / User Groups (Group) / DELETE Group -> {{base_url}}/api/accounts/groups/{{last_id}}/
+[POST] 01. Auth & Registration / Permissions & Groups Assignment / POST Assign Permissions to User -> {{base_url}}/api/accounts/users/{{last_id}}/assign-permissions/
+[POST] 01. Auth & Registration / Permissions & Groups Assignment / POST Assign Groups to User -> {{base_url}}/api/accounts/users/{{last_id}}/assign-groups/
+[POST] 01. Auth & Registration / Permissions & Groups Assignment / POST Assign Permissions to Group -> {{base_url}}/api/accounts/groups/{{last_id}}/assign-permissions/
+[POST] 01. Auth & Registration / POST Set Password -> {{base_url}}/api/accounts/set-password/
+[PATCH] 01. Auth & Registration / PATCH Update My Profile -> {{base_url}}/api/accounts/me/
+[GET] 02. Platform & Tenants / Companies (Company) / GET List Companies -> {{base_url}}/api/erp/tenants/companies/
+[POST] 02. Platform & Tenants / Companies (Company) / POST Create Company -> {{base_url}}/api/erp/tenants/companies/
+[GET] 02. Platform & Tenants / Companies (Company) / GET Single Company -> {{base_url}}/api/erp/tenants/companies/{{last_id}}/
+[PATCH] 02. Platform & Tenants / Companies (Company) / PATCH Update Company -> {{base_url}}/api/erp/tenants/companies/{{last_id}}/
+[DELETE] 02. Platform & Tenants / Companies (Company) / DELETE Delete Company -> {{base_url}}/api/erp/tenants/companies/{{last_id}}/
+[GET] 02. Platform & Tenants / Cities (City) / GET List Citys -> {{base_url}}/api/erp/tenants/cities/
+[POST] 02. Platform & Tenants / Cities (City) / POST Create City -> {{base_url}}/api/erp/tenants/cities/
+[GET] 02. Platform & Tenants / Cities (City) / GET Single City -> {{base_url}}/api/erp/tenants/cities/{{last_id}}/
+[PATCH] 02. Platform & Tenants / Cities (City) / PATCH Update City -> {{base_url}}/api/erp/tenants/cities/{{last_id}}/
+[DELETE] 02. Platform & Tenants / Cities (City) / DELETE City -> {{base_url}}/api/erp/tenants/cities/{{last_id}}/
+[GET] 02. Platform & Tenants / Zones (Zone) / GET List Zones -> {{city_url}}/api/ems/zones/
+[POST] 02. Platform & Tenants / Zones (Zone) / POST Create Zone -> {{city_url}}/api/ems/zones/
+[GET] 02. Platform & Tenants / Zones (Zone) / GET Single Zone -> {{city_url}}/api/ems/zones/{{last_id}}/
+[PATCH] 02. Platform & Tenants / Zones (Zone) / PATCH Update Zone -> {{city_url}}/api/ems/zones/{{last_id}}/
+[DELETE] 02. Platform & Tenants / Zones (Zone) / DELETE Delete Zone -> {{city_url}}/api/ems/zones/{{last_id}}/
+[GET] 02. Platform & Tenants / Holidays (Holiday) / GET List Holidays -> {{city_url}}/api/erp/tenants/holidays/
+[POST] 02. Platform & Tenants / Holidays (Holiday) / POST Create Holiday -> {{city_url}}/api/erp/tenants/holidays/
+[GET] 02. Platform & Tenants / Holidays (Holiday) / GET Single Holiday -> {{city_url}}/api/erp/tenants/holidays/{{last_id}}/
+[PATCH] 02. Platform & Tenants / Holidays (Holiday) / PATCH Update Holiday -> {{city_url}}/api/erp/tenants/holidays/{{last_id}}/
+[DELETE] 02. Platform & Tenants / Holidays (Holiday) / DELETE Delete Holiday -> {{city_url}}/api/erp/tenants/holidays/{{last_id}}/
+[GET] 03. CRM & Customers / Leads (Lead) / GET List Leads -> {{city_url}}/api/erp/leads/
+[POST] 03. CRM & Customers / Leads (Lead) / POST Create Lead -> {{city_url}}/api/erp/leads/
+[GET] 03. CRM & Customers / Leads (Lead) / GET Single Lead -> {{city_url}}/api/erp/leads/{{last_id}}/
+[PATCH] 03. CRM & Customers / Leads (Lead) / PATCH Update Lead -> {{city_url}}/api/erp/leads/{{last_id}}/
+[DELETE] 03. CRM & Customers / Leads (Lead) / DELETE Delete Lead -> {{city_url}}/api/erp/leads/{{last_id}}/
+[GET] 03. CRM & Customers / Customers (Customer) / GET List Customers -> {{city_url}}/api/erp/customers/
+[POST] 03. CRM & Customers / Customers (Customer) / POST Create Customer -> {{city_url}}/api/erp/customers/
+[GET] 03. CRM & Customers / Customers (Customer) / GET Single Customer -> {{city_url}}/api/erp/customers/{{last_id}}/
+[PATCH] 03. CRM & Customers / Customers (Customer) / PATCH Update Customer -> {{city_url}}/api/erp/customers/{{last_id}}/
+[DELETE] 03. CRM & Customers / Customers (Customer) / DELETE Customer -> {{city_url}}/api/erp/customers/{{last_id}}/
+[PATCH] 03. CRM & Customers / Customers (Customer) / PATCH Bulk Update Customers -> {{city_url}}/api/erp/customers/bulk_update/
+[GET] 03. CRM & Customers / Customers (Customer) / GET Resolve Customer QR -> {{city_url}}/api/erp/customers/qr-resolve/{{qr_id}}/
+[POST] 03. CRM & Customers / Customers (Customer) / POST Auto-Assign Zones -> {{city_url}}/api/erp/customers/auto-assign-zones/
+[GET] 03. CRM & Customers / Customers (Customer) / GET Bulk Download QR -> {{city_url}}/api/erp/customers/bulk-download-qr/?ids=UUID1,UUID2
+[POST] 03. CRM & Customers / Customers (Customer) / POST Bulk Download QR (Filtered) -> {{city_url}}/api/erp/customers/bulk-download-qr/
+[POST] 03. CRM & Customers / Customers (Customer) / POST Bulk Delete Customers -> {{city_url}}/api/erp/customers/bulk-delete/
+[GET] 03. CRM & Customers / GET Customer QR Code -> {{city_url}}/api/erp/customers/{{last_id}}/qr/
+[GET] 03. CRM & Customers / GET Download QR Label -> {{city_url}}/api/erp/customers/{{last_id}}/download-qr/
+[GET] 04. Inventory & Warehousing / Products (Product) / GET List Products -> {{city_url}}/api/erp/inventory/products/
+[POST] 04. Inventory & Warehousing / Products (Product) / POST Create Product -> {{city_url}}/api/erp/inventory/products/
+[GET] 04. Inventory & Warehousing / Products (Product) / GET Single Product -> {{city_url}}/api/erp/inventory/products/{{last_id}}/
+[PATCH] 04. Inventory & Warehousing / Products (Product) / PATCH Update Product -> {{city_url}}/api/erp/inventory/products/{{last_id}}/
+[DELETE] 04. Inventory & Warehousing / Products (Product) / DELETE Product -> {{city_url}}/api/erp/inventory/products/{{last_id}}/
+[PATCH] 04. Inventory & Warehousing / PATCH Bulk Update Products -> {{city_url}}/api/erp/inventory/products/bulk_update/
+[GET] 04. Inventory & Warehousing / Warehouses (Warehouse) / GET List Warehouses -> {{city_url}}/api/erp/inventory/warehouses/
+[POST] 04. Inventory & Warehousing / Warehouses (Warehouse) / POST Create Warehouse -> {{city_url}}/api/erp/inventory/warehouses/
+[GET] 04. Inventory & Warehousing / Warehouses (Warehouse) / GET Single Warehouse -> {{city_url}}/api/erp/inventory/warehouses/{{last_id}}/
+[PATCH] 04. Inventory & Warehousing / Warehouses (Warehouse) / PATCH Update Warehouse -> {{city_url}}/api/erp/inventory/warehouses/{{last_id}}/
+[DELETE] 04. Inventory & Warehousing / Warehouses (Warehouse) / DELETE Warehouse -> {{city_url}}/api/erp/inventory/warehouses/{{last_id}}/
+[GET] 04. Inventory & Warehousing / Stock Levels (Stock) / GET List Stocks -> {{city_url}}/api/erp/inventory/stock/
+[POST] 04. Inventory & Warehousing / Stock Levels (Stock) / POST Create Stock -> {{city_url}}/api/erp/inventory/stock/
+[GET] 04. Inventory & Warehousing / Stock Levels (Stock) / GET Single Stock -> {{city_url}}/api/erp/inventory/stock/{{last_id}}/
+[PATCH] 04. Inventory & Warehousing / Stock Levels (Stock) / PATCH Update Stock -> {{city_url}}/api/erp/inventory/stock/{{last_id}}/
+[DELETE] 04. Inventory & Warehousing / Stock Levels (Stock) / DELETE Stock -> {{city_url}}/api/erp/inventory/stock/{{last_id}}/
+[PATCH] 04. Inventory & Warehousing / PATCH Bulk Update Stock -> {{city_url}}/api/erp/inventory/stock/bulk_update/
+[GET] 04. Inventory & Warehousing / Bottle Types (BottleType) / GET List BottleTypes -> {{city_url}}/api/erp/inventory/bottle-types/
+[POST] 04. Inventory & Warehousing / Bottle Types (BottleType) / POST Create BottleType -> {{city_url}}/api/erp/inventory/bottle-types/
+[GET] 04. Inventory & Warehousing / Bottle Types (BottleType) / GET Single BottleType -> {{city_url}}/api/erp/inventory/bottle-types/{{last_id}}/
+[PATCH] 04. Inventory & Warehousing / Bottle Types (BottleType) / PATCH Update BottleType -> {{city_url}}/api/erp/inventory/bottle-types/{{last_id}}/
+[DELETE] 04. Inventory & Warehousing / Bottle Types (BottleType) / DELETE BottleType -> {{city_url}}/api/erp/inventory/bottle-types/{{last_id}}/
+[GET] 04. Inventory & Warehousing / Bottle Transactions (Transaction) / GET List Transactions -> {{city_url}}/api/erp/inventory/bottle-transactions/
+[POST] 04. Inventory & Warehousing / Bottle Transactions (Transaction) / POST Create Transaction -> {{city_url}}/api/erp/inventory/bottle-transactions/
+[GET] 04. Inventory & Warehousing / Bottle Transactions (Transaction) / GET Single Transaction -> {{city_url}}/api/erp/inventory/bottle-transactions/{{last_id}}/
+[PATCH] 04. Inventory & Warehousing / Bottle Transactions (Transaction) / PATCH Update Transaction -> {{city_url}}/api/erp/inventory/bottle-transactions/{{last_id}}/
+[DELETE] 04. Inventory & Warehousing / Bottle Transactions (Transaction) / DELETE Transaction -> {{city_url}}/api/erp/inventory/bottle-transactions/{{last_id}}/
+[GET] 04. Inventory & Warehousing / Bottle Balances (BottleBalance) / GET List Bottle Balances -> {{city_url}}/api/erp/inventory/bottle-balances/
+[GET] 04. Inventory & Warehousing / Bottle Balances (BottleBalance) / GET Single Bottle Balance -> {{city_url}}/api/erp/inventory/bottle-balances/{{last_id}}/
+[GET] 05. Logistics & Route Optimization / Orders (Order) / GET My Orders -> {{city_url}}/api/erp/orders/
+[GET] 05. Logistics & Route Optimization / Orders (Order) / GET Orders Filtered by Customer (Admin) -> {{city_url}}/api/erp/orders/?customer=1
+[GET] 05. Logistics & Route Optimization / Orders (Order) / GET List Orders -> {{city_url}}/api/erp/orders/
+[POST] 05. Logistics & Route Optimization / Orders (Order) / POST Create Order -> {{city_url}}/api/erp/orders/
+[GET] 05. Logistics & Route Optimization / Orders (Order) / GET Single Order -> {{city_url}}/api/erp/orders/{{last_id}}/
+[PATCH] 05. Logistics & Route Optimization / Orders (Order) / PATCH Update Order -> {{city_url}}/api/erp/orders/{{last_id}}/
+[DELETE] 05. Logistics & Route Optimization / Orders (Order) / DELETE Order -> {{city_url}}/api/erp/orders/{{last_id}}/
+[POST] 05. Logistics & Route Optimization / Orders (Order) / POST Mark Delivered -> {{city_url}}/api/erp/orders/{{order_id}}/mark-delivered/
+[POST] 05. Logistics & Route Optimization / Orders (Order) / POST Mark All Delivered -> {{city_url}}/api/erp/orders/mark-all-delivered/
+[PATCH] 05. Logistics & Route Optimization / Orders (Order) / PATCH Bulk Update Orders -> {{city_url}}/api/erp/orders/bulk_update/
+[GET] 05. Logistics & Route Optimization / Orders (Order) / GET Special Orders -> {{city_url}}/api/erp/orders/special/
+[GET] 05. Logistics & Route Optimization / Routes (Route) / EMS Routes / GET List EMS Routes -> {{city_url}}/api/ems/routes/
+[POST] 05. Logistics & Route Optimization / Routes (Route) / EMS Routes / POST Create EMS Route -> {{city_url}}/api/ems/routes/
+[GET] 05. Logistics & Route Optimization / Routes (Route) / EMS Routes / GET Single EMS Route -> {{city_url}}/api/ems/routes/{{last_id}}/
+[PATCH] 05. Logistics & Route Optimization / Routes (Route) / EMS Routes / PATCH Update EMS Route -> {{city_url}}/api/ems/routes/{{last_id}}/
+[DELETE] 05. Logistics & Route Optimization / Routes (Route) / EMS Routes / DELETE Delete EMS Route -> {{city_url}}/api/ems/routes/{{last_id}}/
+[POST] 05. Logistics & Route Optimization / Routes (Route) / EMS Routes / POST Optimize EMS Route -> {{city_url}}/api/ems/routes/{{last_id}}/optimize/
+[GET] 05. Logistics & Route Optimization / Routes (Route) / EMS Routes / GET EMS Route Tracking -> {{city_url}}/api/ems/routes/{{last_id}}/tracking/
+[POST] 05. Logistics & Route Optimization / Routes (Route) / EMS Routes / POST Generate Reconciliation -> {{city_url}}/api/ems/routes/{{last_id}}/generate-reconciliation/
+[GET] 05. Logistics & Route Optimization / Routes (Route) / EMS Routes / GET EMS Route GeoJSON -> {{city_url}}/api/ems/routes/{{last_id}}/geojson/
+[GET] 05. Logistics & Route Optimization / Routes (Route) / ERP Routes / GET List ERP Routes -> {{city_url}}/api/erp/orders/routes/
+[POST] 05. Logistics & Route Optimization / Routes (Route) / ERP Routes / POST Create ERP Route -> {{city_url}}/api/erp/orders/routes/
+[GET] 05. Logistics & Route Optimization / Routes (Route) / ERP Routes / GET Single ERP Route -> {{city_url}}/api/erp/orders/routes/{{last_id}}/
+[PATCH] 05. Logistics & Route Optimization / Routes (Route) / ERP Routes / PATCH Update ERP Route -> {{city_url}}/api/erp/orders/routes/{{last_id}}/
+[DELETE] 05. Logistics & Route Optimization / Routes (Route) / ERP Routes / DELETE Delete ERP Route -> {{city_url}}/api/erp/orders/routes/{{last_id}}/
+[GET] 05. Logistics & Route Optimization / Routes (Route) / ERP Routes / GET Single ERP Route GeoJSON -> {{city_url}}/api/erp/orders/routes/{{last_id}}/geojson/
+[POST] 05. Logistics & Route Optimization / Routes (Route) / ERP Routes / POST Create Optimized ERP Route -> {{city_url}}/api/erp/orders/routes/create-optimized/
+[POST] 05. Logistics & Route Optimization / Routes (Route) / ERP Routes / POST Bulk Assign Pending Orders -> {{city_url}}/api/erp/orders/routes/assign-pending/
+[POST] 05. Logistics & Route Optimization / POST Create Optimized Route -> {{city_url}}/api/erp/orders/routes/create-optimized/
+[GET] 05. Logistics & Route Optimization / Reconciliations (Reconciliation) / GET List Reconciliations -> {{city_url}}/api/ems/reconciliations/
+[POST] 05. Logistics & Route Optimization / Reconciliations (Reconciliation) / POST Create Reconciliation -> {{city_url}}/api/ems/reconciliations/
+[GET] 05. Logistics & Route Optimization / Reconciliations (Reconciliation) / GET Single Reconciliation -> {{city_url}}/api/ems/reconciliations/{{last_id}}/
+[PATCH] 05. Logistics & Route Optimization / Reconciliations (Reconciliation) / PATCH Update Reconciliation -> {{city_url}}/api/ems/reconciliations/{{last_id}}/
+[DELETE] 05. Logistics & Route Optimization / Reconciliations (Reconciliation) / DELETE Delete Reconciliation -> {{city_url}}/api/ems/reconciliations/{{last_id}}/
+[POST] 05. Logistics & Route Optimization / Reconciliations (Reconciliation) / POST Reconcile -> {{city_url}}/api/ems/reconciliations/{{last_id}}/reconcile/
+[GET] 05. Logistics & Route Optimization / Tracking Events (TrackingEvent) / GET List Tracking Events -> {{city_url}}/api/ems/tracking/
+[POST] 05. Logistics & Route Optimization / Tracking Events (TrackingEvent) / POST Create Tracking Event -> {{city_url}}/api/ems/tracking/
+[GET] 05. Logistics & Route Optimization / Tracking Events (TrackingEvent) / GET Single Tracking Event -> {{city_url}}/api/ems/tracking/{{last_id}}/
+[PATCH] 05. Logistics & Route Optimization / Tracking Events (TrackingEvent) / PATCH Update Tracking Event -> {{city_url}}/api/ems/tracking/{{last_id}}/
+[DELETE] 05. Logistics & Route Optimization / Tracking Events (TrackingEvent) / DELETE Delete Tracking Event -> {{city_url}}/api/ems/tracking/{{last_id}}/
+[GET] 06. Fleet & Driver Management / City Drivers (Driver) / GET List Drivers -> {{city_url}}/api/ems/drivers/
+[POST] 06. Fleet & Driver Management / City Drivers (Driver) / POST Create Driver -> {{city_url}}/api/ems/drivers/
+[GET] 06. Fleet & Driver Management / City Drivers (Driver) / GET Single Driver -> {{city_url}}/api/ems/drivers/{{last_id}}/
+[PATCH] 06. Fleet & Driver Management / City Drivers (Driver) / PATCH Update Driver -> {{city_url}}/api/ems/drivers/{{last_id}}/
+[DELETE] 06. Fleet & Driver Management / City Drivers (Driver) / DELETE Driver -> {{city_url}}/api/ems/drivers/{{last_id}}/
+[GET] 06. Fleet & Driver Management / GET Track Driver Live -> {{city_url}}/api/ems/tracking/
+[POST] 06. Fleet & Driver Management / ERP Drivers (Driver) / POST Create ERP Driver -> {{city_url}}/api/erp/orders/driver/
+[GET] 06. Fleet & Driver Management / ERP Drivers (Driver) / GET Single ERP Driver -> {{city_url}}/api/erp/orders/driver/{{last_id}}/
+[GET] 06. Fleet & Driver Management / ERP Drivers (Driver) / GET Resolve Driver QR -> {{city_url}}/api/erp/orders/driver/resolve-qr/{{qr_id}}/
+[GET] 07. HR & Attendance / Employees (Employee) / GET List Employees -> {{city_url}}/api/erp/hr/employees/
+[POST] 07. HR & Attendance / Employees (Employee) / POST Create Employee -> {{city_url}}/api/erp/hr/employees/
+[GET] 07. HR & Attendance / Employees (Employee) / GET Single Employee -> {{city_url}}/api/erp/hr/employees/{{last_id}}/
+[PATCH] 07. HR & Attendance / Employees (Employee) / PATCH Update Employee -> {{city_url}}/api/erp/hr/employees/{{last_id}}/
+[DELETE] 07. HR & Attendance / Employees (Employee) / DELETE Employee -> {{city_url}}/api/erp/hr/employees/{{last_id}}/
+[PATCH] 07. HR & Attendance / Employees (Employee) / PATCH Bulk Update Employees -> {{city_url}}/api/erp/hr/employees/bulk_update/
+[GET] 07. HR & Attendance / Attendance (Attendance) / GET List Attendances -> {{city_url}}/api/erp/hr/attendance/
+[POST] 07. HR & Attendance / Attendance (Attendance) / POST Create Attendance -> {{city_url}}/api/erp/hr/attendance/
+[GET] 07. HR & Attendance / Attendance (Attendance) / GET Single Attendance -> {{city_url}}/api/erp/hr/attendance/{{last_id}}/
+[PATCH] 07. HR & Attendance / Attendance (Attendance) / PATCH Update Attendance -> {{city_url}}/api/erp/hr/attendance/{{last_id}}/
+[DELETE] 07. HR & Attendance / Attendance (Attendance) / DELETE Attendance -> {{city_url}}/api/erp/hr/attendance/{{last_id}}/
+[GET] 07. HR & Attendance / Departments (Department) / GET List Departments -> {{city_url}}/api/erp/hr/departments/
+[POST] 07. HR & Attendance / Departments (Department) / POST Create Department -> {{city_url}}/api/erp/hr/departments/
+[GET] 07. HR & Attendance / Departments (Department) / GET Single Department -> {{city_url}}/api/erp/hr/departments/{{last_id}}/
+[PATCH] 07. HR & Attendance / Departments (Department) / PATCH Update Department -> {{city_url}}/api/erp/hr/departments/{{last_id}}/
+[DELETE] 07. HR & Attendance / Departments (Department) / DELETE Delete Department -> {{city_url}}/api/erp/hr/departments/{{last_id}}/
+[GET] 07. HR & Attendance / Salary Structures (SalaryStructure) / GET List Salary Structures -> {{city_url}}/api/erp/hr/salary-structures/
+[POST] 07. HR & Attendance / Salary Structures (SalaryStructure) / POST Create Salary Structure -> {{city_url}}/api/erp/hr/salary-structures/
+[GET] 07. HR & Attendance / Salary Structures (SalaryStructure) / GET Single Salary Structure -> {{city_url}}/api/erp/hr/salary-structures/{{last_id}}/
+[PATCH] 07. HR & Attendance / Salary Structures (SalaryStructure) / PATCH Update Salary Structure -> {{city_url}}/api/erp/hr/salary-structures/{{last_id}}/
+[DELETE] 07. HR & Attendance / Salary Structures (SalaryStructure) / DELETE Delete Salary Structure -> {{city_url}}/api/erp/hr/salary-structures/{{last_id}}/
+[GET] 07. HR & Attendance / Monthly Payrolls (Payroll) / GET List Payrolls -> {{city_url}}/api/erp/hr/payrolls/
+[POST] 07. HR & Attendance / Monthly Payrolls (Payroll) / POST Create Payroll -> {{city_url}}/api/erp/hr/payrolls/
+[GET] 07. HR & Attendance / Monthly Payrolls (Payroll) / GET Single Payroll -> {{city_url}}/api/erp/hr/payrolls/{{last_id}}/
+[PATCH] 07. HR & Attendance / Monthly Payrolls (Payroll) / PATCH Update Payroll -> {{city_url}}/api/erp/hr/payrolls/{{last_id}}/
+[DELETE] 07. HR & Attendance / Monthly Payrolls (Payroll) / DELETE Delete Payroll -> {{city_url}}/api/erp/hr/payrolls/{{last_id}}/
+[POST] 07. HR & Attendance / Monthly Payrolls (Payroll) / POST Generate Payroll -> {{city_url}}/api/erp/hr/payrolls/generate/
+[GET] 07. HR & Attendance / Employee Documents (Document) / GET List Documents -> {{city_url}}/api/erp/hr/documents/
+[POST] 07. HR & Attendance / Employee Documents (Document) / POST Create Document -> {{city_url}}/api/erp/hr/documents/
+[GET] 07. HR & Attendance / Employee Documents (Document) / GET Single Document -> {{city_url}}/api/erp/hr/documents/{{last_id}}/
+[PATCH] 07. HR & Attendance / Employee Documents (Document) / PATCH Update Document -> {{city_url}}/api/erp/hr/documents/{{last_id}}/
+[DELETE] 07. HR & Attendance / Employee Documents (Document) / DELETE Delete Document -> {{city_url}}/api/erp/hr/documents/{{last_id}}/
+[POST] 07. HR & Attendance / Employee Documents (Document) / POST Verify Document -> {{city_url}}/api/erp/hr/documents/{{last_id}}/verify/
+[GET] 07. HR & Attendance / Incentive Rules (IncentiveRule) / GET List Incentive Rules -> {{city_url}}/api/erp/hr/incentive-rules/
+[POST] 07. HR & Attendance / Incentive Rules (IncentiveRule) / POST Create Incentive Rule -> {{city_url}}/api/erp/hr/incentive-rules/
+[GET] 07. HR & Attendance / Incentive Rules (IncentiveRule) / GET Single Incentive Rule -> {{city_url}}/api/erp/hr/incentive-rules/{{last_id}}/
+[PATCH] 07. HR & Attendance / Incentive Rules (IncentiveRule) / PATCH Update Incentive Rule -> {{city_url}}/api/erp/hr/incentive-rules/{{last_id}}/
+[DELETE] 07. HR & Attendance / Incentive Rules (IncentiveRule) / DELETE Delete Incentive Rule -> {{city_url}}/api/erp/hr/incentive-rules/{{last_id}}/
+[GET] 08. Finance & Billing / Monthly Bills (MonthlyBill) / GET List Bills -> {{city_url}}/api/erp/finance/bills/
+[POST] 08. Finance & Billing / Monthly Bills (MonthlyBill) / POST Create Bill -> {{city_url}}/api/erp/finance/bills/
+[GET] 08. Finance & Billing / Monthly Bills (MonthlyBill) / GET Single Bill -> {{city_url}}/api/erp/finance/bills/{{last_id}}/
+[PATCH] 08. Finance & Billing / Monthly Bills (MonthlyBill) / PATCH Update Bill -> {{city_url}}/api/erp/finance/bills/{{last_id}}/
+[DELETE] 08. Finance & Billing / Monthly Bills (MonthlyBill) / DELETE Delete Bill -> {{city_url}}/api/erp/finance/bills/{{last_id}}/
+[POST] 08. Finance & Billing / Monthly Bills (MonthlyBill) / POST Trigger Billing Generation -> {{city_url}}/api/erp/finance/bills/trigger-generation/
+[GET] 08. Finance & Billing / Transactions (Transaction) / GET List Transactions -> {{city_url}}/api/erp/finance/transactions/
+[POST] 08. Finance & Billing / Transactions (Transaction) / POST Create Transaction -> {{city_url}}/api/erp/finance/transactions/
+[GET] 08. Finance & Billing / Transactions (Transaction) / GET Single Transaction -> {{city_url}}/api/erp/finance/transactions/{{last_id}}/
+[PATCH] 08. Finance & Billing / Transactions (Transaction) / PATCH Update Transaction -> {{city_url}}/api/erp/finance/transactions/{{last_id}}/
+[DELETE] 08. Finance & Billing / Transactions (Transaction) / DELETE Delete Transaction -> {{city_url}}/api/erp/finance/transactions/{{last_id}}/
+[GET] 09. Subscriptions / Subscriptions (Subscription) / GET List Subscriptions -> {{city_url}}/api/erp/subscriptions/
+[POST] 09. Subscriptions / Subscriptions (Subscription) / POST Create Subscription -> {{city_url}}/api/erp/subscriptions/
+[GET] 09. Subscriptions / Subscriptions (Subscription) / GET Single Subscription -> {{city_url}}/api/erp/subscriptions/{{last_id}}/
+[PATCH] 09. Subscriptions / Subscriptions (Subscription) / PATCH Update Subscription -> {{city_url}}/api/erp/subscriptions/{{last_id}}/
+[DELETE] 09. Subscriptions / Subscriptions (Subscription) / DELETE Delete Subscription -> {{city_url}}/api/erp/subscriptions/{{last_id}}/
+[POST] 09. Subscriptions / POST Pause Subscription -> {{city_url}}/api/erp/subscriptions/{{last_id}}/pause/
+[POST] 09. Subscriptions / POST Resume Subscription -> {{city_url}}/api/erp/subscriptions/{{last_id}}/resume/
+[POST] 09. Subscriptions / POST Update Product Quantity -> {{city_url}}/api/erp/subscriptions/{{last_id}}/update-quantity/
+[POST] 09. Subscriptions / POST Add Skip Date -> {{city_url}}/api/erp/subscriptions/{{last_id}}/add-skip-date/
+[POST] 09. Subscriptions / POST Vacation Mode -> {{city_url}}/api/erp/subscriptions/{{last_id}}/vacation/
+[PATCH] 09. Subscriptions / PATCH Bulk Update Subscriptions -> {{city_url}}/api/erp/subscriptions/bulk_update/
+[POST] 09. Subscriptions / POST Trigger Order Generation -> {{city_url}}/api/erp/subscriptions/trigger-generation/
+[GET] 09. Subscriptions / GET Monthly Delivery Calendar (Single) -> {{city_url}}/api/erp/subscriptions/{{last_id}}/monthly-summary/?year=2026&month=5
+[GET] 09. Subscriptions / GET Monthly Delivery Calendar (All Customer) -> {{city_url}}/api/erp/subscriptions/customer-monthly-summary/?year=2026&month=5
+[GET] 10. Taxation / Product Tax Categories (ProductTaxCategory) / GET List Product Tax Categories -> {{city_url}}/api/erp/taxation/product-categories/
+[POST] 10. Taxation / Product Tax Categories (ProductTaxCategory) / POST Create Product Tax Category -> {{city_url}}/api/erp/taxation/product-categories/
+[GET] 10. Taxation / Product Tax Categories (ProductTaxCategory) / GET Single Product Tax Category -> {{city_url}}/api/erp/taxation/product-categories/{{last_id}}/
+[PATCH] 10. Taxation / Product Tax Categories (ProductTaxCategory) / PATCH Update Product Tax Category -> {{city_url}}/api/erp/taxation/product-categories/{{last_id}}/
+[DELETE] 10. Taxation / Product Tax Categories (ProductTaxCategory) / DELETE Delete Product Tax Category -> {{city_url}}/api/erp/taxation/product-categories/{{last_id}}/
+[GET] 10. Taxation / Tax Rules (Tax) / GET List Tax Rules -> {{city_url}}/api/erp/taxation/rules/
+[POST] 10. Taxation / Tax Rules (Tax) / POST Create Tax Rule -> {{city_url}}/api/erp/taxation/rules/
+[GET] 10. Taxation / Tax Rules (Tax) / GET Single Tax Rule -> {{city_url}}/api/erp/taxation/rules/{{last_id}}/
+[PATCH] 10. Taxation / Tax Rules (Tax) / PATCH Update Tax Rule -> {{city_url}}/api/erp/taxation/rules/{{last_id}}/
+[DELETE] 10. Taxation / Tax Rules (Tax) / DELETE Delete Tax Rule -> {{city_url}}/api/erp/taxation/rules/{{last_id}}/
+[GET] 11. Administration / Admin Config (AdminConfiguration) / GET List Admin Configs -> {{city_url}}/api/erp/administration/config/
+[POST] 11. Administration / Admin Config (AdminConfiguration) / POST Create Admin Config -> {{city_url}}/api/erp/administration/config/
+[GET] 11. Administration / Admin Config (AdminConfiguration) / GET Single Admin Config -> {{city_url}}/api/erp/administration/config/{{last_id}}/
+[PATCH] 11. Administration / Admin Config (AdminConfiguration) / PATCH Update Admin Config -> {{city_url}}/api/erp/administration/config/{{last_id}}/
+[DELETE] 11. Administration / Admin Config (AdminConfiguration) / DELETE Delete Admin Config -> {{city_url}}/api/erp/administration/config/{{last_id}}/
+[GET] 12. Live Tracking / GET List Live Locations -> {{city_url}}/api/erp/tracking/live/
+[GET] 12. Live Tracking / GET Single Live Location -> {{city_url}}/api/erp/tracking/live/{{last_id}}/
+[GET] 12. Live Tracking / GET Live Location Trail -> {{city_url}}/api/erp/tracking/live/{{last_id}}/trail/?date=2026-05-15
+[GET] 13. WebSockets / Tracking WebSocket (WS) -> ws://{{city_url}}/ws/tracking/?token={{access_token}}

@@ -262,6 +262,9 @@ class OrderViewSet(viewsets.ModelViewSet):
             scheduled_delivery_date=date_str,
             status__in=[OrderStatus.PENDING, OrderStatus.CONFIRMED],
             customer__zone__isnull=False,
+        ).exclude(
+            customer__is_new=True,
+            customer__trial_approved=False
         ).select_related("customer__zone", "customer__zone__assigned_driver")
 
         # Group orders by zone

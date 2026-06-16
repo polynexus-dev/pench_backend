@@ -15,6 +15,7 @@ class TestSubscriptionVacationTracking(TenantTestCase):
         tenant.name = "Test City"
         tenant.state = "Test State"
         tenant.code = "TST"
+        tenant.create_schema(sync_schema=True)
 
     def setUp(self):
         super().setUp()

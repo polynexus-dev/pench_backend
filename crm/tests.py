@@ -616,3 +616,151 @@ class CustomerBulkDeleteTestCase(TenantTestCase):
         response = self.client.post(url, [str(uuid.uuid4())], format="json", HTTP_HOST="tenant.test.com")
         self.assertEqual(response.status_code, 404)
 
+
+class CustomerTrialTestCase(TenantTestCase):
+    @classmethod
+    def setup_tenant(cls, tenant):
+        tenant.name = "Test City"
+        tenant.state = "Test State"
+        tenant.code = "TST"
+        tenant.create_schema(sync_schema=True)
+
+    def setUp(self):
+        super().setUp()
+        pre_save.disconnect(auto_assign_customer_zone, sender=Customer)
+        post_save.disconnect(auto_assign_customers_on_zone_change, sender=Zone)
+
+        connection.set_tenant(self.tenant)
+        User = get_user_model()
+
+        # Create authorized CRM Manager user
+        self.manager_user = User.objects.create_user(
+            username="crm_manager_trial",
+            email="manager_trial@example.com",
+            password="testpassword",
+            phone="9000000040",
+            tenant_schema="test",
+        )
+        crm_group, _ = Group.objects.get_or_create(name="CRM_Managers")
+        self.manager_user.groups.add(crm_group)
+
+        # Restore tenant context
+        connection.set_tenant(self.tenant)
+
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.manager_user)
+
+    def tearDown(self):
+        pre_save.connect(auto_assign_customer_zone, sender=Customer)
+        post_save.connect(auto_assign_customers_on_zone_change, sender=Zone)
+        super().tearDown()
+
+    def test_customer_default_trial_fields(self):
+        """Verify new customers default to is_new=True and trial_approved=False."""
+        connection.set_tenant(self.tenant)
+        cust = Customer.objects.create(
+            name="Trial Customer",
+            email="trial@example.com",
+            phone="9999999999",
+            is_active=True,
+        )
+        self.assertTrue(cust.is_new)
+        self.assertFalse(cust.trial_approved)
+
+    def test_new_customers_endpoint(self):
+        """Verify the new-customers endpoint only returns customers where is_new=True."""
+        connection.set_tenant(self.tenant)
+        cust_trial = Customer.objects.create(
+            name="Trial Customer 1",
+            email="trial1@example.com",
+            is_new=True,
+            is_active=True,
+        )
+        cust_subscribed = Customer.objects.create(
+            name="Subscribed Customer",
+            email="sub1@example.com",
+            is_new=False,
+            is_active=True,
+        )
+
+        url = "/api/erp/customers/new-customers/"
+        response = self.client.get(url, HTTP_HOST="tenant.test.com")
+        self.assertEqual(response.status_code, 200)
+        
+        # Verify response contains the trial customer and NOT the subscribed one
+        names = [c["name"] for c in response.data]
+        self.assertIn("Trial Customer 1", names)
+        self.assertNotIn("Subscribed Customer", names)
+
+    def test_approve_trial_endpoint(self):
+        """Verify trial customer approval toggles trial_approved and triggers notification."""
+        connection.set_tenant(self.tenant)
+        cust = Customer.objects.create(
+            name="Trial Customer 2",
+            email="trial2@example.com",
+            is_new=True,
+            trial_approved=False,
+            is_active=True,
+        )
+
+        url = f"/api/erp/customers/{cust.id}/approve/"
+        response = self.client.post(url, {}, HTTP_HOST="tenant.test.com")
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data["trial_approved"])
+
+        cust.refresh_from_db()
+        self.assertTrue(cust.trial_approved)
+
+    def test_subscription_creation_clears_trial(self):
+        """Verify creating an active subscription resets is_new and approves trial/delivery."""
+        connection.set_tenant(self.tenant)
+        cust = Customer.objects.create(
+            name="Trial Customer 3",
+            email="trial3@example.com",
+            is_new=True,
+            trial_approved=False,
+            is_active=True,
+        )
+
+        from subscriptions.models import Subscription, SubscriptionStatus
+        import datetime
+
+        sub = Subscription.objects.create(
+            customer=cust,
+            status=SubscriptionStatus.ACTIVE,
+            start_date=datetime.date.today(),
+        )
+
+        cust.refresh_from_db()
+        self.assertFalse(cust.is_new)
+        self.assertTrue(cust.trial_approved)
+
+    def test_delivery_resets_trial_approval(self):
+        """Verify delivering a trial order automatically resets trial_approved back to False."""
+        connection.set_tenant(self.tenant)
+        cust = Customer.objects.create(
+            name="Trial Customer 4",
+            email="trial4@example.com",
+            is_new=True,
+            trial_approved=True,
+            is_active=True,
+        )
+
+        from orders.models import Order, OrderStatus
+        import datetime
+        order = Order.objects.create(
+            customer=cust,
+            scheduled_delivery_date=datetime.date.today(),
+            delivery_address="123 Test St",
+            status=OrderStatus.PENDING,
+        )
+
+        # Update order status to DELIVERED
+        order.status = OrderStatus.DELIVERED
+        order.save()
+
+        cust.refresh_from_db()
+        self.assertFalse(cust.trial_approved)
+        self.assertTrue(cust.is_new) # Remains True since they haven't subscribed yet
+
+

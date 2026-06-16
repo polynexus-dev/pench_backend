@@ -148,6 +148,9 @@ def generate_daily_routes_for_date(target_date):
         scheduled_delivery_date=target_date,
         status__in=[OrderStatus.PENDING, OrderStatus.CONFIRMED],
         customer__zone__isnull=False,
+    ).exclude(
+        customer__is_new=True,
+        customer__trial_approved=False
     ).select_related("customer__zone", "customer__zone__assigned_driver")
 
     from routing.models import Driver
@@ -306,6 +309,9 @@ def add_order_to_active_route_if_pending(order):
 
     customer = getattr(order, "customer", None)
     if not customer or not customer.zone:
+        return
+
+    if customer.is_new and not customer.trial_approved:
         return
 
     driver_user = customer.zone.assigned_driver

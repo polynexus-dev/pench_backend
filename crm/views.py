@@ -14,6 +14,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
     required_groups = ["CRM_Managers", "ERP_Admins"]
     search_fields = ["name", "company", "email", "phone"]
     ordering_fields = ["name", "created_at"]
+    filterset_fields = ["is_active", "is_new", "trial_approved", "zone"]
 
     def create(self, request, *args, **kwargs):
         """
@@ -1455,6 +1456,54 @@ class CustomerViewSet(viewsets.ModelViewSet):
                     "details": u_to_c_details
                 }
             }, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=["get"], url_path="new-customers")
+    def new_customers(self, request):
+        """
+        Endpoint to retrieve customers currently in trial mode (is_new=True).
+        """
+        queryset = self.get_queryset().filter(is_new=True)
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=["post"], url_path="approve")
+    def approve_trial(self, request, pk=None):
+        """
+        Approves a new customer for trial deliveries.
+        Sets trial_approved = True.
+        """
+        customer = self.get_object()
+        if not customer.is_new:
+            return Response(
+                {"detail": "Customer is not in trial mode (already subscribed)."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        customer.trial_approved = True
+        customer.save(update_fields=["trial_approved"])
+
+        try:
+            from notifications.services import send_push_notification
+            if customer.user:
+                title = "🎉 Trial Approved!"
+                body = "Congratulations! Your trial has been approved. You'll receive your demo product shortly! 🚚"
+                send_push_notification(
+                    user=customer.user,
+                    title=title,
+                    body=body,
+                    notification_type="general"
+                )
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"[Trial Approval Notification Error] {e}")
+
+        return Response(CustomerSerializer(customer).data)
 
 
 class LeadViewSet(viewsets.ModelViewSet):

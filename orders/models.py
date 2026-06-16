@@ -83,6 +83,10 @@ class Order(BaseModel):
         choices=PaymentStatus.choices,
         default=PaymentStatus.PENDING,
     )
+    arriving_notification_sent = models.BooleanField(
+        default=False,
+        help_text="True if 'arriving shortly' proximity notification has been sent to the customer."
+    )
 
     class Meta:
         ordering = ["-created_at"]
@@ -222,3 +226,12 @@ def notify_route_stop_change(sender, instance, **kwargs):
                 )
         except Exception:
             pass
+
+
+@receiver(post_save, sender=Order)
+def reset_trial_approval_on_delivery(sender, instance, created, **kwargs):
+    if instance.status in [OrderStatus.DELIVERED, OrderStatus.UNDELIVERED]:
+        customer = instance.customer
+        if customer and customer.is_new and customer.trial_approved:
+            customer.trial_approved = False
+            customer.save(update_fields=["trial_approved"])

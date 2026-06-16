@@ -31,6 +31,8 @@ class OrderSerializer(serializers.ModelSerializer):
     longitude = serializers.SerializerMethodField()
     driver_name = serializers.SerializerMethodField()
     zone_name = serializers.SerializerMethodField()
+    customer_is_new = serializers.BooleanField(source="customer.is_new", read_only=True)
+    customer_trial_approved = serializers.BooleanField(source="customer.trial_approved", read_only=True)
 
     class Meta:
         model = Order
@@ -58,6 +60,9 @@ class OrderSerializer(serializers.ModelSerializer):
             "amount_collected",
             "payment_transaction_id",
             "payment_status",
+            "customer_is_new",
+            "customer_trial_approved",
+            "arriving_notification_sent",
         ]
 
     def get_driver_name(self, obj):
@@ -206,6 +211,13 @@ class RouteStopSerializer(serializers.ModelSerializer):
         source="order.payment_status", read_only=True
     )
 
+    customer_is_new = serializers.BooleanField(
+        source="order.customer.is_new", read_only=True
+    )
+    customer_trial_approved = serializers.BooleanField(
+        source="order.customer.trial_approved", read_only=True
+    )
+
     class Meta:
         model = RouteStop
         fields = [
@@ -217,6 +229,8 @@ class RouteStopSerializer(serializers.ModelSerializer):
             "customer_email",
             "customer_company",
             "customer_zone_name",
+            "customer_is_new",
+            "customer_trial_approved",
             "address",
             "latitude",
             "longitude",

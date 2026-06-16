@@ -28,6 +28,8 @@ class CustomerSerializer(serializers.ModelSerializer):
             "longitude",
             "notes",
             "is_active",
+            "is_new",
+            "trial_approved",
             "qr_code_id",
             "created_at",
             "dashboard",

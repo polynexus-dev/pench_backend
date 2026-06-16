@@ -434,6 +434,70 @@ class TrackingConsumer(AsyncWebsocketConsumer):
                     cleaned_location=cleaned_location_data,
                 )
 
+                # 3.5 Check proximity to customer locations for pending orders and send notification
+                try:
+                    from orders.models import Route as OrdersRoute, Order, OrderStatus
+                    from django.db.models import Q
+                    from notifications.services import send_push_notification
+                    
+                    # Fetch active orders on driver's active route
+                    active_orders = []
+                    orders_route = OrdersRoute.objects.filter(
+                        Q(driver=self.user) | Q(additional_drivers=self.user),
+                        is_completed=False
+                    ).first()
+                    if orders_route:
+                        active_orders = Order.objects.filter(
+                            route_stop__route=orders_route,
+                            status__in=[OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.DISPATCHED, OrderStatus.IN_TRANSIT],
+                            arriving_notification_sent=False
+                        ).select_related("customer", "customer__user")
+                    else:
+                        from routing.models import Driver as RoutingDriver
+                        driver_profile = RoutingDriver.objects.filter(user=self.user).first()
+                        if driver_profile:
+                            from routing.models import Route as RoutingRoute, RouteStatus
+                            routing_route = RoutingRoute.objects.filter(
+                                Q(driver=driver_profile) | Q(additional_drivers=driver_profile),
+                                status=RouteStatus.IN_PROGRESS
+                            ).first()
+                            if routing_route:
+                                active_orders = routing_route.orders.filter(
+                                    status__in=[OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.DISPATCHED, OrderStatus.IN_TRANSIT],
+                                    arriving_notification_sent=False
+                                ).select_related("customer", "customer__user")
+
+                    for order in active_orders:
+                        cust_loc = order.customer.location
+                        if cust_loc:
+                            cust_lng, cust_lat = None, None
+                            # Extract coordinates from Point or Dict
+                            if hasattr(cust_loc, "x") and hasattr(cust_loc, "y"):
+                                cust_lng, cust_lat = cust_loc.x, cust_loc.y
+                            elif isinstance(cust_loc, dict):
+                                cust_lng = cust_loc.get("lng") or cust_loc.get("longitude")
+                                cust_lat = cust_loc.get("lat") or cust_loc.get("latitude")
+                            
+                            if cust_lng is not None and cust_lat is not None:
+                                distance = calculate_distance(snapped_lng, snapped_lat, float(cust_lng), float(cust_lat))
+                                if distance <= 250.0:
+                                    if order.customer.user:
+                                        title = "🚚 Product Arriving Shortly!"
+                                        body = "Our delivery partner is less than 250 meters away and will be arriving shortly with your fresh product! 🥛✨"
+                                        send_push_notification(
+                                            user=order.customer.user,
+                                            title=title,
+                                            body=body,
+                                            order=order,
+                                            notification_type='order_status'
+                                        )
+                                    order.arriving_notification_sent = True
+                                    order.save(update_fields=['arriving_notification_sent'])
+                                    print(f"[Notification] Sent proximity alert for order {order.id} (distance: {distance:.1f}m)")
+                except Exception as prox_err:
+                    print(f"[Proximity Alert Error] {prox_err}")
+                    traceback.print_exc()
+
                 # 4. Fetch the clean snapping-routed trail and calculate cumulative distance
                 current_trail = self.get_current_trail(self.user.id, active_route)
                 return (
