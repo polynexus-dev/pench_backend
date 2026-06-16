@@ -171,6 +171,16 @@ def optimize_route_ortools(order_ids, start_point=None):
 def create_optimized_route(
     name, driver, date, order_ids, warehouse=None, warehouse_location=None
 ):
+    import datetime
+    if isinstance(date, str):
+        try:
+            date = datetime.datetime.strptime(date, "%Y-%m-%d").date()
+        except ValueError:
+            try:
+                date = datetime.date.fromisoformat(date)
+            except ValueError:
+                pass
+
     from django.contrib.auth import get_user_model
     from routing.models import Driver
 
@@ -220,16 +230,51 @@ def create_optimized_route(
     )
 
     from django.db import transaction
+    from orders.models import RouteStatus, OrderStatus, DeliveryLog
+    from django.utils import timezone
+    from django.db.models import Q
 
     with transaction.atomic():
-        # Auto-close/complete any previous active routes for this driver
-        if driver_user:
-            from orders.models import RouteStatus, OrderStatus, DeliveryLog
-            from django.utils import timezone
-            from django.db.models import Q
+        # Check if an existing incomplete, unstarted route already exists for this driver and date.
+        # If so, UPDATE it in-place instead of creating a new route.
+        existing_route = None
+        if driver_user and date:
+            existing_route = Route.objects.filter(
+                driver=driver_user,
+                delivery_date=date,
+                is_completed=False,
+            ).first()
 
+        if existing_route:
+            # UPDATE the existing route: clear old stops, set new optimized stops and geometry
+            existing_route.stops.all().delete()
+            RouteStop.objects.filter(order_id__in=order_ids).delete()
+
+            existing_route.geometry = road_geometry
+            if name:
+                existing_route.name = name
+            existing_route.status = RouteStatus.PENDING
+            existing_route.save(update_fields=["geometry", "name", "status"])
+
+            stops = []
+            for index, order in enumerate(optimized_orders):
+                stops.append(RouteStop(route=existing_route, order=order, sequence_number=index + 1))
+            RouteStop.objects.bulk_create(stops)
+
+            DeliveryLog.objects.create(
+                action="Route Updated",
+                route=existing_route,
+                details=f"Route updated in-place with {len(optimized_orders)} stops (new/additional orders detected).",
+            )
+
+            return existing_route
+
+        # No existing route found — create a new one.
+        # Auto-close/complete any previous active routes for this driver (from OTHER dates)
+        if driver_user:
             previous_active_routes = Route.objects.filter(
                 Q(driver=driver_user) | Q(additional_drivers=driver_user),
+                delivery_date__lt=date,
                 is_completed=False,
             ).distinct()
             for prev_route in previous_active_routes:
