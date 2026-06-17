@@ -145,3 +145,55 @@ class TestRouteManualControl(TenantTestCase):
         response = self.client.get(url, HTTP_HOST="tenant.test.com")
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Pench Route Control Center", response.content)
+
+    def test_route_stop_serializer_bottle_fields(self):
+        # 1. Create a bottle type
+        bottle_type = BottleType.objects.create(name="1L returnable bottle", volume_ml=1000)
+        
+        # 2. Make the product returnable and link the bottle type
+        self.product.is_returnable = True
+        self.product.bottle_type = bottle_type
+        self.product.save()
+
+        # 3. Set a bottle balance for the customer
+        from inventory.models import CustomerBottleBalance
+        CustomerBottleBalance.objects.create(
+            customer=self.customer,
+            bottle_type=bottle_type,
+            balance=5
+        )
+
+        # 4. Trigger route generation to get a RouteStop
+        target_date_str = str(datetime.date.today() + datetime.timedelta(days=1))
+        url_trigger = "/api/erp/orders/routes/trigger-daily-generation/"
+        response = self.client.post(url_trigger, {"date": target_date_str}, format="json", HTTP_HOST="tenant.test.com")
+        self.assertEqual(response.status_code, 200)
+
+        # 5. Retrieve route details and check stop serializer fields
+        route = Route.objects.get(delivery_date=target_date_str)
+        url_route = f"/api/erp/orders/routes/{route.id}/"
+        response_route = self.client.get(url_route, HTTP_HOST="tenant.test.com")
+        self.assertEqual(response_route.status_code, 200)
+
+        stops = response_route.data["stops"]
+        self.assertEqual(len(stops), 1)
+        stop = stops[0]
+
+        # Verify bottles_to_deliver and bottles_to_take_back
+        self.assertIn("bottles_to_deliver", stop)
+        self.assertIn("bottles_to_take_back", stop)
+        
+        # Bottles to deliver: we had 2 quantity in subscription items
+        self.assertEqual(len(stop["bottles_to_deliver"]), 1)
+        self.assertEqual(stop["bottles_to_deliver"][0]["bottle_type_name"], "1L returnable bottle")
+        self.assertEqual(stop["bottles_to_deliver"][0]["quantity"], 2)
+
+        # Bottles to take back: balance was 5
+        self.assertEqual(len(stop["bottles_to_take_back"]), 1)
+        self.assertEqual(stop["bottles_to_take_back"][0]["bottle_type_name"], "1L returnable bottle")
+        self.assertEqual(stop["bottles_to_take_back"][0]["quantity"], 5)
+
+        # Verify new customer flag
+        self.assertIn("is_new_customer", stop)
+        self.assertFalse(stop["is_new_customer"])
+

@@ -214,9 +214,15 @@ class RouteStopSerializer(serializers.ModelSerializer):
     customer_is_new = serializers.BooleanField(
         source="order.customer.is_new", read_only=True
     )
+    is_new_customer = serializers.BooleanField(
+        source="order.customer.is_new", read_only=True
+    )
     customer_trial_approved = serializers.BooleanField(
         source="order.customer.trial_approved", read_only=True
     )
+
+    bottles_to_deliver = serializers.SerializerMethodField()
+    bottles_to_take_back = serializers.SerializerMethodField()
 
     class Meta:
         model = RouteStop
@@ -230,6 +236,7 @@ class RouteStopSerializer(serializers.ModelSerializer):
             "customer_company",
             "customer_zone_name",
             "customer_is_new",
+            "is_new_customer",
             "customer_trial_approved",
             "address",
             "latitude",
@@ -245,7 +252,10 @@ class RouteStopSerializer(serializers.ModelSerializer):
             "amount_collected",
             "payment_transaction_id",
             "payment_status",
+            "bottles_to_deliver",
+            "bottles_to_take_back",
         ]
+
 
     def get_latitude(self, obj):
         loc = obj.order.customer.location
@@ -337,6 +347,39 @@ class RouteStopSerializer(serializers.ModelSerializer):
             ]:
                 return "in_transit"
         return status
+
+    def get_bottles_to_deliver(self, obj):
+        from collections import defaultdict
+        bottle_counts = defaultdict(int)
+        bottle_names = {}
+        for item in obj.order.items.all():
+            product = item.product
+            if product.is_returnable and product.bottle_type:
+                bt = product.bottle_type
+                bottle_counts[bt.id] += item.quantity
+                bottle_names[bt.id] = bt.name
+        
+        return [
+            {
+                "bottle_type_id": str(bt_id),
+                "bottle_type_name": bottle_names[bt_id],
+                "quantity": qty
+            }
+            for bt_id, qty in bottle_counts.items()
+        ]
+
+    def get_bottles_to_take_back(self, obj):
+        from inventory.models import CustomerBottleBalance
+        balances = CustomerBottleBalance.objects.filter(customer=obj.order.customer)
+        return [
+            {
+                "bottle_type_id": str(bal.bottle_type.id),
+                "bottle_type_name": bal.bottle_type.name,
+                "quantity": bal.balance
+            }
+            for bal in balances
+        ]
+
 
 
 class RouteSerializer(serializers.ModelSerializer):
