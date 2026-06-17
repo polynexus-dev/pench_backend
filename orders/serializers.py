@@ -31,8 +31,7 @@ class OrderSerializer(serializers.ModelSerializer):
     longitude = serializers.SerializerMethodField()
     driver_name = serializers.SerializerMethodField()
     zone_name = serializers.SerializerMethodField()
-    customer_is_new = serializers.BooleanField(source="customer.is_new", read_only=True)
-    customer_trial_approved = serializers.BooleanField(source="customer.trial_approved", read_only=True)
+    is_new_customer = serializers.BooleanField(source="customer.is_new", read_only=True)
 
     class Meta:
         model = Order
@@ -60,8 +59,7 @@ class OrderSerializer(serializers.ModelSerializer):
             "amount_collected",
             "payment_transaction_id",
             "payment_status",
-            "customer_is_new",
-            "customer_trial_approved",
+            "is_new_customer",
             "arriving_notification_sent",
         ]
 
@@ -211,14 +209,8 @@ class RouteStopSerializer(serializers.ModelSerializer):
         source="order.payment_status", read_only=True
     )
 
-    customer_is_new = serializers.BooleanField(
-        source="order.customer.is_new", read_only=True
-    )
     is_new_customer = serializers.BooleanField(
         source="order.customer.is_new", read_only=True
-    )
-    customer_trial_approved = serializers.BooleanField(
-        source="order.customer.trial_approved", read_only=True
     )
 
     bottles_to_deliver = serializers.SerializerMethodField()
@@ -235,9 +227,7 @@ class RouteStopSerializer(serializers.ModelSerializer):
             "customer_email",
             "customer_company",
             "customer_zone_name",
-            "customer_is_new",
             "is_new_customer",
-            "customer_trial_approved",
             "address",
             "latitude",
             "longitude",
@@ -352,30 +342,34 @@ class RouteStopSerializer(serializers.ModelSerializer):
         from collections import defaultdict
         bottle_counts = defaultdict(int)
         bottle_names = {}
+        bottle_volumes = {}
         for item in obj.order.items.all():
             product = item.product
             if product.is_returnable and product.bottle_type:
                 bt = product.bottle_type
                 bottle_counts[bt.id] += item.quantity
                 bottle_names[bt.id] = bt.name
+                bottle_volumes[bt.id] = bt.volume_ml
         
         return [
             {
                 "bottle_type_id": str(bt_id),
                 "bottle_type_name": bottle_names[bt_id],
-                "quantity": qty
+                "quantity": qty,
+                "value": 0.5 if bottle_volumes[bt_id] == 500 else (1.0 if bottle_volumes[bt_id] == 1000 else float(bottle_volumes[bt_id]) / 1000.0)
             }
             for bt_id, qty in bottle_counts.items()
         ]
 
     def get_bottles_to_take_back(self, obj):
         from inventory.models import CustomerBottleBalance
-        balances = CustomerBottleBalance.objects.filter(customer=obj.order.customer)
+        balances = CustomerBottleBalance.objects.filter(customer=obj.order.customer).select_related("bottle_type")
         return [
             {
                 "bottle_type_id": str(bal.bottle_type.id),
                 "bottle_type_name": bal.bottle_type.name,
-                "quantity": bal.balance
+                "quantity": bal.balance,
+                "value": 0.5 if bal.bottle_type.volume_ml == 500 else (1.0 if bal.bottle_type.volume_ml == 1000 else float(bal.bottle_type.volume_ml) / 1000.0)
             }
             for bal in balances
         ]

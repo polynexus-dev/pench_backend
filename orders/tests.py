@@ -187,11 +187,13 @@ class TestRouteManualControl(TenantTestCase):
         self.assertEqual(len(stop["bottles_to_deliver"]), 1)
         self.assertEqual(stop["bottles_to_deliver"][0]["bottle_type_name"], "1L returnable bottle")
         self.assertEqual(stop["bottles_to_deliver"][0]["quantity"], 2)
+        self.assertEqual(stop["bottles_to_deliver"][0]["value"], 1.0)
 
         # Bottles to take back: balance was 5
         self.assertEqual(len(stop["bottles_to_take_back"]), 1)
         self.assertEqual(stop["bottles_to_take_back"][0]["bottle_type_name"], "1L returnable bottle")
         self.assertEqual(stop["bottles_to_take_back"][0]["quantity"], 5)
+        self.assertEqual(stop["bottles_to_take_back"][0]["value"], 1.0)
 
         # Verify new customer flag
         self.assertIn("is_new_customer", stop)
