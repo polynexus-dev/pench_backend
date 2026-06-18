@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from rest_framework.validators import UniqueValidator
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.contrib.auth.models import Group, Permission
 from django.contrib.contenttypes.models import ContentType
@@ -152,8 +153,14 @@ class UserSerializer(serializers.ModelSerializer):
 
 class UserCreateSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)
-    phone = serializers.CharField(required=True)
-    email = serializers.EmailField(required=True)
+    phone = serializers.CharField(
+        required=True,
+        validators=[UniqueValidator(queryset=User.objects.all(), message="A user with this phone number already exists.")]
+    )
+    email = serializers.EmailField(
+        required=True,
+        validators=[UniqueValidator(queryset=User.objects.all(), message="A user with this email address already exists.")]
+    )
     role = serializers.CharField(write_only=True, required=False)  # New Role field
     groups = serializers.SlugRelatedField(
         many=True, slug_field="name", queryset=Group.objects.all(), required=False

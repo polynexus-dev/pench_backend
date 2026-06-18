@@ -16,8 +16,8 @@ class PhoneOrUsernameBackend(ModelBackend):
             username = kwargs.get(User.USERNAME_FIELD)
 
         try:
-            # Search by username OR phone
-            user = User.objects.get(Q(username=username) | Q(phone=username))
+            # Search by username OR email OR phone
+            user = User.objects.get(Q(username=username) | Q(email=username) | Q(phone=username))
 
             if user.check_password(password) and self.user_can_authenticate(user):
                 return user

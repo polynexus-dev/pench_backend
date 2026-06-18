@@ -12,6 +12,7 @@ from django.template.loader import render_to_string
 from django.core.mail import send_mail
 from django.conf import settings
 from django.contrib.auth.models import Group, Permission
+from django.db.models import Q
 from .models import User, OTP
 from .serializers import (
     UserSerializer,
@@ -77,7 +78,7 @@ class RequestOTPView(APIView):
         last_10 = phone[-10:] if len(phone) >= 10 else phone
 
         # 1. Check if User already exists in Public Schema
-        user = User.objects.filter(phone=phone).first()
+        user = User.objects.filter(Q(phone=phone) | Q(username=phone)).first()
 
         # 2. If not found, search across ALL tenant schemas
         if not user:
@@ -95,13 +96,23 @@ class RequestOTPView(APIView):
                     if customer:
                         # Found them! Create the public User account
                         username = phone  # Use phone as username for easy login
-                        user = User.objects.create(
-                            username=username,
-                            phone=customer.phone or raw_phone, # Prefer stored phone
-                            is_customer=True,
-                            tenant_schema=city.schema_name,
-                            first_name=customer.name,
-                        )
+                        from django.db import IntegrityError
+                        try:
+                            user = User.objects.create(
+                                username=username,
+                                phone=customer.phone or raw_phone, # Prefer stored phone
+                                is_customer=True,
+                                tenant_schema=city.schema_name,
+                                first_name=customer.name,
+                            )
+                        except IntegrityError:
+                            # Handle race conditions or duplicate key collisions gracefully by retrieving the existing user
+                            user = User.objects.filter(Q(phone=phone) | Q(username=phone)).first()
+                            if not user:
+                                return Response(
+                                    {"error": "A user with this username or phone number already exists."},
+                                    status=status.HTTP_400_BAD_REQUEST,
+                                )
                         # Link the customer in the tenant schema to the new public user
                         from django.db import connection
                         connection.set_schema(city.schema_name)
@@ -297,7 +308,7 @@ class ForgotPasswordView(APIView):
         last_10 = phone[-10:] if len(phone) >= 10 else phone
 
         # 1. Check if User already exists in Public Schema
-        user = User.objects.filter(phone=phone).first()
+        user = User.objects.filter(Q(phone=phone) | Q(username=phone)).first()
 
         # 2. If not found, search across ALL tenant schemas (same as RequestOTPView)
         if not user:
@@ -315,13 +326,23 @@ class ForgotPasswordView(APIView):
                     if customer:
                         # Found them! Create the public User account
                         username = phone  # Use phone as username for easy login
-                        user = User.objects.create(
-                            username=username,
-                            phone=customer.phone or raw_phone,
-                            is_customer=True,
-                            tenant_schema=city.schema_name,
-                            first_name=customer.name,
-                        )
+                        from django.db import IntegrityError
+                        try:
+                            user = User.objects.create(
+                                username=username,
+                                phone=customer.phone or raw_phone,
+                                is_customer=True,
+                                tenant_schema=city.schema_name,
+                                first_name=customer.name,
+                            )
+                        except IntegrityError:
+                            # Handle race conditions or duplicate key collisions gracefully by retrieving the existing user
+                            user = User.objects.filter(Q(phone=phone) | Q(username=phone)).first()
+                            if not user:
+                                return Response(
+                                    {"error": "A user with this username or phone number already exists."},
+                                    status=status.HTTP_400_BAD_REQUEST,
+                                )
                         # Link the customer in the tenant schema to the new public user
                         from django.db import connection
                         connection.set_schema(city.schema_name)
