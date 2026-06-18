@@ -159,7 +159,12 @@ class LoginOTPView(APIView):
         otp.save()
 
         # Get User
-        user = User.objects.get(phone=phone)
+        user = User.objects.filter(phone=phone).first()
+        if not user:
+            return Response(
+                {"error": "User with this phone number does not exist."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
 
         # Fallback: If user has no schema (created before the update), try to find it now
         if not user.tenant_schema:

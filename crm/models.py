@@ -24,7 +24,7 @@ class Customer(BaseModel):
     )
     company = models.CharField(max_length=200, blank=True)
     email = models.EmailField(unique=True, blank=True, null=True)
-    phone = models.IntegerField(max_length=10, blank=False)
+    phone = models.CharField(max_length=20, blank=False)
     address = models.TextField(blank=True)
 
     # Conditional GIS field
