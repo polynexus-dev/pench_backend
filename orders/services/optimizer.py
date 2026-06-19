@@ -276,7 +276,7 @@ def create_optimized_route(
         if driver_user:
             previous_active_routes = Route.objects.filter(
                 Q(driver=driver_user) | Q(additional_drivers=driver_user),
-                delivery_date__lt=date,
+                delivery_date__lt=timezone.localdate(),
                 is_completed=False,
             ).distinct()
             for prev_route in previous_active_routes:

@@ -1,4 +1,5 @@
 from django_tenants.test.cases import TenantTestCase
+from django.test import override_settings
 from rest_framework.test import APIClient
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
@@ -198,4 +199,196 @@ class TestRouteManualControl(TenantTestCase):
         # Verify new customer flag
         self.assertIn("is_new_customer", stop)
         self.assertFalse(stop["is_new_customer"])
+
+    def test_route_generation_does_not_close_today_route(self):
+        from django.utils import timezone
+        from orders.services.optimizer import create_optimized_route
+        from orders.models import OrderStatus
+
+        # 1. Create a route for today (delivery_date = today)
+        today = timezone.localdate()
+        today_route = Route.objects.create(
+            name="Today Route",
+            driver=self.driver_user,
+            delivery_date=today,
+            is_completed=False,
+        )
+
+        # 2. Run route generation/optimization for tomorrow
+        tomorrow = today + datetime.timedelta(days=1)
+        tomorrow_order = Order.objects.create(
+            customer=self.customer,
+            scheduled_delivery_date=tomorrow,
+            status=OrderStatus.PENDING,
+            delivery_address=self.customer.address,
+        )
+        
+        # Optimize route for tomorrow
+        tomorrow_route = create_optimized_route(
+            name="Tomorrow Route",
+            driver=self.driver_user,
+            date=tomorrow,
+            order_ids=[str(tomorrow_order.id)],
+        )
+
+        # 3. Verify that today's route was NOT auto-completed
+        today_route.refresh_from_db()
+        self.assertFalse(today_route.is_completed)
+        self.assertNotEqual(today_route.status, "completed")
+
+        # 4. Verify that a past route (e.g. yesterday) IS auto-completed
+        yesterday = today - datetime.timedelta(days=1)
+        yesterday_route = Route.objects.create(
+            name="Yesterday Route",
+            driver=self.driver_user,
+            delivery_date=yesterday,
+            is_completed=False,
+        )
+        
+        # Optimize route for a future date (e.g. tomorrow) again for the same driver,
+        # but since tomorrow's route already exists, we must create a new one for a new day
+        day_after_tomorrow = tomorrow + datetime.timedelta(days=1)
+        future_order = Order.objects.create(
+            customer=self.customer,
+            scheduled_delivery_date=day_after_tomorrow,
+            status=OrderStatus.PENDING,
+            delivery_address=self.customer.address,
+        )
+        
+        future_route = create_optimized_route(
+            name="Future Route",
+            driver=self.driver_user,
+            date=day_after_tomorrow,
+            order_ids=[str(future_order.id)],
+        )
+        
+        yesterday_route.refresh_from_db()
+        self.assertTrue(yesterday_route.is_completed)
+        self.assertEqual(yesterday_route.status, "completed")
+
+    def test_manual_trip_completion_disabled(self):
+        from rest_framework import status
+        # Create a route for today
+        today = datetime.date.today()
+        route = Route.objects.create(
+            name="Today Route",
+            driver=self.driver_user,
+            delivery_date=today,
+            is_completed=False,
+        )
+
+        # 1. Test complete-trip endpoint on DriverViewSet (Driver App)
+        self.client.force_authenticate(user=self.driver_user)
+        # Ensure driver user is in the Drivers group to bypass permissions
+        drivers_group, _ = Group.objects.get_or_create(name="Drivers")
+        self.driver_user.groups.add(drivers_group)
+
+        res = self.client.post(f"/api/erp/orders/driver/stop-tracking/", HTTP_HOST="tenant.test.com")
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Manual trip tracking completion is disabled", res.json()["error"])
+
+        res = self.client.post(f"/api/erp/orders/driver/{route.id}/complete-trip/", HTTP_HOST="tenant.test.com")
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Manual trip completion is disabled", res.json()["error"])
+
+        # 2. Test RouteViewSet update and partial_update endpoints (Admin Dashboard)
+        self.client.force_authenticate(user=self.manager_user)
+        
+        # Try to patch is_completed=True
+        res = self.client.patch(f"/api/erp/orders/routes/{route.id}/", {"is_completed": True}, HTTP_HOST="tenant.test.com")
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Manual trip completion is disabled", res.json()["error"])
+
+        # Try to patch status=completed
+        res = self.client.patch(f"/api/erp/orders/routes/{route.id}/", {"status": "completed"}, HTTP_HOST="tenant.test.com")
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Manual trip completion is disabled", res.json()["error"])
+
+    def test_route_metrics_calculation(self):
+        from tracking.models import DriverTrail
+        from orders.services.trip_management import update_route_metrics
+        from django.utils import timezone
+        
+        # 1. Create a route
+        route = Route.objects.create(
+            name="Metrics Route",
+            driver=self.driver_user,
+            delivery_date=datetime.date.today(),
+            is_completed=False,
+        )
+        
+        # Add a RouteStop with customer location (79.001, 21.001) - distance from warehouse (79.0, 21.0) is about 150m
+        order = Order.objects.create(
+            customer=self.customer,
+            scheduled_delivery_date=datetime.date.today(),
+            status="pending",
+            delivery_address=self.customer.address,
+        )
+        RouteStop.objects.create(
+            route=route,
+            order=order,
+            sequence_number=1
+        )
+        
+        # 2. Add some trail points
+        base_time = timezone.now() - datetime.timedelta(hours=1)
+        
+        def create_trail(lon, lat, minutes_offset):
+            from django.contrib.gis.geos import Point
+            loc = Point(lon, lat) if (HAS_GIS and Point) else {"lng": lon, "lat": lat}
+            trail = DriverTrail.objects.create(
+                user=self.driver_user,
+                route=None, # Fallback path queries by user & date
+                location=loc,
+                cleaned_location=loc
+            )
+            # Override auto_now_add using update
+            DriverTrail.objects.filter(id=trail.id).update(timestamp=base_time + datetime.timedelta(minutes=minutes_offset))
+        
+        # 0 mins: at warehouse (79.0, 21.0)
+        create_trail(79.0, 21.0, 0)
+        
+        # 5 mins: leaves warehouse, stops at customer (79.001, 21.001)
+        # We will stay here for 15 minutes (from offset 5 to 20)
+        create_trail(79.001, 21.001, 5)
+        create_trail(79.001, 21.001, 10)
+        create_trail(79.001, 21.001, 15)
+        create_trail(79.001, 21.001, 20)
+        
+        # 25 mins: returns to warehouse (79.0, 21.0)
+        create_trail(79.0, 21.0, 25)
+        
+        # 3. Call update_route_metrics
+        update_route_metrics(route)
+        route.refresh_from_db()
+        
+        # 4. Verify results
+        # Time leaves at 5 mins, returns at 25 mins -> duration should be 20 mins
+        self.assertEqual(route.actual_duration_minutes, 20)
+        
+        # Distance:
+        # segment 1: (79.001, 21.001) to (79.001, 21.001) at 10, 15, 20 mins -> 0 distance
+        # segment 2: (79.001, 21.001) to (79.0, 21.0) at 25 mins -> about 0.15 km
+        # Let's verify actual_distance_km is around 0.15 km
+        self.assertGreater(route.actual_distance_km, 0.0)
+        self.assertLess(route.actual_distance_km, 0.5)
+        
+        # Stoppage time:
+        # Stop at customer (79.001, 21.001) from offset 5 to 20 (15 mins total)
+        # Customer is at (79.001, 21.001) which is 0m away, so N = 1 customer
+        # Allowance = 2 * N = 2 mins
+        # Unproductive stoppage = max(0, 15 - 2) = 13 mins
+        # Let's assert stoppage_duration_minutes is around 13 mins
+        self.assertEqual(route.stoppage_duration_minutes, 13)
+
+        # Stoppage location history assertions:
+        self.assertEqual(len(route.stoppage_history), 1)
+        stop_entry = route.stoppage_history[0]
+        self.assertAlmostEqual(stop_entry["lat"], 21.001)
+        self.assertAlmostEqual(stop_entry["lng"], 79.001)
+        self.assertEqual(stop_entry["duration_minutes"], 15.0)
+        self.assertEqual(stop_entry["near_customers"], 1)
+        self.assertEqual(stop_entry["allowance_minutes"], 2.0)
+        self.assertEqual(stop_entry["unproductive_minutes"], 13.0)
+
 

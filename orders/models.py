@@ -162,6 +162,10 @@ class Route(BaseModel):
     completed_at = models.DateTimeField(null=True, blank=True)
     total_distance_km = models.DecimalField(max_digits=8, decimal_places=2, default=0)
     estimated_time_minutes = models.PositiveIntegerField(default=0)
+    actual_distance_km = models.DecimalField(max_digits=8, decimal_places=2, default=0.00)
+    stoppage_duration_minutes = models.PositiveIntegerField(default=0)
+    actual_duration_minutes = models.PositiveIntegerField(default=0)
+    stoppage_history = models.JSONField(default=list, blank=True)
 
     if HAS_GIS:
         geometry = gis_models.LineStringField(srid=4326, null=True, blank=True)

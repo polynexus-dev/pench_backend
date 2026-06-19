@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from rest_framework.validators import UniqueValidator
 from .models import Customer, Lead, HAS_GIS
 
 
@@ -14,6 +15,10 @@ class CustomerSerializer(serializers.ModelSerializer):
     dashboard = serializers.SerializerMethodField()
     product_rates = serializers.SerializerMethodField()
     zone_name = serializers.CharField(source="zone.name", read_only=True)
+    phone = serializers.CharField(
+        required=True,
+        validators=[UniqueValidator(queryset=Customer.objects.all(), message="A customer with this phone number already exists.")]
+    )
 
     class Meta:
         model = Customer

@@ -439,6 +439,10 @@ class RouteSerializer(serializers.ModelSerializer):
             "additional_driver_names",
             "company_upi_id",
             "company_upi_name",
+            "actual_distance_km",
+            "stoppage_duration_minutes",
+            "actual_duration_minutes",
+            "stoppage_history",
         ]
 
     def get_route_geometry(self, obj):

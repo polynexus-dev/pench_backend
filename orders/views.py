@@ -728,6 +728,34 @@ class RouteViewSet(viewsets.ModelViewSet):
     required_groups = ["Logistics_Managers", "ERP_Admins"]
     filterset_fields = ["delivery_date", "is_completed"]
 
+    def update(self, request, *args, **kwargs):
+        is_completed = request.data.get("is_completed")
+        status_val = request.data.get("status")
+        if (
+            is_completed is True
+            or str(is_completed).lower() == "true"
+            or status_val == "completed"
+        ):
+            return Response(
+                {"error": "Manual trip completion is disabled. Trips are automatically completed by the system at 12:00 PM."},
+                status=400
+            )
+        return super().update(request, *args, **kwargs)
+
+    def partial_update(self, request, *args, **kwargs):
+        is_completed = request.data.get("is_completed")
+        status_val = request.data.get("status")
+        if (
+            is_completed is True
+            or str(is_completed).lower() == "true"
+            or status_val == "completed"
+        ):
+            return Response(
+                {"error": "Manual trip completion is disabled. Trips are automatically completed by the system at 12:00 PM."},
+                status=400
+            )
+        return super().partial_update(request, *args, **kwargs)
+
     def get_queryset(self):
         queryset = (
             Route.objects.all()
@@ -1698,64 +1726,10 @@ class DriverViewSet(viewsets.ViewSet):
         Stops the active GPS tracking session for the driver.
         Marks the active route as completed and frees the driver.
         """
-        from django_tenants.utils import schema_context
-        from django.db import connection
-        from django.utils import timezone
-        import datetime
-
-        user = request.user
-        schema = user.tenant_schema
-        context_schema = (
-            schema
-            if connection.schema_name == "public" and schema
-            else connection.schema_name
+        return Response(
+            {"error": "Manual trip tracking completion is disabled. Trips are automatically completed by the system at 12:00 PM."},
+            status=400,
         )
-
-        with schema_context(context_schema):
-            from routing.models import Driver, Route, RouteStatus
-
-            driver_profile = Driver.objects.filter(user=user).first()
-            if not driver_profile:
-                return Response({"detail": "No driver profile found."}, status=404)
-
-            from django.db.models import Q
-
-            today = datetime.date.today()
-            active_route = (
-                Route.objects.filter(
-                    Q(driver=driver_profile) | Q(additional_drivers=driver_profile),
-                    is_completed=False,
-                    delivery_date=today,
-                    status=RouteStatus.IN_PROGRESS,
-                )
-                .distinct()
-                .order_by("-created_at")
-                .first()
-            )
-
-            if not active_route:
-                return Response(
-                    {"detail": "No active tracking session found."}, status=404
-                )
-
-            active_route.is_completed = True
-            active_route.completed_at = timezone.now()
-            active_route.status = RouteStatus.COMPLETED
-            active_route.save(update_fields=["is_completed", "completed_at", "status"])
-
-            driver_profile.is_available = True
-            driver_profile.on_trip = False
-            driver_profile.save(update_fields=["is_available", "on_trip"])
-
-            return Response(
-                {
-                    "detail": "Tracking session stopped.",
-                    "route_id": str(active_route.id),
-                    "route_name": active_route.name,
-                    "is_test_route": getattr(active_route, "is_test_route", False),
-                    "completed_at": active_route.completed_at,
-                }
-            )
 
     @action(detail=True, methods=["post"], url_path="start-trip")
     def start_trip(self, request, pk=None):
@@ -1802,38 +1776,10 @@ class DriverViewSet(viewsets.ViewSet):
         Finishes the route.
         pk is the Route ID.
         """
-        from django_tenants.utils import schema_context
-        from django.db import connection
-
-        user = request.user
-        schema = user.tenant_schema
-        context_schema = (
-            schema
-            if connection.schema_name == "public" and schema
-            else connection.schema_name
+        return Response(
+            {"error": "Manual trip completion is disabled. Trips are automatically completed by the system at 12:00 PM."},
+            status=400,
         )
-
-        with schema_context(context_schema):
-            try:
-                route = stop_trip_for_route(pk, user)
-                if not route:
-                    return Response(
-                        {"error": f"Route with ID {pk} does not exist in this city."},
-                        status=status.HTTP_404_NOT_FOUND,
-                    )
-                return Response(
-                    {
-                        "detail": "Trip completed successfully.",
-                        "completed_at": route.completed_at,
-                    }
-                )
-            except PermissionError as pe:
-                return Response(
-                    {"error": "Access Denied", "detail": str(pe)},
-                    status=status.HTTP_403_FORBIDDEN,
-                )
-            except Exception as e:
-                return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=True, methods=["post"], url_path="submit-delivery")
     def submit_delivery(self, request, pk=None):

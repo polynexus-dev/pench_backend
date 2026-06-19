@@ -183,6 +183,11 @@ def stop_trip_for_route(route_id, driver_user):
         route.is_completed = True
         route.save(update_fields=["status", "completed_at", "is_completed"])
 
+        try:
+            update_route_metrics(route)
+        except Exception as e:
+            logger.error("Failed to update route metrics in stop_trip_for_route: %s", e)
+
         # Free the driver
         if route.driver:
             driver_profile = Driver.objects.filter(user=route.driver).first()
@@ -261,6 +266,11 @@ def auto_stop_active_trips_at_noon():
             route.completed_at = timezone.now()
             route.save(update_fields=["status", "is_completed", "completed_at"])
 
+            try:
+                update_route_metrics(route)
+            except Exception as e:
+                logger.error("Failed to update route metrics in auto_stop_active_trips_at_noon: %s", e)
+
             # Free the driver profile
             if route.driver:
                 driver_profile = Driver.objects.filter(user=route.driver).first()
@@ -324,3 +334,216 @@ def process_pre_delivery_product_cutoff():
         "Cutoff 6:00 AM processing completed. No routes locked per new biker/rider model."
     )
     return {"locked_routes_count": 0}
+
+
+def calculate_geo_distance(lon1, lat1, lon2, lat2):
+    import math
+    lon1, lat1, lon2, lat2 = map(math.radians, [lon1, lat1, lon2, lat2])
+    dlon = lon2 - lon1
+    dlat = lat2 - lat1
+    a = (
+        math.sin(dlat / 2) ** 2
+        + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
+    )
+    c = 2 * math.asin(math.sqrt(a))
+    r = 6371000  # Radius of earth in meters
+    return c * r
+
+
+def get_trail_coords(trail):
+    loc = trail.cleaned_location or trail.location
+    if not loc:
+        return None
+    if hasattr(loc, "x"):
+        return loc.y, loc.x  # Point returns x (lng), y (lat) -> return (lat, lng)
+    if isinstance(loc, dict):
+        return float(loc.get("lat") or 0.0), float(loc.get("lng") or 0.0)
+    return None
+
+
+def update_route_metrics(orders_route):
+    """
+    Calculates actual distance (km), actual duration (minutes), and unproductive stoppage time (minutes)
+    based on the driver's trails, counting from leaving the 100m warehouse buffer to returning to it.
+    """
+    from routing.models import Route as RoutingRoute
+    from tracking.models import DriverTrail
+
+    # 1. Fetch corresponding routing route and historical trails
+    routing_route = RoutingRoute.objects.filter(
+        driver__user=orders_route.driver,
+        delivery_date=orders_route.delivery_date
+    ).first()
+
+    if routing_route:
+        trails = list(DriverTrail.objects.filter(route=routing_route).order_by("timestamp"))
+    else:
+        trails = list(DriverTrail.objects.filter(
+            user=orders_route.driver,
+            timestamp__date=orders_route.delivery_date
+        ).order_by("timestamp"))
+
+    if not trails:
+        return
+
+    # 2. Get warehouse location
+    from routing.models import Driver as RoutingDriver
+    driver_profile = RoutingDriver.objects.filter(user=orders_route.driver).first()
+    warehouse = driver_profile.warehouse if driver_profile else None
+    w_lat, w_lng = None, None
+    if warehouse and warehouse.latitude is not None and warehouse.longitude is not None:
+        w_lat = float(warehouse.latitude)
+        w_lng = float(warehouse.longitude)
+
+    # Fallback to first trail coordinate if warehouse is not set
+    if w_lat is None or w_lng is None:
+        first_coord = get_trail_coords(trails[0])
+        if first_coord:
+            w_lat, w_lng = first_coord
+
+    if w_lat is None or w_lng is None:
+        return
+
+    # 3. Determine when they left and returned to warehouse (100m buffer)
+    leave_idx = 0
+    for idx, t in enumerate(trails):
+        coords = get_trail_coords(t)
+        if coords:
+            dist = calculate_geo_distance(w_lng, w_lat, coords[1], coords[0])
+            if dist > 100.0:
+                leave_idx = idx
+                break
+
+    # Find when they returned to the warehouse after leaving
+    return_idx = len(trails) - 1
+    for idx in range(len(trails) - 1, leave_idx, -1):
+        coords = get_trail_coords(trails[idx])
+        if coords:
+            dist = calculate_geo_distance(w_lng, w_lat, coords[1], coords[0])
+            if dist > 100.0:
+                return_idx = min(idx + 1, len(trails) - 1)
+                break
+
+    sub_trail = trails[leave_idx : return_idx + 1]
+    if not sub_trail:
+        return
+
+    # 4. Calculate actual duration (warehouse to warehouse)
+    t_start = sub_trail[0].timestamp
+    t_end = sub_trail[-1].timestamp
+    actual_duration = max(0, int((t_end - t_start).total_seconds() / 60.0))
+
+    # 5. Calculate actual distance (sum of segments outside warehouse buffer)
+    actual_distance_meters = 0.0
+    prev_coords = None
+    for t in sub_trail:
+        coords = get_trail_coords(t)
+        if coords:
+            if prev_coords:
+                actual_distance_meters += calculate_geo_distance(prev_coords[1], prev_coords[0], coords[1], coords[0])
+            prev_coords = coords
+    actual_distance_km = round(actual_distance_meters / 1000.0, 2)
+
+    # 6. Calculate stoppage duration (unproductive stop time)
+    stoppage_minutes = 0
+
+    # Fetch customer coordinates to check proximity and scale wait time allowance
+    stops = list(orders_route.stops.select_related("order__customer"))
+    customer_locations = []
+    for s in stops:
+        cust_loc = s.order.customer.location
+        if cust_loc:
+            if hasattr(cust_loc, "x"):
+                customer_locations.append((cust_loc.y, cust_loc.x))
+            elif isinstance(cust_loc, dict):
+                customer_locations.append((float(cust_loc.get("lat") or 0.0), float(cust_loc.get("lng") or 0.0)))
+
+    # Rolling stop detector
+    stop_start_coords = None
+    stop_start_time = None
+    prev_t = None
+    stoppage_history_list = []
+
+    for t in sub_trail:
+        coords = get_trail_coords(t)
+        if not coords:
+            continue
+
+        if stop_start_coords is None:
+            stop_start_coords = coords
+            stop_start_time = t.timestamp
+            prev_t = t
+            continue
+
+        dist = calculate_geo_distance(stop_start_coords[1], stop_start_coords[0], coords[1], coords[0])
+        if dist <= 25.0:
+            # Still at the same stop
+            prev_t = t
+            continue
+        else:
+            # Major move / changed location
+            duration_mins = (prev_t.timestamp - stop_start_time).total_seconds() / 60.0
+            if duration_mins > 2.0:
+                # Calculate customer allowance at stop_start_coords
+                near_customers = 0
+                for c_lat, c_lng in customer_locations:
+                    c_dist = calculate_geo_distance(stop_start_coords[1], stop_start_coords[0], c_lng, c_lat)
+                    if c_dist <= 100.0:
+                        near_customers += 1
+
+                # Max allowance: if there are customers, 2 * near_customers. If not, 2 minutes as base traffic buffer.
+                allowance = 2.0 * max(1, near_customers)
+                unproductive_mins = max(0.0, duration_mins - allowance)
+                stoppage_minutes += int(unproductive_mins)
+
+                stoppage_history_list.append({
+                    "lat": float(stop_start_coords[0]),
+                    "lng": float(stop_start_coords[1]),
+                    "start_time": stop_start_time.isoformat(),
+                    "end_time": prev_t.timestamp.isoformat(),
+                    "duration_minutes": round(duration_mins, 1),
+                    "near_customers": near_customers,
+                    "allowance_minutes": allowance,
+                    "unproductive_minutes": round(unproductive_mins, 1)
+                })
+
+            # Reset start coordinates for next segment
+            stop_start_coords = coords
+            stop_start_time = t.timestamp
+            prev_t = t
+
+    # Check last open segment
+    if stop_start_coords and stop_start_time and prev_t:
+        duration_mins = (prev_t.timestamp - stop_start_time).total_seconds() / 60.0
+        if duration_mins > 2.0:
+            near_customers = 0
+            for c_lat, c_lng in customer_locations:
+                c_dist = calculate_geo_distance(stop_start_coords[1], stop_start_coords[0], c_lng, c_lat)
+                if c_dist <= 100.0:
+                    near_customers += 1
+            allowance = 2.0 * max(1, near_customers)
+            unproductive_mins = max(0.0, duration_mins - allowance)
+            stoppage_minutes += int(unproductive_mins)
+
+            stoppage_history_list.append({
+                "lat": float(stop_start_coords[0]),
+                "lng": float(stop_start_coords[1]),
+                "start_time": stop_start_time.isoformat(),
+                "end_time": prev_t.timestamp.isoformat(),
+                "duration_minutes": round(duration_mins, 1),
+                "near_customers": near_customers,
+                "allowance_minutes": allowance,
+                "unproductive_minutes": round(unproductive_mins, 1)
+            })
+
+    # Save the computed values to orders_route
+    orders_route.actual_distance_km = actual_distance_km
+    orders_route.actual_duration_minutes = actual_duration
+    orders_route.stoppage_duration_minutes = stoppage_minutes
+    orders_route.stoppage_history = stoppage_history_list
+    orders_route.save(update_fields=[
+        "actual_distance_km",
+        "actual_duration_minutes",
+        "stoppage_duration_minutes",
+        "stoppage_history"
+    ])

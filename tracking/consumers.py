@@ -132,7 +132,7 @@ class TrackingConsumer(AsyncWebsocketConsumer):
                 if result is None or result[2] is None:
                     return
 
-                snapped_lat, snapped_lng, trail_points, distance_km, planned_route = (
+                snapped_lat, snapped_lng, trail_points, distance_km, planned_route, metrics = (
                     result
                 )
 
@@ -145,6 +145,9 @@ class TrackingConsumer(AsyncWebsocketConsumer):
                     "trail": trail_points,  # Snapped historical trail array of [lng, lat]
                     "distance_km": distance_km,  # Distance traveled in KM
                     "planned_route": planned_route,  # Original planned road map coordinates
+                    "actual_distance_km": metrics.get("actual_distance_km", 0.0),
+                    "actual_duration_minutes": metrics.get("actual_duration_minutes", 0),
+                    "stoppage_duration_minutes": metrics.get("stoppage_duration_minutes", 0),
                 }
 
                 # Broadcast to global Admins
@@ -166,6 +169,9 @@ class TrackingConsumer(AsyncWebsocketConsumer):
                             "trail": trail_points,
                             "distance_km": distance_km,
                             "planned_route": planned_route,
+                            "actual_distance_km": metrics.get("actual_distance_km", 0.0),
+                            "actual_duration_minutes": metrics.get("actual_duration_minutes", 0),
+                            "stoppage_duration_minutes": metrics.get("stoppage_duration_minutes", 0),
                         }
                     )
                 )
@@ -252,7 +258,7 @@ class TrackingConsumer(AsyncWebsocketConsumer):
     def update_driver_location(self, lat, lng, accuracy=None):
         try:
             if not self.tenant or self.tenant.schema_name == "public":
-                return None, None, None, 0.0, []
+                return None, None, None, 0.0, [], {}
 
             with schema_context(self.tenant.schema_name):
                 p_lng = float(lng)
@@ -308,6 +314,28 @@ class TrackingConsumer(AsyncWebsocketConsumer):
                                 planned_coords = pts
                             except Exception:
                                 pass
+
+                # Fetch active orders and update route metrics
+                from orders.models import Route as OrdersRoute
+                from django.db.models import Q
+                orders_route = OrdersRoute.objects.filter(
+                    Q(driver=self.user) | Q(additional_drivers=self.user),
+                    is_completed=False
+                ).first()
+
+                if orders_route:
+                    try:
+                        from orders.services.trip_management import update_route_metrics
+                        update_route_metrics(orders_route)
+                        orders_route.refresh_from_db()
+                    except Exception as em:
+                        print(f"[Tracking WS Consumer] Error updating route metrics: {em}")
+
+                metrics = {
+                    "actual_distance_km": float(orders_route.actual_distance_km) if (orders_route and orders_route.actual_distance_km is not None) else 0.0,
+                    "actual_duration_minutes": orders_route.actual_duration_minutes if (orders_route and orders_route.actual_duration_minutes is not None) else 0,
+                    "stoppage_duration_minutes": orders_route.stoppage_duration_minutes if (orders_route and orders_route.stoppage_duration_minutes is not None) else 0,
+                }
 
                 # 0. Low Accuracy Filter
                 if accuracy is not None:
@@ -401,6 +429,7 @@ class TrackingConsumer(AsyncWebsocketConsumer):
                                     current_trail,
                                     calculate_trail_distance(current_trail),
                                     planned_coords,
+                                    metrics,
                                 )
 
                         if dist < 8.0:
@@ -419,6 +448,7 @@ class TrackingConsumer(AsyncWebsocketConsumer):
                                 current_trail,
                                 calculate_trail_distance(current_trail),
                                 planned_coords,
+                                metrics,
                             )
 
                 # 2. Update current live position (using snapped location for precision)
@@ -442,10 +472,6 @@ class TrackingConsumer(AsyncWebsocketConsumer):
                     
                     # Fetch active orders on driver's active route
                     active_orders = []
-                    orders_route = OrdersRoute.objects.filter(
-                        Q(driver=self.user) | Q(additional_drivers=self.user),
-                        is_completed=False
-                    ).first()
                     if orders_route:
                         active_orders = Order.objects.filter(
                             route_stop__route=orders_route,
@@ -506,12 +532,13 @@ class TrackingConsumer(AsyncWebsocketConsumer):
                     current_trail,
                     calculate_trail_distance(current_trail),
                     planned_coords,
+                    metrics,
                 )
 
         except Exception as e:
             print(f"[DB Sync Error] {str(e)}")
             traceback.print_exc()
-            return [], 0.0, []
+            return None, None, None, 0.0, [], {}
 
     @database_sync_to_async
     def get_initial_state(self):
@@ -530,6 +557,9 @@ class TrackingConsumer(AsyncWebsocketConsumer):
                     updated_at__gte=time_threshold
                 )
 
+                from orders.models import Route as OrdersRoute
+                from django.db.models import Q
+
                 drivers_state = []
                 for loc in active_locations:
                     driver = loc.user
@@ -544,6 +574,14 @@ class TrackingConsumer(AsyncWebsocketConsumer):
                     # Fetch their clean snapping-routed trail
                     trail_points = self.get_current_trail(driver.id, active_route)
                     distance_km = calculate_trail_distance(trail_points)
+
+                    orders_route = OrdersRoute.objects.filter(
+                        Q(driver=driver) | Q(additional_drivers=driver),
+                        is_completed=False
+                    ).first()
+                    actual_dist = float(orders_route.actual_distance_km) if (orders_route and orders_route.actual_distance_km is not None) else 0.0
+                    actual_dur = orders_route.actual_duration_minutes if (orders_route and orders_route.actual_duration_minutes is not None) else 0
+                    stoppage_dur = orders_route.stoppage_duration_minutes if (orders_route and orders_route.stoppage_duration_minutes is not None) else 0
 
                     # Planned route coordinates extraction
                     planned_coords = []
@@ -600,6 +638,9 @@ class TrackingConsumer(AsyncWebsocketConsumer):
                             "trail": trail_points,
                             "distance_km": distance_km,
                             "planned_route": planned_coords,
+                            "actual_distance_km": actual_dist,
+                            "actual_duration_minutes": actual_dur,
+                            "stoppage_duration_minutes": stoppage_dur,
                         }
                     )
                 return drivers_state
@@ -683,6 +724,16 @@ class TrackingConsumer(AsyncWebsocketConsumer):
                     else loc.location.get("lng")
                 )
 
+                from orders.models import Route as OrdersRoute
+                from django.db.models import Q
+                orders_route = OrdersRoute.objects.filter(
+                    Q(driver=driver) | Q(additional_drivers=driver),
+                    is_completed=False
+                ).first()
+                actual_dist = float(orders_route.actual_distance_km) if (orders_route and orders_route.actual_distance_km is not None) else 0.0
+                actual_dur = orders_route.actual_duration_minutes if (orders_route and orders_route.actual_duration_minutes is not None) else 0
+                stoppage_dur = orders_route.stoppage_duration_minutes if (orders_route and orders_route.stoppage_duration_minutes is not None) else 0
+
                 return {
                     "driver_id": str(driver.id),
                     "driver_name": driver.get_full_name() or driver.username,
@@ -691,6 +742,9 @@ class TrackingConsumer(AsyncWebsocketConsumer):
                     "trail": trail_points,
                     "distance_km": distance_km,
                     "planned_route": planned_coords,
+                    "actual_distance_km": actual_dist,
+                    "actual_duration_minutes": actual_dur,
+                    "stoppage_duration_minutes": stoppage_dur,
                 }
         except Exception as e:
             print(f"[Initial Driver State Error] {str(e)}")
