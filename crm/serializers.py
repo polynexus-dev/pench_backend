@@ -44,19 +44,31 @@ class CustomerSerializer(serializers.ModelSerializer):
         from orders.models import Order
 
         # 1. Active Subscriptions
-        active_subs = Subscription.objects.filter(
-            customer=obj, status=SubscriptionStatus.ACTIVE
-        ).count()
+        if hasattr(obj, "_prefetched_objects_cache") and "subscriptions" in obj._prefetched_objects_cache:
+            active_subs = sum(1 for s in obj.subscriptions.all() if s.status == SubscriptionStatus.ACTIVE)
+        else:
+            active_subs = Subscription.objects.filter(
+                customer=obj, status=SubscriptionStatus.ACTIVE
+            ).count()
 
         # 2. Pending Balance
-        bills = MonthlyBill.objects.filter(customer=obj).exclude(
-            status=BillStatus.CANCELLED
-        )
-
-        total_pending = sum((bill.total_amount - bill.amount_paid) for bill in bills)
+        if hasattr(obj, "_prefetched_objects_cache") and "monthly_bills" in obj._prefetched_objects_cache:
+            total_pending = sum(
+                (bill.total_amount - bill.amount_paid) 
+                for bill in obj.monthly_bills.all() 
+                if bill.status != BillStatus.CANCELLED
+            )
+        else:
+            bills = MonthlyBill.objects.filter(customer=obj).exclude(
+                status=BillStatus.CANCELLED
+            )
+            total_pending = sum((bill.total_amount - bill.amount_paid) for bill in bills)
 
         # 3. Total Orders
-        total_orders = Order.objects.filter(customer=obj).count()
+        if hasattr(obj, "_prefetched_objects_cache") and "orders" in obj._prefetched_objects_cache:
+            total_orders = len(obj.orders.all())
+        else:
+            total_orders = Order.objects.filter(customer=obj).count()
 
         return {
             "active_subscriptions": active_subs,
@@ -68,11 +80,21 @@ class CustomerSerializer(serializers.ModelSerializer):
         """Returns the MRP, discount, and final price for all active products for this customer."""
         from inventory.models import Product, CustomerProductPrice
 
-        products = Product.objects.all().filter(is_active=True)
-        custom_prices = {
-            cp.product_id: cp
-            for cp in CustomerProductPrice.objects.filter(customer=obj)
-        }
+        # Cache active products in context to avoid N+1 query
+        if 'active_products' not in self.context:
+            self.context['active_products'] = list(Product.objects.filter(is_active=True))
+        products = self.context['active_products']
+
+        if hasattr(obj, "_prefetched_objects_cache") and "custom_prices" in obj._prefetched_objects_cache:
+            custom_prices = {
+                cp.product_id: cp
+                for cp in obj.custom_prices.all()
+            }
+        else:
+            custom_prices = {
+                cp.product_id: cp
+                for cp in CustomerProductPrice.objects.filter(customer=obj)
+            }
 
         rates = []
         for p in products:

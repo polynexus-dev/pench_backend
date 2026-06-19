@@ -22,7 +22,7 @@ import datetime
 class OrderViewSet(viewsets.ModelViewSet):
     queryset = Order.objects.select_related(
         "customer__zone__assigned_driver", "route_stop__route__driver"
-    ).prefetch_related("items")
+    ).prefetch_related("items__product")
     serializer_class = OrderSerializer
     permission_classes = [IsAuthenticated]  # Base permission is just authenticated
     filterset_fields = ["status", "customer", "scheduled_delivery_date"]
@@ -729,7 +729,13 @@ class RouteViewSet(viewsets.ModelViewSet):
         queryset = (
             Route.objects.all()
             .select_related("driver")
-            .prefetch_related("stops__order__customer", "additional_drivers")
+            .prefetch_related(
+                "stops__order__customer__zone",
+                "stops__order__items__product__bottle_type",
+                "stops__order__subscription__items__product",
+                "stops__order__customer__subscriptions__items__product",
+                "additional_drivers"
+            )
         )
         driver_id = self.request.query_params.get("driver")
         if driver_id:

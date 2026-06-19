@@ -8,7 +8,9 @@ from .serializers import CustomerSerializer, LeadSerializer
 
 
 class CustomerViewSet(viewsets.ModelViewSet):
-    queryset = Customer.objects.all().filter(is_active=True)
+    queryset = Customer.objects.filter(is_active=True).select_related("zone").prefetch_related(
+        "custom_prices", "subscriptions", "monthly_bills", "orders"
+    )
     serializer_class = CustomerSerializer
     permission_classes = [IsAuthenticated, HasGroupPermission]
     required_groups = ["CRM_Managers", "ERP_Admins"]

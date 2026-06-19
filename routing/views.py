@@ -23,7 +23,8 @@ class RouteViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = Route.objects.select_related("driver__user").prefetch_related(
-            "orders", "additional_drivers"
+            "orders__items__product__bottle_type",
+            "additional_drivers__user"
         )
         driver_id = self.request.query_params.get("driver")
         if driver_id:

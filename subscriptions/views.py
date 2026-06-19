@@ -6,7 +6,7 @@ from .serializers import SubscriptionSerializer, SubscriptionSkipDateSerializer
 
 
 class SubscriptionViewSet(viewsets.ModelViewSet):
-    queryset = Subscription.objects.all().prefetch_related("items__product")
+    queryset = Subscription.objects.all().select_related("customer", "pause_updated_by").prefetch_related("items__product")
     serializer_class = SubscriptionSerializer
     filterset_fields = ["status", "frequency", "is_paused", "customer"]
 
@@ -478,11 +478,20 @@ class SubscriptionViewSet(viewsets.ModelViewSet):
 
         subscriptions_data = []
 
+        # Fetch all orders for all the customer's subscriptions in one query to avoid N+1 query loops
+        all_orders = Order.objects.filter(
+            subscription__in=subscriptions,
+            scheduled_delivery_date__range=(month_start, month_end),
+        ).values("scheduled_delivery_date", "id", "status", "subscription_id")
+
+        # Group orders by subscription ID
+        orders_by_sub = {}
+        for o in all_orders:
+            sub_id = str(o["subscription_id"])
+            orders_by_sub.setdefault(sub_id, []).append(o)
+
         for sub in subscriptions:
-            orders_qs = Order.objects.filter(
-                subscription=sub,
-                scheduled_delivery_date__range=(month_start, month_end),
-            ).values("scheduled_delivery_date", "id", "status")
+            orders_qs = orders_by_sub.get(str(sub.id), [])
 
             order_map = {
                 o["scheduled_delivery_date"]: {
