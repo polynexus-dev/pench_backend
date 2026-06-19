@@ -9946,6 +9946,155 @@
                             }
                         }
                     ]
+                },
+                {
+                    "name": "Transactions (Transaction)",
+                    "item": [
+                        {
+                            "name": "GET List Transactions",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{city_url}}/api/erp/finance/transactions/",
+                                    "host": [
+                                        "{{city_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "erp",
+                                        "finance",
+                                        "transactions",
+                                        ""
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "name": "POST Create Transaction",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    },
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{city_url}}/api/erp/finance/transactions/",
+                                    "host": [
+                                        "{{city_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "erp",
+                                        "finance",
+                                        "transactions",
+                                        ""
+                                    ]
+                                },
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"bill\": 1,\n    \"amount\": \"1500.00\",\n    \"payment_method\": \"cash\",\n    \"transaction_id\": \"TXN123456\",\n    \"notes\": \"Cash collected by driver reconciled manually\"\n}"
+                                }
+                            }
+                        },
+                        {
+                            "name": "GET Single Transaction",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{city_url}}/api/erp/finance/transactions/{{last_id}}/",
+                                    "host": [
+                                        "{{city_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "erp",
+                                        "finance",
+                                        "transactions",
+                                        "{{last_id}}",
+                                        ""
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "name": "PATCH Update Transaction",
+                            "request": {
+                                "method": "PATCH",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    },
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{city_url}}/api/erp/finance/transactions/{{last_id}}/",
+                                    "host": [
+                                        "{{city_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "erp",
+                                        "finance",
+                                        "transactions",
+                                        "{{last_id}}",
+                                        ""
+                                    ]
+                                },
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"bill\": 1,\n    \"amount\": \"1500.00\",\n    \"payment_method\": \"cash\",\n    \"transaction_id\": \"TXN123456\",\n    \"notes\": \"Cash collected by driver reconciled manually\"\n}"
+                                }
+                            }
+                        },
+                        {
+                            "name": "DELETE Delete Transaction",
+                            "request": {
+                                "method": "DELETE",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{city_url}}/api/erp/finance/transactions/{{last_id}}/",
+                                    "host": [
+                                        "{{city_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "erp",
+                                        "finance",
+                                        "transactions",
+                                        "{{last_id}}",
+                                        ""
+                                    ]
+                                }
+                            }
+                        }
+                    ]
                 }
             ]
         },

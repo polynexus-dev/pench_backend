@@ -11,18 +11,9 @@ logger = logging.getLogger(__name__)
 def generate_otp(phone):
     """
     Generates a 6-digit OTP using cryptographically secure random and saves it to the database.
-    Enforces previous OTP invalidation and a 60-second cooldown rate-limiting check.
+    Enforces previous OTP invalidation.
     """
     now = timezone.now()
-
-    # 1. Throttling/Cooldown check
-    from django.conf import settings
-    if not settings.DEBUG:
-        recent_otp = OTP.objects.filter(
-            phone=phone, created_at__gt=now - timedelta(seconds=60)
-        ).first()
-        if recent_otp:
-            raise ValueError("Please wait 60 seconds before requesting a new OTP.")
 
     # 2. Invalidate previous unused active OTPs for the same phone number
     OTP.objects.filter(phone=phone, is_used=False).update(is_used=True)

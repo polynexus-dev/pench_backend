@@ -616,3 +616,290 @@ class CustomerBulkDeleteTestCase(TenantTestCase):
         response = self.client.post(url, [str(uuid.uuid4())], format="json", HTTP_HOST="tenant.test.com")
         self.assertEqual(response.status_code, 404)
 
+
+class CustomerTrialTestCase(TenantTestCase):
+    @classmethod
+    def setup_tenant(cls, tenant):
+        tenant.name = "Test City"
+        tenant.state = "Test State"
+        tenant.code = "TST"
+        tenant.create_schema(sync_schema=True)
+
+    def setUp(self):
+        super().setUp()
+        pre_save.disconnect(auto_assign_customer_zone, sender=Customer)
+        post_save.disconnect(auto_assign_customers_on_zone_change, sender=Zone)
+
+        connection.set_tenant(self.tenant)
+        User = get_user_model()
+
+        # Create authorized CRM Manager user
+        self.manager_user = User.objects.create_user(
+            username="crm_manager_trial",
+            email="manager_trial@example.com",
+            password="testpassword",
+            phone="9000000040",
+            tenant_schema="test",
+        )
+        crm_group, _ = Group.objects.get_or_create(name="CRM_Managers")
+        self.manager_user.groups.add(crm_group)
+
+        # Restore tenant context
+        connection.set_tenant(self.tenant)
+
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.manager_user)
+
+    def tearDown(self):
+        pre_save.connect(auto_assign_customer_zone, sender=Customer)
+        post_save.connect(auto_assign_customers_on_zone_change, sender=Zone)
+        super().tearDown()
+
+    def test_customer_default_trial_fields(self):
+        """Verify new customers default to is_new=True and trial_approved=False."""
+        connection.set_tenant(self.tenant)
+        cust = Customer.objects.create(
+            name="Trial Customer",
+            email="trial@example.com",
+            phone="9999999999",
+            is_active=True,
+        )
+        self.assertTrue(cust.is_new)
+        self.assertFalse(cust.trial_approved)
+
+    def test_new_customers_endpoint(self):
+        """Verify the new-customers endpoint only returns customers where is_new=True."""
+        connection.set_tenant(self.tenant)
+        cust_trial = Customer.objects.create(
+            name="Trial Customer 1",
+            email="trial1@example.com",
+            is_new=True,
+            is_active=True,
+        )
+        cust_subscribed = Customer.objects.create(
+            name="Subscribed Customer",
+            email="sub1@example.com",
+            is_new=False,
+            is_active=True,
+        )
+
+        url = "/api/erp/customers/new-customers/"
+        response = self.client.get(url, HTTP_HOST="tenant.test.com")
+        self.assertEqual(response.status_code, 200)
+        
+        # Verify response contains the trial customer and NOT the subscribed one
+        names = [c["name"] for c in response.data]
+        self.assertIn("Trial Customer 1", names)
+        self.assertNotIn("Subscribed Customer", names)
+
+    def test_approve_trial_endpoint(self):
+        """Verify trial customer approval toggles trial_approved and triggers notification."""
+        connection.set_tenant(self.tenant)
+        cust = Customer.objects.create(
+            name="Trial Customer 2",
+            email="trial2@example.com",
+            is_new=True,
+            trial_approved=False,
+            is_active=True,
+        )
+
+        url = f"/api/erp/customers/{cust.id}/approve/"
+        response = self.client.post(url, {}, HTTP_HOST="tenant.test.com")
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data["trial_approved"])
+
+        cust.refresh_from_db()
+        self.assertTrue(cust.trial_approved)
+
+    def test_subscription_creation_clears_trial(self):
+        """Verify creating an active subscription resets is_new and approves trial/delivery."""
+        connection.set_tenant(self.tenant)
+        cust = Customer.objects.create(
+            name="Trial Customer 3",
+            email="trial3@example.com",
+            is_new=True,
+            trial_approved=False,
+            is_active=True,
+        )
+
+        from subscriptions.models import Subscription, SubscriptionStatus
+        import datetime
+
+        sub = Subscription.objects.create(
+            customer=cust,
+            status=SubscriptionStatus.ACTIVE,
+            start_date=datetime.date.today(),
+        )
+
+        cust.refresh_from_db()
+        self.assertFalse(cust.is_new)
+        self.assertTrue(cust.trial_approved)
+
+    def test_delivery_resets_trial_approval(self):
+        """Verify delivering a trial order automatically resets trial_approved back to False."""
+        connection.set_tenant(self.tenant)
+        cust = Customer.objects.create(
+            name="Trial Customer 4",
+            email="trial4@example.com",
+            is_new=True,
+            trial_approved=True,
+            is_active=True,
+        )
+
+        from orders.models import Order, OrderStatus
+        import datetime
+        order = Order.objects.create(
+            customer=cust,
+            scheduled_delivery_date=datetime.date.today(),
+            delivery_address="123 Test St",
+            status=OrderStatus.PENDING,
+        )
+
+        # Update order status to DELIVERED
+        order.status = OrderStatus.DELIVERED
+        order.save()
+
+        cust.refresh_from_db()
+        self.assertFalse(cust.trial_approved)
+        self.assertTrue(cust.is_new) # Remains True since they haven't subscribed yet
+
+    def test_approve_trial_assigns_to_active_route(self):
+        """Verify trial customer approval automatically assigns their pending order to an active route."""
+        connection.set_tenant(self.tenant)
+        from routing.models import Zone, Driver
+        from orders.models import Route, Order, OrderStatus
+        import datetime
+
+        # Create driver user
+        User = get_user_model()
+        driver_user = User.objects.create_user(
+            username="driver_u", email="driver_u@example.com", password="pwd", phone="9000000099", is_driver=True, tenant_schema="test"
+        )
+        # Restore tenant context
+        connection.set_tenant(self.tenant)
+        
+        # Create zone
+        zone = Zone.objects.create(name="Trial Zone", is_active=True, assigned_driver=driver_user)
+        
+        # Create driver profile
+        from inventory.models import Warehouse
+        warehouse = Warehouse.objects.create(name="Test WH", latitude=21.15, longitude=79.08)
+        driver_profile = Driver.objects.filter(user=driver_user).first()
+        if not driver_profile:
+            driver_profile = Driver.objects.create(user=driver_user, warehouse=warehouse)
+        else:
+            driver_profile.warehouse = warehouse
+            driver_profile.save()
+
+        # Create trial customer in that zone
+        if HAS_GIS and Point:
+            cust_loc = Point(79.09, 21.16)
+        else:
+            cust_loc = {"longitude": 79.09, "latitude": 21.16}
+
+        cust = Customer.objects.create(
+            name="Trial Cust Route",
+            email="trial_route@example.com",
+            phone="9876543210",
+            is_new=True,
+            trial_approved=False,
+            zone=zone,
+            location=cust_loc,
+            is_active=True,
+        )
+
+        # Create pending order for customer
+        today = datetime.date.today()
+        order = Order.objects.create(
+            customer=cust,
+            scheduled_delivery_date=today,
+            status=OrderStatus.PENDING,
+            delivery_address="Trial Address"
+        )
+
+        # Create active route for driver today
+        route = Route.objects.create(
+            name="Route Today",
+            driver=driver_user,
+            delivery_date=today,
+            status="pending"
+        )
+
+        # Trigger trial approval endpoint
+        url = f"/api/erp/customers/{cust.id}/approve/"
+        response = self.client.post(url, {}, HTTP_HOST="tenant.test.com")
+        self.assertEqual(response.status_code, 200)
+
+        # Verify order is now assigned to the route
+        order.refresh_from_db()
+        self.assertTrue(hasattr(order, "route_stop"))
+        self.assertEqual(order.route_stop.route, route)
+
+    def test_merge_duplicate_customers_aggregates_properties(self):
+        """Verify syncing/refreshing duplicate customers merges properties into primary without data loss."""
+        connection.set_tenant(self.tenant)
+        from routing.models import Zone
+        
+        # Create a zone
+        zone = Zone.objects.create(name="Merge Zone", is_active=True)
+
+        # Primary customer profile (created earlier) has outdated zone/location/approved status
+        outdated_zone = Zone.objects.create(name="Outdated Zone", is_active=True)
+        if HAS_GIS and Point:
+            outdated_loc = Point(70.0, 20.0)
+        else:
+            outdated_loc = {"longitude": 70.0, "latitude": 20.0}
+
+        primary_cust = Customer.objects.create(
+            name="Duplicate Name",
+            phone="9988776655",
+            email="primary@example.com",
+            zone=outdated_zone,
+            location=outdated_loc,
+            trial_approved=False,
+            is_new=True,
+            is_active=True,
+        )
+
+        # Duplicate customer profile (created later) has correct zone/location/approved status
+        if HAS_GIS and Point:
+            dup_loc = Point(79.1, 21.2)
+        else:
+            dup_loc = {"longitude": 79.1, "latitude": 21.2}
+
+        dup_cust = Customer.objects.create(
+            name="Duplicate Name",
+            phone="9988776655",
+            email="duplicate@example.com",
+            zone=zone,
+            location=dup_loc,
+            trial_approved=True,
+            is_new=False,
+            is_active=True,
+        )
+
+        # Trigger duplicate merge by posting to sync-refresh-customers
+        url = "/api/erp/customers/sync-refresh-customers/"
+        self.manager_user.tenant_schema = self.tenant.schema_name
+        self.manager_user.save()
+        
+        response = self.client.post(
+            url,
+            {"dry_run": False, "tenant_schema": self.tenant.schema_name},
+            format="json",
+            HTTP_HOST="tenant.test.com"
+        )
+        self.assertEqual(response.status_code, 200)
+
+        # Verify duplicate is deleted
+        self.assertFalse(Customer.objects.filter(id=dup_cust.id).exists())
+
+        # Verify primary customer is updated with the duplicate's properties
+        primary_cust.refresh_from_db()
+        self.assertEqual(primary_cust.zone, zone)
+        self.assertIsNotNone(primary_cust.location)
+        self.assertTrue(primary_cust.trial_approved)
+        self.assertFalse(primary_cust.is_new)
+
+
+

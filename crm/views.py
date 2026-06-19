@@ -16,6 +16,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
     required_groups = ["CRM_Managers", "ERP_Admins"]
     search_fields = ["name", "company", "email", "phone"]
     ordering_fields = ["name", "created_at"]
+    filterset_fields = ["is_active", "is_new", "trial_approved", "zone"]
 
     def create(self, request, *args, **kwargs):
         """
@@ -1136,6 +1137,36 @@ class CustomerViewSet(viewsets.ModelViewSet):
 
                     if not dry_run:
                         with transaction.atomic():
+                            # Merge key properties from dup to primary to prevent data loss.
+                            # Since dup's orders and subscriptions are being moved to primary,
+                            # the primary profile must adopt the delivery details (zone, location, address)
+                            # of the active profile (dup).
+                            primary_updated = False
+                            if dup.zone and primary.zone != dup.zone:
+                                primary.zone = dup.zone
+                                primary_updated = True
+                            if dup.location and primary.location != dup.location:
+                                primary.location = dup.location
+                                primary_updated = True
+                            if dup.address and primary.address != dup.address:
+                                primary.address = dup.address
+                                primary_updated = True
+                            if dup.trial_approved and not primary.trial_approved:
+                                primary.trial_approved = True
+                                primary_updated = True
+                            if not dup.is_new and primary.is_new:
+                                primary.is_new = False
+                                primary_updated = True
+                            if dup.is_active and not primary.is_active:
+                                primary.is_active = True
+                                primary_updated = True
+                            if dup.email and not primary.email:
+                                primary.email = dup.email
+                                primary_updated = True
+                            if primary_updated:
+                                primary.save()
+
+
                             # 1. Update Lead.referred_by
                             from crm.models import Lead
                             Lead.objects.filter(referred_by=dup).update(referred_by=primary)
@@ -1317,21 +1348,25 @@ class CustomerViewSet(viewsets.ModelViewSet):
                             email=customer.email.strip() if customer.email else f"{username}@penchfoods.in",
                             first_name=first_name,
                             last_name=last_name,
-                            is_customer=True,
+                            is_customer=False,
                             tenant_schema=target_schema,
                             is_active=True
                         )
                         new_user.set_unusable_password()
                         new_user.save()
 
+                        connection.set_schema(target_schema)
+                        customer.user = new_user
+                        customer.save(update_fields=['user'])
+
+                        # Now set is_customer=True on User and save
+                        new_user.is_customer = True
+                        new_user.save(update_fields=['is_customer'])
+
                         # Auto assign to Customers group
                         from django.contrib.auth.models import Group
                         group, _ = Group.objects.get_or_create(name="Customers")
                         new_user.groups.add(group)
-
-                        connection.set_schema(target_schema)
-                        customer.user = new_user
-                        customer.save(update_fields=['user'])
 
             # Stats collections for Direction 2
             u_to_c_checked = 0
@@ -1457,6 +1492,69 @@ class CustomerViewSet(viewsets.ModelViewSet):
                     "details": u_to_c_details
                 }
             }, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=["get"], url_path="new-customers")
+    def new_customers(self, request):
+        """
+        Endpoint to retrieve customers currently in trial mode (is_new=True).
+        """
+        queryset = self.get_queryset().filter(is_new=True)
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=["post"], url_path="approve")
+    def approve_trial(self, request, pk=None):
+        """
+        Approves a new customer for trial deliveries.
+        Sets trial_approved = True.
+        """
+        customer = self.get_object()
+        if not customer.is_new:
+            return Response(
+                {"detail": "Customer is not in trial mode (already subscribed)."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        customer.trial_approved = True
+        customer.save(update_fields=["trial_approved"])
+
+        # Automatically assign any of this customer's pending/confirmed orders to active routes
+        try:
+            from orders.models import Order, OrderStatus
+            from orders.services.route_generator import add_order_to_active_route_if_pending
+            pending_orders = Order.objects.filter(
+                customer=customer,
+                status__in=[OrderStatus.PENDING, OrderStatus.CONFIRMED]
+            )
+            for order in pending_orders:
+                add_order_to_active_route_if_pending(order)
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"[Trial Approval Route Assignment Error] {e}")
+
+        try:
+            from notifications.services import send_push_notification
+            if customer.user:
+                title = "🎉 Trial Approved!"
+                body = "Congratulations! Your trial has been approved. You'll receive your demo product shortly! 🚚"
+                send_push_notification(
+                    user=customer.user,
+                    title=title,
+                    body=body,
+                    notification_type="general"
+                )
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"[Trial Approval Notification Error] {e}")
+
+        return Response(CustomerSerializer(customer).data)
 
 
 class LeadViewSet(viewsets.ModelViewSet):

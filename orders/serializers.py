@@ -31,6 +31,7 @@ class OrderSerializer(serializers.ModelSerializer):
     longitude = serializers.SerializerMethodField()
     driver_name = serializers.SerializerMethodField()
     zone_name = serializers.SerializerMethodField()
+    is_new_customer = serializers.BooleanField(source="customer.is_new", read_only=True)
 
     class Meta:
         model = Order
@@ -58,6 +59,8 @@ class OrderSerializer(serializers.ModelSerializer):
             "amount_collected",
             "payment_transaction_id",
             "payment_status",
+            "is_new_customer",
+            "arriving_notification_sent",
         ]
 
     def get_driver_name(self, obj):
@@ -206,6 +209,13 @@ class RouteStopSerializer(serializers.ModelSerializer):
         source="order.payment_status", read_only=True
     )
 
+    is_new_customer = serializers.BooleanField(
+        source="order.customer.is_new", read_only=True
+    )
+
+    bottles_to_deliver = serializers.SerializerMethodField()
+    bottles_to_take_back = serializers.SerializerMethodField()
+
     class Meta:
         model = RouteStop
         fields = [
@@ -217,6 +227,7 @@ class RouteStopSerializer(serializers.ModelSerializer):
             "customer_email",
             "customer_company",
             "customer_zone_name",
+            "is_new_customer",
             "address",
             "latitude",
             "longitude",
@@ -231,7 +242,10 @@ class RouteStopSerializer(serializers.ModelSerializer):
             "amount_collected",
             "payment_transaction_id",
             "payment_status",
+            "bottles_to_deliver",
+            "bottles_to_take_back",
         ]
+
 
     def get_latitude(self, obj):
         loc = obj.order.customer.location
@@ -329,6 +343,43 @@ class RouteStopSerializer(serializers.ModelSerializer):
                 return "in_transit"
         return status
 
+    def get_bottles_to_deliver(self, obj):
+        from collections import defaultdict
+        bottle_counts = defaultdict(int)
+        bottle_names = {}
+        bottle_volumes = {}
+        for item in obj.order.items.all():
+            product = item.product
+            if product.is_returnable and product.bottle_type:
+                bt = product.bottle_type
+                bottle_counts[bt.id] += item.quantity
+                bottle_names[bt.id] = bt.name
+                bottle_volumes[bt.id] = bt.volume_ml
+        
+        return [
+            {
+                "bottle_type_id": str(bt_id),
+                "bottle_type_name": bottle_names[bt_id],
+                "quantity": qty,
+                "value": 0.5 if bottle_volumes[bt_id] == 500 else (1.0 if bottle_volumes[bt_id] == 1000 else float(bottle_volumes[bt_id]) / 1000.0)
+            }
+            for bt_id, qty in bottle_counts.items()
+        ]
+
+    def get_bottles_to_take_back(self, obj):
+        from inventory.models import CustomerBottleBalance
+        balances = CustomerBottleBalance.objects.filter(customer=obj.order.customer).select_related("bottle_type")
+        return [
+            {
+                "bottle_type_id": str(bal.bottle_type.id),
+                "bottle_type_name": bal.bottle_type.name,
+                "quantity": bal.balance,
+                "value": 0.5 if bal.bottle_type.volume_ml == 500 else (1.0 if bal.bottle_type.volume_ml == 1000 else float(bal.bottle_type.volume_ml) / 1000.0)
+            }
+            for bal in balances
+        ]
+
+
 
 class RouteSerializer(serializers.ModelSerializer):
     stops = RouteStopSerializer(many=True, read_only=True)
@@ -393,6 +444,10 @@ class RouteSerializer(serializers.ModelSerializer):
             "additional_driver_names",
             "company_upi_id",
             "company_upi_name",
+            "actual_distance_km",
+            "stoppage_duration_minutes",
+            "actual_duration_minutes",
+            "stoppage_history",
         ]
 
     def get_route_geometry(self, obj):

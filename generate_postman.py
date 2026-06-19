@@ -1112,7 +1112,18 @@ def generate_collection():
             },
             extra_requests=bill_extra
         )
-        fin["item"] = [bill_crud]
+        transaction_crud = make_crud_folder(
+            "Transactions (Transaction)", "Transaction", "Transactions",
+            ["api", "erp", "finance", "transactions"], "city_url",
+            create_body={
+                "bill": 1,
+                "amount": "1500.00",
+                "payment_method": "cash",
+                "transaction_id": "TXN123456",
+                "notes": "Cash collected by driver reconciled manually"
+            }
+        )
+        fin["item"] = [bill_crud, transaction_crud]
 
     # --- Subscriptions ---
     sub_folder = find_folder(coll["item"], "09. Subscriptions")

@@ -90,6 +90,9 @@ def generate_city_routes(target_date):
             customer__zone=zone,
             scheduled_delivery_date=target_date,
             status__in=[OrderStatus.PENDING, OrderStatus.CONFIRMED],
+        ).exclude(
+            customer__is_new=True,
+            customer__trial_approved=False
         )
 
         if not orders.exists():

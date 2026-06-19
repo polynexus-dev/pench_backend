@@ -5,7 +5,7 @@ import datetime
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-BASE_URL = "https://nagpur.pench.api.polynexus.in"
+BASE_URL = "https://pench-nagpur.pench.api.polynexus.in"
 
 
 def run_remote_inspect():

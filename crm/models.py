@@ -23,8 +23,8 @@ class Customer(BaseModel):
         related_name="customer_profile",
     )
     company = models.CharField(max_length=200, blank=True)
-    email = models.EmailField(unique=True)
-    phone = models.CharField(max_length=20, blank=True)
+    email = models.EmailField(unique=True, blank=True, null=True)
+    phone = models.CharField(max_length=20, blank=False)
     address = models.TextField(blank=True)
 
     # Conditional GIS field
@@ -42,6 +42,14 @@ class Customer(BaseModel):
 
     notes = models.TextField(blank=True)
     is_active = models.BooleanField(default=True)
+    is_new = models.BooleanField(
+        default=True,
+        help_text="True if the customer is in trial mode / has not subscribed yet."
+    )
+    trial_approved = models.BooleanField(
+        default=False,
+        help_text="True if admin approved sending demo product / trial delivery to this new customer."
+    )
     zone = models.ForeignKey(
         "routing.Zone",
         on_delete=models.SET_NULL,

@@ -36,6 +36,7 @@ class User(AbstractUser):
         help_text="Primary portal this user accesses.",
     )
     phone = models.CharField(max_length=20, null=True, blank=True, unique=True)
+    email = models.EmailField(unique=True, null=True, blank=True)
     avatar = models.ImageField(upload_to="avatars/", null=True, blank=True)
 
     class Meta:
@@ -46,9 +47,11 @@ class User(AbstractUser):
         return f"{self.get_full_name() or self.username} ({self.email})"
 
     def save(self, *args, **kwargs):
-        # Prevent uniqueness collision of empty/blank phone strings by converting them to None
+        # Prevent uniqueness collision of empty/blank phone/email strings by converting them to None
         if self.phone == "":
             self.phone = None
+        if self.email == "":
+            self.email = None
 
         # Auto-set portal based on flags
         if self.is_driver:

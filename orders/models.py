@@ -83,6 +83,10 @@ class Order(BaseModel):
         choices=PaymentStatus.choices,
         default=PaymentStatus.PENDING,
     )
+    arriving_notification_sent = models.BooleanField(
+        default=False,
+        help_text="True if 'arriving shortly' proximity notification has been sent to the customer."
+    )
 
     class Meta:
         ordering = ["-created_at"]
@@ -158,6 +162,10 @@ class Route(BaseModel):
     completed_at = models.DateTimeField(null=True, blank=True)
     total_distance_km = models.DecimalField(max_digits=8, decimal_places=2, default=0)
     estimated_time_minutes = models.PositiveIntegerField(default=0)
+    actual_distance_km = models.DecimalField(max_digits=8, decimal_places=2, default=0.00)
+    stoppage_duration_minutes = models.PositiveIntegerField(default=0)
+    actual_duration_minutes = models.PositiveIntegerField(default=0)
+    stoppage_history = models.JSONField(default=list, blank=True)
 
     if HAS_GIS:
         geometry = gis_models.LineStringField(srid=4326, null=True, blank=True)
@@ -222,3 +230,12 @@ def notify_route_stop_change(sender, instance, **kwargs):
                 )
         except Exception:
             pass
+
+
+@receiver(post_save, sender=Order)
+def reset_trial_approval_on_delivery(sender, instance, created, **kwargs):
+    if instance.status in [OrderStatus.DELIVERED, OrderStatus.UNDELIVERED]:
+        customer = instance.customer
+        if customer and customer.is_new and customer.trial_approved:
+            customer.trial_approved = False
+            customer.save(update_fields=["trial_approved"])

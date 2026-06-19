@@ -473,3 +473,10 @@ class TransactionViewSet(viewsets.ModelViewSet):
     permission_classes = [IsERPUser, HasGroupPermission]
     required_groups = ["Accountants", "ERP_Admins"]
     filterset_fields = ["bill", "payment_method"]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        customer_id = self.request.query_params.get("customer")
+        if customer_id:
+            qs = qs.filter(bill__customer_id=customer_id)
+        return qs

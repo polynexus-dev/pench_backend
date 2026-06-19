@@ -3,11 +3,16 @@ from .models import MonthlyBill, Transaction
 
 
 class TransactionSerializer(serializers.ModelSerializer):
+    customer_id = serializers.ReadOnlyField(source="bill.customer.id")
+    customer_name = serializers.ReadOnlyField(source="bill.customer.name")
+
     class Meta:
         model = Transaction
         fields = [
             "id",
             "bill",
+            "customer_id",
+            "customer_name",
             "amount",
             "payment_method",
             "transaction_id",

@@ -116,3 +116,20 @@ class SubscriptionSkipDate(BaseModel):
 
     class Meta:
         unique_together = ("subscription", "skip_date")
+
+
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+
+@receiver(post_save, sender=Subscription)
+def update_customer_trial_on_subscribe(sender, instance, created, **kwargs):
+    """
+    When a customer subscribes (gets an active or paused subscription),
+    set customer.is_new = False and customer.trial_approved = True.
+    """
+    if instance.customer and instance.status in [SubscriptionStatus.ACTIVE, SubscriptionStatus.PAUSED]:
+        customer = instance.customer
+        if customer.is_new:
+            customer.is_new = False
+            customer.trial_approved = True
+            customer.save(update_fields=["is_new", "trial_approved"])
