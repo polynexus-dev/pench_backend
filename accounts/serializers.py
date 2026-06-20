@@ -55,6 +55,14 @@ class UserSerializer(serializers.ModelSerializer):
         if not obj.is_customer or not obj.tenant_schema:
             return None
 
+        # Avoid N+1 query and schema switching in list views
+        request = self.context.get("request")
+        if request and request.parser_context:
+            view = request.parser_context.get("view")
+            action = getattr(view, "action", None)
+            if action == "list" and obj != request.user:
+                return None
+
         from django_tenants.utils import schema_context
         from django.db.models import Sum, F
 
@@ -120,19 +128,33 @@ class UserSerializer(serializers.ModelSerializer):
         company_id = None
         company_name = None
         if instance.tenant_schema and instance.tenant_schema != "public":
-            from tenants.models import City
+            # Cache City objects in context to avoid N+1 query
+            if "city_cache" not in self.context:
+                self.context["city_cache"] = {}
 
-            city = (
-                City.objects.filter(schema_name=instance.tenant_schema)
-                .select_related("company")
-                .first()
-            )
+            city = self.context["city_cache"].get(instance.tenant_schema)
+            if not city and instance.tenant_schema not in self.context["city_cache"]:
+                from tenants.models import City
+                city = (
+                    City.objects.filter(schema_name=instance.tenant_schema)
+                    .select_related("company")
+                    .first()
+                )
+                self.context["city_cache"][instance.tenant_schema] = city
+
             if city and city.company:
                 company_id = str(city.company.id)
                 company_name = city.company.name
 
+            # Skip schema-switching for driver details in list views to avoid performance issues
+            is_list = False
+            request = self.context.get("request")
+            if request and request.parser_context:
+                view = request.parser_context.get("view")
+                is_list = getattr(view, "action", None) == "list"
+
             # If user is a driver, fetch their profile details from the tenant schema
-            if instance.is_driver:
+            if instance.is_driver and not is_list:
                 from django_tenants.utils import schema_context
                 try:
                     with schema_context(instance.tenant_schema):

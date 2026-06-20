@@ -296,9 +296,14 @@ class RouteStopSerializer(serializers.ModelSerializer):
         if not sub:
             from subscriptions.models import Subscription, SubscriptionStatus
 
-            sub = Subscription.objects.filter(
-                customer=obj.order.customer, status=SubscriptionStatus.ACTIVE
-            ).first()
+            customer = obj.order.customer
+            if customer and hasattr(customer, "_prefetched_objects_cache") and "subscriptions" in customer._prefetched_objects_cache:
+                active_subs = [s for s in customer.subscriptions.all() if s.status == SubscriptionStatus.ACTIVE]
+                sub = active_subs[0] if active_subs else None
+            else:
+                sub = Subscription.objects.filter(
+                    customer=obj.order.customer, status=SubscriptionStatus.ACTIVE
+                ).first()
 
         if sub:
             items = sub.items.all()
