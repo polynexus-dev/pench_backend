@@ -757,8 +757,11 @@ class RouteViewSet(viewsets.ModelViewSet):
         return super().partial_update(request, *args, **kwargs)
 
     def get_queryset(self):
+        from django.db.models import Count
+
         queryset = (
-            Route.objects.all()
+            Route.objects.annotate(stops_count=Count("stops"))
+            .filter(stops_count__gt=0)
             .select_related("driver")
             .prefetch_related("stops__order__customer", "additional_drivers")
         )
@@ -1427,35 +1430,37 @@ class DriverViewSet(viewsets.ViewSet):
 
             # Find the active route for this driver
             # Priority: today's incomplete route first, then any other incomplete route
-            from django.db.models import Q
+            from django.db.models import Q, Count
 
             today = _dt.date.today()
 
-            # 1. First look for today's incomplete route
+            # 1. First look for today's incomplete route (only if it has stops)
             active_route = (
-                Route.objects.filter(
+                Route.objects.annotate(stops_count=Count("stops"))
+                .filter(
                     Q(driver=user) | Q(additional_drivers=user),
                     is_completed=False,
                     delivery_date=today,
+                    stops_count__gt=0,
                 )
                 .distinct()
                 .order_by("-created_at")
                 .first()
             )
 
-            # 2. Fallback: find any incomplete route (for routes without a date or future routes)
+            # 2. Fallback: find any incomplete route (for routes without a date or future routes, with stops)
             if not active_route:
                 active_route = (
-                    Route.objects.filter(
+                    Route.objects.annotate(stops_count=Count("stops"))
+                    .filter(
                         Q(driver=user) | Q(additional_drivers=user),
                         is_completed=False,
+                        stops_count__gt=0,
                     )
                     .distinct()
                     .order_by("-delivery_date")
                     .first()
                 )
-
-            # Derive on_trip from the actual route state, not the stale DB flag
             on_trip = False
             route_data = None
             if active_route:
@@ -1500,14 +1505,16 @@ class DriverViewSet(viewsets.ViewSet):
             if connection.schema_name == "public" and schema
             else connection.schema_name
         )
-
         with schema_context(context_schema):
-            # Look for the oldest incomplete active route
-            from django.db.models import Q
+            # Look for the oldest incomplete active route (only if it has stops)
+            from django.db.models import Q, Count
 
             route = (
-                Route.objects.filter(
-                    Q(driver=user) | Q(additional_drivers=user), is_completed=False
+                Route.objects.annotate(stops_count=Count("stops"))
+                .filter(
+                    Q(driver=user) | Q(additional_drivers=user),
+                    is_completed=False,
+                    stops_count__gt=0,
                 )
                 .distinct()
                 .prefetch_related("stops__order__customer")

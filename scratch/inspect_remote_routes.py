@@ -33,11 +33,12 @@ def run_remote_inspect():
     print(f"\n=== ROUTES ON VM (Total: {len(routes) if isinstance(routes, list) else 0}) ===")
     if isinstance(routes, list):
         for r in routes:
-            print(f"\nRoute ID: {r.get('id')} | Name: {r.get('name')} | Date: {r.get('delivery_date')} | Driver: {r.get('driver_name')} | Status: {r.get('status')} | Completed: {r.get('is_completed')}")
-            stops = r.get("stops", [])
-            print(f"Stops count: {len(stops)}")
-            for s in stops:
-                print(f"  Stop #{s.get('sequence_number')} | Order ID: {s.get('order')} | Cust: {s.get('customer_name')} | Order Status: {s.get('order_status')} | Delivered At: {s.get('delivered_at')}")
+            if r.get('delivery_date') == '2026-06-20':
+                print(f"\nRoute ID: {r.get('id')} | Name: {r.get('name')} | Date: {r.get('delivery_date')} | Driver: {r.get('driver_name')} | Status: {r.get('status')} | Completed: {r.get('is_completed')}")
+                stops = r.get("stops", [])
+                print(f"Stops count: {len(stops)}")
+                for s in stops:
+                    print(f"  Stop #{s.get('sequence_number')} | Order ID: {s.get('order')} | Cust: {s.get('customer_name')} | Order Status: {s.get('order_status')} | Delivered At: {s.get('delivered_at')}")
     else:
         print("Routes is not a list:", routes)
 

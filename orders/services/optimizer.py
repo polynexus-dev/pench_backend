@@ -235,10 +235,9 @@ def create_optimized_route(
     from django.db.models import Q
 
     with transaction.atomic():
-        # Check if an existing incomplete, unstarted route already exists for this driver and date.
-        # If so, UPDATE it in-place instead of creating a new route.
         existing_route = None
         if driver_user and date:
+            # First try to find a pending/unstarted route
             existing_route = Route.objects.filter(
                 driver=driver_user,
                 delivery_date=date,
@@ -246,6 +245,14 @@ def create_optimized_route(
                 is_locked=False,
                 started_at__isnull=True,
             ).first()
+            
+            # Fallback to any incomplete route for this driver and date (including started/locked ones)
+            if not existing_route:
+                existing_route = Route.objects.filter(
+                    driver=driver_user,
+                    delivery_date=date,
+                    is_completed=False,
+                ).first()
 
         if existing_route:
             # UPDATE the existing route: clear old stops, set new optimized stops and geometry
@@ -255,7 +262,10 @@ def create_optimized_route(
             existing_route.geometry = road_geometry
             if name:
                 existing_route.name = name
-            existing_route.status = RouteStatus.PENDING
+            
+            if existing_route.status not in [RouteStatus.STARTED, RouteStatus.IN_PROGRESS]:
+                existing_route.status = RouteStatus.PENDING
+                
             existing_route.save(update_fields=["geometry", "name", "status"])
 
             stops = []
