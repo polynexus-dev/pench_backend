@@ -1845,6 +1845,165 @@ class DriverViewSet(viewsets.ViewSet):
             order_viewset.kwargs = {"pk": pk}
             return order_viewset.mark_undelivered(request, pk=pk)
 
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path="today-summary",
+        permission_classes=[IsAuthenticated],
+    )
+    def today_summary(self, request):
+        """
+        Returns a consolidated dashboard summary for the logged-in driver for today.
+        Includes:
+        - Total bottles to carry (by bottle type)
+        - Number of special/extra orders
+        - Expected bottle returns (outstanding balances from customers on today's route)
+        - Total orders count, delivered count, pending count
+        - Route info (id, name, status)
+        """
+        from django_tenants.utils import schema_context
+        from django.db import connection
+        from collections import defaultdict
+
+        user = request.user
+        schema = user.tenant_schema
+        context_schema = (
+            schema
+            if connection.schema_name == "public" and schema
+            else connection.schema_name
+        )
+
+        with schema_context(context_schema):
+            from django.db.models import Q, Count
+            import datetime as _dt
+
+            today = _dt.date.today()
+
+            # Find today's active route for this driver (with stops)
+            active_route = (
+                Route.objects.annotate(stops_count=Count("stops"))
+                .filter(
+                    Q(driver=user) | Q(additional_drivers=user),
+                    delivery_date=today,
+                    stops_count__gt=0,
+                )
+                .distinct()
+                .prefetch_related(
+                    "stops__order__items__product__bottle_type",
+                    "stops__order__customer__bottle_balances__bottle_type",
+                )
+                .order_by("-created_at")
+                .first()
+            )
+
+            if not active_route:
+                return Response({
+                    "date": str(today),
+                    "has_route": False,
+                    "route": None,
+                    "total_orders": 0,
+                    "pending_orders": 0,
+                    "delivered_orders": 0,
+                    "undelivered_orders": 0,
+                    "special_orders": 0,
+                    "bottles_to_carry": [],
+                    "total_bottles_to_carry": 0,
+                    "bottles_to_collect": [],
+                    "total_bottles_to_collect": 0,
+                })
+
+            # Gather all stops and their orders
+            stops = active_route.stops.all()
+            orders = [stop.order for stop in stops]
+
+            # --- Count order types ---
+            total_orders = len(orders)
+            special_orders = sum(1 for o in orders if o.is_special)
+            delivered_orders = sum(
+                1 for o in orders if o.status == OrderStatus.DELIVERED
+            )
+            undelivered_orders = sum(
+                1 for o in orders if o.status == OrderStatus.UNDELIVERED
+            )
+            pending_orders = total_orders - delivered_orders - undelivered_orders
+
+            # --- Bottles to carry (deliver) by type ---
+            bottles_to_carry = defaultdict(lambda: {"name": "", "volume_ml": 0, "quantity": 0})
+            for order in orders:
+                # Only count bottles for orders that are NOT yet delivered/cancelled/undelivered
+                if order.status in [
+                    OrderStatus.DELIVERED,
+                    OrderStatus.CANCELLED,
+                    OrderStatus.UNDELIVERED,
+                ]:
+                    continue
+                for item in order.items.all():
+                    product = item.product
+                    if product.is_returnable and product.bottle_type:
+                        bt = product.bottle_type
+                        bottles_to_carry[str(bt.id)]["name"] = bt.name
+                        bottles_to_carry[str(bt.id)]["volume_ml"] = bt.volume_ml
+                        bottles_to_carry[str(bt.id)]["quantity"] += item.quantity
+
+            bottles_carry_list = [
+                {
+                    "bottle_type_id": bt_id,
+                    "bottle_type_name": data["name"],
+                    "volume_ml": data["volume_ml"],
+                    "quantity": data["quantity"],
+                }
+                for bt_id, data in bottles_to_carry.items()
+            ]
+            total_bottles_to_carry = sum(d["quantity"] for d in bottles_carry_list)
+
+            # --- Bottles to collect (returns) — outstanding customer balances ---
+            bottles_to_collect = defaultdict(lambda: {"name": "", "volume_ml": 0, "quantity": 0})
+            seen_customers = set()
+            for order in orders:
+                cust = order.customer
+                if cust.id in seen_customers:
+                    continue
+                seen_customers.add(cust.id)
+                for bal in cust.bottle_balances.all():
+                    if bal.balance > 0:
+                        bt = bal.bottle_type
+                        bottles_to_collect[str(bt.id)]["name"] = bt.name
+                        bottles_to_collect[str(bt.id)]["volume_ml"] = bt.volume_ml
+                        bottles_to_collect[str(bt.id)]["quantity"] += bal.balance
+
+            bottles_collect_list = [
+                {
+                    "bottle_type_id": bt_id,
+                    "bottle_type_name": data["name"],
+                    "volume_ml": data["volume_ml"],
+                    "quantity": data["quantity"],
+                }
+                for bt_id, data in bottles_to_collect.items()
+            ]
+            total_bottles_to_collect = sum(d["quantity"] for d in bottles_collect_list)
+
+            return Response({
+                "date": str(today),
+                "has_route": True,
+                "route": {
+                    "id": str(active_route.id),
+                    "name": active_route.name,
+                    "status": active_route.status,
+                    "is_completed": active_route.is_completed,
+                    "started_at": active_route.started_at,
+                    "delivery_date": str(active_route.delivery_date),
+                },
+                "total_orders": total_orders,
+                "pending_orders": pending_orders,
+                "delivered_orders": delivered_orders,
+                "undelivered_orders": undelivered_orders,
+                "special_orders": special_orders,
+                "bottles_to_carry": bottles_carry_list,
+                "total_bottles_to_carry": total_bottles_to_carry,
+                "bottles_to_collect": bottles_collect_list,
+                "total_bottles_to_collect": total_bottles_to_collect,
+            })
+
     @action(detail=False, methods=["get"], url_path="resolve-qr/(?P<qr_id>[^/.]+)")
     def resolve_qr(self, request, qr_id=None):
         """
