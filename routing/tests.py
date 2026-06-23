@@ -316,6 +316,9 @@ class TestDriverTripStatus(TenantTestCase):
         from django.contrib.auth.models import Group
         from routing.models import Zone, Driver
         from rest_framework.test import APIClient
+        from crm.models import Customer
+        from orders.models import Order, OrderStatus, RouteStop
+        from django.conf import settings
         import datetime
 
         User = get_user_model()
@@ -342,6 +345,25 @@ class TestDriverTripStatus(TenantTestCase):
         self.driver_profile.on_trip = False
         self.driver_profile.save()
 
+        self.zone = Zone.objects.create(
+            name="Test Status Zone", assigned_driver=self.driver_user
+        )
+
+        HAS_GIS = getattr(settings, "HAS_GDAL", False)
+        if HAS_GIS:
+            from django.contrib.gis.geos import Point
+            loc = Point(79.0, 21.0)
+        else:
+            loc = {"longitude": 79.0, "latitude": 21.0}
+
+        self.customer = Customer.objects.create(
+            name="Test Status Customer",
+            email="status_cust@example.com",
+            zone=self.zone,
+            location=loc,
+            is_new=False,
+        )
+
         self.client = APIClient()
         self.client.force_authenticate(user=self.driver_user)
 
@@ -367,13 +389,24 @@ class TestDriverTripStatus(TenantTestCase):
         self.assertFalse(self.driver_profile.on_trip)
 
     def test_trip_status_with_active_route_not_started(self):
-        from orders.models import Route
+        from orders.models import Route, Order, OrderStatus, RouteStop
         import datetime
 
+        order = Order.objects.create(
+            customer=self.customer,
+            scheduled_delivery_date=datetime.date.today(),
+            status=OrderStatus.PENDING,
+            total=100.00,
+        )
         route = Route.objects.create(
             name="Test Route",
             driver=self.driver_user,
             delivery_date=datetime.date.today(),
+        )
+        RouteStop.objects.create(
+            route=route,
+            order=order,
+            sequence_number=1,
         )
 
         url = "/api/erp/orders/driver/trip-status/"
@@ -385,15 +418,26 @@ class TestDriverTripStatus(TenantTestCase):
         self.assertFalse(response.data["active_route"]["is_started"])
 
     def test_trip_status_with_active_route_started(self):
-        from orders.models import Route
+        from orders.models import Route, Order, OrderStatus, RouteStop
         from django.utils import timezone
         import datetime
 
+        order = Order.objects.create(
+            customer=self.customer,
+            scheduled_delivery_date=datetime.date.today(),
+            status=OrderStatus.PENDING,
+            total=100.00,
+        )
         route = Route.objects.create(
             name="Test Route",
             driver=self.driver_user,
             delivery_date=datetime.date.today(),
             started_at=timezone.now(),
+        )
+        RouteStop.objects.create(
+            route=route,
+            order=order,
+            sequence_number=1,
         )
 
         url = "/api/erp/orders/driver/trip-status/"
@@ -402,6 +446,42 @@ class TestDriverTripStatus(TenantTestCase):
         self.assertTrue(response.data["on_trip"])
         self.assertIsNotNone(response.data["active_route"])
         self.assertTrue(response.data["active_route"]["is_started"])
+
+    def test_today_summary_success(self):
+        from orders.models import Route, Order, OrderStatus, RouteStop
+        import datetime
+
+        order = Order.objects.create(
+            customer=self.customer,
+            scheduled_delivery_date=datetime.date.today(),
+            status=OrderStatus.PENDING,
+            total=100.00,
+        )
+        route = Route.objects.create(
+            name="Test Route",
+            driver=self.driver_user,
+            delivery_date=datetime.date.today(),
+        )
+        RouteStop.objects.create(
+            route=route,
+            order=order,
+            sequence_number=1,
+        )
+
+        urls = [
+            "/api/erp/orders/driver/today-summary/",
+            "/api/erp/orders/driver/today_summary/",
+            "/api/drivers/today-summary/",
+            "/api/drivers/today_summary/",
+            "/api/orders/driver/today-summary/",
+            "/api/orders/driver/today_summary/",
+        ]
+        for url in urls:
+            response = self.client.get(url, HTTP_HOST="tenant.test.com")
+            self.assertEqual(response.status_code, 200, f"URL {url} failed with status {response.status_code}")
+            self.assertTrue(response.data["has_route"])
+            self.assertEqual(response.data["total_orders"], 1)
+
 
 
 class TestDriverRouteAutoRefresh(TenantTestCase):

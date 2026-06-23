@@ -2001,8 +2001,19 @@ class DriverViewSet(viewsets.ViewSet):
                 "bottles_to_carry": bottles_carry_list,
                 "total_bottles_to_carry": total_bottles_to_carry,
                 "bottles_to_collect": bottles_collect_list,
-                "total_bottles_to_collect": total_bottles_to_collect,
             })
+
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path="today_summary",
+        permission_classes=[IsAuthenticated],
+    )
+    def today_summary_underscore(self, request):
+        """
+        Alias for today_summary.
+        """
+        return self.today_summary(request)
 
     @action(detail=False, methods=["get"], url_path="resolve-qr/(?P<qr_id>[^/.]+)")
     def resolve_qr(self, request, qr_id=None):

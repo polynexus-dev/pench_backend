@@ -7,12 +7,24 @@ from orders.views import DriverViewSet
 urlpatterns = [
     # City Admin
     path("admin/", admin.site.urls),
-    # Dedicated Driver URL path
+    # Dedicated Driver URL paths
     path(
         "api/drivers/my-route/",
         DriverViewSet.as_view({"get": "my_route"}),
         name="driver-my-route",
     ),
+    path(
+        "api/drivers/today-summary/",
+        DriverViewSet.as_view({"get": "today_summary"}),
+        name="driver-today-summary",
+    ),
+    path(
+        "api/drivers/today_summary/",
+        DriverViewSet.as_view({"get": "today_summary"}),
+        name="driver-today-summary-underscore",
+    ),
+    # Direct orders URL mapping to support api/orders/ prefix
+    path("api/orders/", include("orders.urls")),
     # City ERP Modules
     path(
         "api/erp/",
