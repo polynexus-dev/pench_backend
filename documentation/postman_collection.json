@@ -10244,7 +10244,7 @@
                             }
                         },
                         {
-                            "name": "GET Subscription Frequencies",
+                            "name": "GET Subscription Grouped Summary",
                             "request": {
                                 "method": "GET",
                                 "header": [
@@ -10254,7 +10254,7 @@
                                     }
                                 ],
                                 "url": {
-                                    "raw": "{{city_url}}/api/erp/subscriptions/frequencies/",
+                                    "raw": "{{city_url}}/api/erp/subscriptions/grouped-summary/",
                                     "host": [
                                         "{{city_url}}"
                                     ],
@@ -10262,7 +10262,7 @@
                                         "api",
                                         "erp",
                                         "subscriptions",
-                                        "frequencies",
+                                        "grouped-summary",
                                         ""
                                     ]
                                 }

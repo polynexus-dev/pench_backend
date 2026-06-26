@@ -10,14 +10,51 @@ class SubscriptionViewSet(viewsets.ModelViewSet):
     serializer_class = SubscriptionSerializer
     filterset_fields = ["status", "frequency", "is_paused", "customer"]
 
-    @action(detail=False, methods=["get"], url_path="frequencies")
-    def frequencies(self, request):
+    @action(detail=False, methods=["get"], url_path="grouped-summary")
+    def grouped_summary(self, request):
         """
-        Returns the list of available delivery frequencies (daily, alternate, weekdays, weekends, custom).
+        Returns active subscription counts grouped by frequency and product/quantity combination.
         """
-        from .models import DeliveryFrequency
-        choices = [{"value": choice[0], "label": choice[1]} for choice in DeliveryFrequency.choices]
-        return Response(choices)
+        from django.db.models import Count
+        from .models import SubscriptionStatus, SubscriptionItem, DeliveryFrequency
+
+        active_items = SubscriptionItem.objects.filter(
+            subscription__status=SubscriptionStatus.ACTIVE
+        ).values(
+            "subscription__frequency",
+            "product__name",
+            "product__unit",
+            "quantity"
+        ).annotate(
+            count=Count("id")
+        ).order_by("subscription__frequency", "product__name", "quantity")
+
+        # Map to display labels
+        frequency_map = dict(DeliveryFrequency.choices)
+        
+        results = []
+        for item in active_items:
+            freq = item["subscription__frequency"]
+            freq_display = frequency_map.get(freq, freq.capitalize())
+            prod_name = item["product__name"]
+            qty = item["quantity"]
+            unit = item["product__unit"]
+            count = item["count"]
+            
+            label = f"{freq_display} - {qty}x {prod_name}"
+            
+            results.append({
+                "frequency": freq,
+                "frequency_display": freq_display,
+                "product_name": prod_name,
+                "quantity": qty,
+                "unit": unit,
+                "count": count,
+                "label": label
+            })
+
+        return Response(results)
+
 
 
     def create(self, request, *args, **kwargs):

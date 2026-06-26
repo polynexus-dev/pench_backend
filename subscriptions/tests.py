@@ -78,17 +78,25 @@ class TestSubscriptionVacationTracking(TenantTestCase):
         self.assertEqual(self.subscription.pause_updated_by, self.user)
         self.assertFalse(self.subscription.is_paused)
 
-    def test_get_frequencies(self):
-        url = "/api/erp/subscriptions/frequencies/"
+    def test_get_grouped_summary(self):
+        from subscriptions.models import SubscriptionItem
+        SubscriptionItem.objects.create(
+            subscription=self.subscription,
+            product=self.product,
+            quantity=2
+        )
+
+        url = "/api/erp/subscriptions/grouped-summary/"
         response = self.client.get(url, HTTP_HOST="tenant.test.com")
         self.assertEqual(response.status_code, 200)
         self.assertIsInstance(response.data, list)
+        self.assertEqual(len(response.data), 1)
         
-        # Verify specific frequencies are returned
-        values = [item["value"] for item in response.data]
-        self.assertIn("daily", values)
-        self.assertIn("alternate", values)
-        self.assertIn("weekdays", values)
-        self.assertIn("weekends", values)
-        self.assertIn("custom", values)
+        item = response.data[0]
+        self.assertEqual(item["frequency"], "daily")
+        self.assertEqual(item["product_name"], self.product.name)
+        self.assertEqual(item["quantity"], 2)
+        self.assertEqual(item["count"], 1)
+        self.assertEqual(item["label"], f"Daily - 2x {self.product.name}")
+
 
