@@ -10242,6 +10242,32 @@
                                     ]
                                 }
                             }
+                        },
+                        {
+                            "name": "GET Subscription Frequencies",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{city_url}}/api/erp/subscriptions/frequencies/",
+                                    "host": [
+                                        "{{city_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "erp",
+                                        "subscriptions",
+                                        "frequencies",
+                                        ""
+                                    ]
+                                }
+                            },
+                            "response": []
                         }
                     ]
                 },

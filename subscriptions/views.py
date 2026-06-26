@@ -10,6 +10,16 @@ class SubscriptionViewSet(viewsets.ModelViewSet):
     serializer_class = SubscriptionSerializer
     filterset_fields = ["status", "frequency", "is_paused", "customer"]
 
+    @action(detail=False, methods=["get"], url_path="frequencies")
+    def frequencies(self, request):
+        """
+        Returns the list of available delivery frequencies (daily, alternate, weekdays, weekends, custom).
+        """
+        from .models import DeliveryFrequency
+        choices = [{"value": choice[0], "label": choice[1]} for choice in DeliveryFrequency.choices]
+        return Response(choices)
+
+
     def create(self, request, *args, **kwargs):
         """
         Supports creating multiple subscriptions or a single subscription in one request.

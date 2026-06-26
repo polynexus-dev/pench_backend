@@ -77,3 +77,18 @@ class TestSubscriptionVacationTracking(TenantTestCase):
         self.subscription.refresh_from_db()
         self.assertEqual(self.subscription.pause_updated_by, self.user)
         self.assertFalse(self.subscription.is_paused)
+
+    def test_get_frequencies(self):
+        url = "/api/erp/subscriptions/frequencies/"
+        response = self.client.get(url, HTTP_HOST="tenant.test.com")
+        self.assertEqual(response.status_code, 200)
+        self.assertIsInstance(response.data, list)
+        
+        # Verify specific frequencies are returned
+        values = [item["value"] for item in response.data]
+        self.assertIn("daily", values)
+        self.assertIn("alternate", values)
+        self.assertIn("weekdays", values)
+        self.assertIn("weekends", values)
+        self.assertIn("custom", values)
+
