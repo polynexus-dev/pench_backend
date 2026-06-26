@@ -278,6 +278,16 @@ class LoginOTPView(APIView):
                                 if r_route:
                                     response_data["active_route_id"] = str(r_route.id)
 
+                # If customer, find their customer ID
+                if user.is_customer:
+                    from django_tenants.utils import schema_context
+                    from crm.models import Customer
+
+                    with schema_context(user.tenant_schema):
+                        customer = Customer.objects.filter(user=user).first()
+                        if customer:
+                            response_data["customer_id"] = str(customer.id)
+
         return Response(response_data)
 
 

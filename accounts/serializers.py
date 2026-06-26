@@ -8,6 +8,7 @@ from .models import User
 
 class UserSerializer(serializers.ModelSerializer):
     customer_dashboard = serializers.SerializerMethodField()
+    customer_id = serializers.SerializerMethodField()
     groups = serializers.SerializerMethodField()
     role = serializers.SerializerMethodField()
     user_permissions = serializers.SerializerMethodField()
@@ -30,6 +31,7 @@ class UserSerializer(serializers.ModelSerializer):
             "groups",
             "role",
             "customer_dashboard",
+            "customer_id",
             "user_permissions",
             "is_superuser",
             "is_staff",
@@ -98,6 +100,25 @@ class UserSerializer(serializers.ModelSerializer):
         except Exception as e:
             # Silently fail if schema or models are not accessible to prevent crashing the User API
             return {"error": "Dashboard data temporarily unavailable"}
+
+    def get_customer_id(self, obj):
+        """
+        Retrieves the customer profile ID for a customer user by switching to their tenant schema.
+        """
+        if not obj.is_customer or not obj.tenant_schema:
+            return None
+
+        from django_tenants.utils import schema_context
+        from crm.models import Customer
+
+        try:
+            with schema_context(obj.tenant_schema):
+                customer = Customer.objects.filter(user=obj).first()
+                if customer:
+                    return str(customer.id)
+        except Exception:
+            pass
+        return None
 
     def get_groups(self, obj):
         return [group.name for group in obj.groups.all()]
@@ -485,6 +506,17 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
                                     )
                                     if r_route:
                                         data["active_route_id"] = str(r_route.id)
+
+                    # If customer, find their customer ID
+                    if self.user.is_customer:
+                        from django_tenants.utils import schema_context
+                        from crm.models import Customer
+
+                        with schema_context(schema):
+                            customer = Customer.objects.filter(user=self.user).first()
+                            if customer:
+                                data["customer_id"] = str(customer.id)
+
 
         # Construct and inject full domain URL directly inside 'domain_name' for frontend/client ease of use
         if "domain_name" in data:
