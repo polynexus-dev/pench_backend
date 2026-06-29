@@ -539,15 +539,34 @@ class BottleTransactionViewSet(viewsets.ModelViewSet):
         # 1. Fetch active Bottle Types
         bottle_types = BottleType.objects.filter(is_active=True)
 
-        # 2. Resolve target date (default to today)
+        # 2. Resolve target date (default to today, unless "all" or "YYYY-MM" is requested)
         today = datetime.date.today()
         date_str = request.query_params.get("date")
         is_all_time = date_str == "all"
+        
+        is_month_filter = False
+        start_date = None
+        end_date = None
+        
         if date_str and not is_all_time:
-            try:
-                today = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
-            except ValueError:
-                pass
+            if len(date_str) == 7 and date_str[4] == "-":
+                try:
+                    parts = date_str.split("-")
+                    year = int(parts[0])
+                    month = int(parts[1])
+                    start_date = datetime.date(year, month, 1)
+                    if month == 12:
+                        end_date = datetime.date(year + 1, 1, 1) - datetime.timedelta(days=1)
+                    else:
+                        end_date = datetime.date(year, month + 1, 1) - datetime.timedelta(days=1)
+                    is_month_filter = True
+                except ValueError:
+                    pass
+            else:
+                try:
+                    today = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
+                except ValueError:
+                    pass
 
         warehouse_id = request.query_params.get("warehouse")
 
@@ -575,6 +594,24 @@ class BottleTransactionViewSet(viewsets.ModelViewSet):
 
             returned_qs = BottleTransaction.objects.filter(
                 transaction_type=BottleTransactionType.RETURNED,
+            )
+            if warehouse_id:
+                returned_qs = returned_qs.filter(order__route_stop__route__warehouse_id=warehouse_id)
+            returned_totals = returned_qs.values('bottle_type_id').annotate(total=Sum('quantity'))
+            returned_map = {str(item['bottle_type_id']): item['total'] for item in returned_totals}
+        elif is_month_filter:
+            dispatched_qs = OrderItem.objects.filter(
+                order__route_stop__route__delivery_date__range=(start_date, end_date),
+                product__is_returnable=True,
+            )
+            if warehouse_id:
+                dispatched_qs = dispatched_qs.filter(order__route_stop__route__warehouse_id=warehouse_id)
+            dispatched_totals = dispatched_qs.values('product__bottle_type_id').annotate(total=Sum('quantity'))
+            dispatched_map = {str(item['product__bottle_type_id']): item['total'] for item in dispatched_totals}
+
+            returned_qs = BottleTransaction.objects.filter(
+                transaction_type=BottleTransactionType.RETURNED,
+                order__route_stop__route__delivery_date__range=(start_date, end_date),
             )
             if warehouse_id:
                 returned_qs = returned_qs.filter(order__route_stop__route__warehouse_id=warehouse_id)
@@ -614,11 +651,13 @@ class BottleTransactionViewSet(viewsets.ModelViewSet):
 
         # 4. Calculate Driver Breakdown
         driver_breakdown = []
-        if is_all_time:
+        if is_all_time or is_month_filter:
             from accounts.models import User
             drivers = User.objects.filter(groups__name="Drivers")
             
             routes_qs = Route.objects.filter(driver__in=drivers)
+            if is_month_filter:
+                routes_qs = routes_qs.filter(delivery_date__range=(start_date, end_date))
             if warehouse_id:
                 routes_qs = routes_qs.filter(warehouse_id=warehouse_id)
             
@@ -686,10 +725,10 @@ class BottleTransactionViewSet(viewsets.ModelViewSet):
                     driver_breakdown.append(
                         {
                             "route_id": d_id,
-                            "route_name": "All-Time Summary",
+                            "route_name": "All-Time Summary" if is_all_time else f"Monthly Summary ({date_str})",
                             "route_status": "completed",
-                            "route_status_display": "All-Time",
-                            "driver_id": str(driver.id),
+                            "route_status_display": "All-Time" if is_all_time else "Monthly",
+                            "driver_id": d_id,
                             "driver_warehouse_id": str(driver.warehouse.id) if driver.warehouse else None,
                             "driver_warehouse_name": driver.warehouse.name if driver.warehouse else "No Warehouse",
                             "driver_name": driver.get_full_name() or driver.username,
@@ -699,12 +738,45 @@ class BottleTransactionViewSet(viewsets.ModelViewSet):
                     )
         else:
             routes_today = Route.objects.filter(delivery_date=today).select_related(
-                "driver"
+                "driver", "driver__driver_profile"
             )
             if warehouse_id:
                 routes_today = routes_today.filter(warehouse_id=warehouse_id)
 
-            for route in routes_today:
+            routes_list = list(routes_today)
+
+            dispatched_data = OrderItem.objects.filter(
+                order__route_stop__route__in=routes_list,
+                product__is_returnable=True
+            ).values(
+                'order__route_stop__route_id', 'product__bottle_type_id'
+            ).annotate(
+                total=Sum('quantity')
+            )
+
+            tx_data = BottleTransaction.objects.filter(
+                order__route_stop__route__in=routes_list
+            ).values(
+                'order__route_stop__route_id', 'bottle_type_id', 'transaction_type'
+            ).annotate(
+                total=Sum('quantity')
+            )
+
+            route_dispatched = {}
+            for item in dispatched_data:
+                r_id = str(item['order__route_stop__route_id'])
+                bt_id = str(item['product__bottle_type_id'])
+                route_dispatched[(r_id, bt_id)] = item['total']
+
+            route_tx = {}
+            for item in tx_data:
+                r_id = str(item['order__route_stop__route_id'])
+                bt_id = str(item['bottle_type_id'])
+                tx_type = item['transaction_type']
+                route_tx[(r_id, bt_id, tx_type)] = item['total']
+
+            for route in routes_list:
+                r_id = str(route.id)
                 driver_user = route.driver
                 driver_name = (
                     driver_user.get_full_name()
@@ -715,54 +787,18 @@ class BottleTransactionViewSet(viewsets.ModelViewSet):
                 if driver_user and hasattr(driver_user, "driver_profile"):
                     vehicle_plate = driver_user.driver_profile.vehicle_plate
 
-                route_order_ids = list(route.stops.values_list("order_id", flat=True))
-
                 bottles_stats = []
                 for bt in bottle_types:
-                    # Dispatched (loaded on truck)
-                    dispatched = (
-                        OrderItem.objects.filter(
-                            order_id__in=route_order_ids,
-                            product__is_returnable=True,
-                            product__bottle_type=bt,
-                        ).aggregate(total=Sum("quantity"))["total"]
-                        or 0
-                    )
-
-                    # Delivered (issued to customers)
-                    delivered = (
-                        BottleTransaction.objects.filter(
-                            bottle_type=bt,
-                            transaction_type=BottleTransactionType.ISSUED,
-                            order_id__in=route_order_ids,
-                        ).aggregate(total=Sum("quantity"))["total"]
-                        or 0
-                    )
-
-                    # Returned (collected empty)
-                    returned = (
-                        BottleTransaction.objects.filter(
-                            bottle_type=bt,
-                            transaction_type=BottleTransactionType.RETURNED,
-                            order_id__in=route_order_ids,
-                        ).aggregate(total=Sum("quantity"))["total"]
-                        or 0
-                    )
-
-                    # Broken/lost on trip
-                    broken = (
-                        BottleTransaction.objects.filter(
-                            bottle_type=bt,
-                            transaction_type=BottleTransactionType.BROKEN,
-                            order_id__in=route_order_ids,
-                        ).aggregate(total=Sum("quantity"))["total"]
-                        or 0
-                    )
+                    bt_id = str(bt.id)
+                    dispatched = route_dispatched.get((r_id, bt_id), 0)
+                    delivered = route_tx.get((r_id, bt_id, BottleTransactionType.ISSUED), 0)
+                    returned = route_tx.get((r_id, bt_id, BottleTransactionType.RETURNED), 0)
+                    broken = route_tx.get((r_id, bt_id, BottleTransactionType.BROKEN), 0)
 
                     if dispatched > 0 or returned > 0 or broken > 0 or delivered > 0:
                         bottles_stats.append(
                             {
-                                "bottle_type_id": str(bt.id),
+                                "bottle_type_id": bt_id,
                                 "bottle_type_name": bt.name,
                                 "dispatched": dispatched,
                                 "delivered": delivered,
@@ -774,7 +810,7 @@ class BottleTransactionViewSet(viewsets.ModelViewSet):
 
                 driver_breakdown.append(
                     {
-                        "route_id": str(route.id),
+                        "route_id": r_id,
                         "route_name": route.name,
                         "route_status": route.status,
                         "route_status_display": route.get_status_display(),
@@ -796,7 +832,7 @@ class BottleTransactionViewSet(viewsets.ModelViewSet):
                 )
 
         response_data = {
-            "date": "all" if is_all_time else today.isoformat(),
+            "date": "all" if is_all_time else (date_str if is_month_filter else today.isoformat()),
             "global_summary": global_summary,
             "driver_breakdown": driver_breakdown,
         }
@@ -806,14 +842,14 @@ class BottleTransactionViewSet(viewsets.ModelViewSet):
             from django.db.models.functions import TruncMonth
             
             dispatched_by_month = OrderItem.objects.filter(
-                order__route__isnull=False,
+                order__route_stop__route__isnull=False,
                 product__is_returnable=True
             )
             if warehouse_id:
-                dispatched_by_month = dispatched_by_month.filter(order__route__warehouse_id=warehouse_id)
+                dispatched_by_month = dispatched_by_month.filter(order__route_stop__route__warehouse_id=warehouse_id)
                 
             dispatched_by_month = (
-                dispatched_by_month.annotate(month=TruncMonth("order__route__delivery_date"))
+                dispatched_by_month.annotate(month=TruncMonth("order__route_stop__route__delivery_date"))
                 .values("month")
                 .annotate(total=Sum("quantity"))
                 .order_by("month")
@@ -823,7 +859,7 @@ class BottleTransactionViewSet(viewsets.ModelViewSet):
                 transaction_type=BottleTransactionType.RETURNED
             )
             if warehouse_id:
-                returned_by_month = returned_by_month.filter(order__route__warehouse_id=warehouse_id)
+                returned_by_month = returned_by_month.filter(order__route_stop__route__warehouse_id=warehouse_id)
                 
             returned_by_month = (
                 returned_by_month.annotate(month=TruncMonth("created_at"))
