@@ -653,7 +653,7 @@ class BottleTransactionViewSet(viewsets.ModelViewSet):
         driver_breakdown = []
         if is_all_time or is_month_filter:
             from accounts.models import User
-            drivers = User.objects.filter(groups__name="Drivers")
+            drivers = User.objects.filter(groups__name="Drivers").select_related("driver_profile", "driver_profile__warehouse")
             
             routes_qs = Route.objects.filter(driver__in=drivers)
             if is_month_filter:
@@ -722,6 +722,8 @@ class BottleTransactionViewSet(viewsets.ModelViewSet):
                         )
 
                 if bottles_stats:
+                    driver_profile = getattr(driver, "driver_profile", None)
+                    warehouse_obj = driver_profile.warehouse if driver_profile else None
                     driver_breakdown.append(
                         {
                             "route_id": d_id,
@@ -729,16 +731,16 @@ class BottleTransactionViewSet(viewsets.ModelViewSet):
                             "route_status": "completed",
                             "route_status_display": "All-Time" if is_all_time else "Monthly",
                             "driver_id": d_id,
-                            "driver_warehouse_id": str(driver.warehouse.id) if driver.warehouse else None,
-                            "driver_warehouse_name": driver.warehouse.name if driver.warehouse else "No Warehouse",
+                            "driver_warehouse_id": str(warehouse_obj.id) if warehouse_obj else None,
+                            "driver_warehouse_name": warehouse_obj.name if warehouse_obj else "No Warehouse",
                             "driver_name": driver.get_full_name() or driver.username,
-                            "vehicle_plate": getattr(getattr(driver, "driver_profile", None), "vehicle_plate", "N/A"),
+                            "vehicle_plate": getattr(driver_profile, "vehicle_plate", "N/A"),
                             "bottles": bottles_stats,
                         }
                     )
         else:
             routes_today = Route.objects.filter(delivery_date=today).select_related(
-                "driver", "driver__driver_profile"
+                "driver", "driver__driver_profile", "driver__driver_profile__warehouse"
             )
             if warehouse_id:
                 routes_today = routes_today.filter(warehouse_id=warehouse_id)
@@ -816,13 +818,13 @@ class BottleTransactionViewSet(viewsets.ModelViewSet):
                         "route_status_display": route.get_status_display(),
                         "driver_id": str(route.driver.id) if route.driver else None,
                         "driver_warehouse_id": (
-                            str(route.driver.warehouse.id)
-                            if (route.driver and route.driver.warehouse)
+                            str(route.driver.driver_profile.warehouse.id)
+                            if (route.driver and hasattr(route.driver, "driver_profile") and route.driver.driver_profile and route.driver.driver_profile.warehouse)
                             else None
                         ),
                         "driver_warehouse_name": (
-                            route.driver.warehouse.name
-                            if (route.driver and route.driver.warehouse)
+                            route.driver.driver_profile.warehouse.name
+                            if (route.driver and hasattr(route.driver, "driver_profile") and route.driver.driver_profile and route.driver.driver_profile.warehouse)
                             else "No Warehouse"
                         ),
                         "driver_name": driver_name,
