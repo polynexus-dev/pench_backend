@@ -259,6 +259,10 @@ CORS_ALLOWED_ORIGINS = [
     for o in config("CORS_ALLOWED_ORIGINS", default="").replace(" ", ",").split(",")
     if o.strip()
 ]
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https://[\w-]+\.pench\.polynexus\.in$",
+    r"^https://pench\.polynexus\.in$",
+]
 CSRF_TRUSTED_ORIGINS = [
     o.strip()
     for o in config("CSRF_TRUSTED_ORIGINS", default="").replace(" ", ",").split(",")
