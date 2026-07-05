@@ -268,6 +268,11 @@ CSRF_TRUSTED_ORIGINS = [
     for o in config("CSRF_TRUSTED_ORIGINS", default="").replace(" ", ",").split(",")
     if o.strip()
 ]
+# Default production fallback for CSRF trusted origins
+if "https://pench.polynexus.in" not in CSRF_TRUSTED_ORIGINS:
+    CSRF_TRUSTED_ORIGINS.append("https://pench.polynexus.in")
+if "https://*.pench.polynexus.in" not in CSRF_TRUSTED_ORIGINS:
+    CSRF_TRUSTED_ORIGINS.append("https://*.pench.polynexus.in")
 
 # Security Settings
 SECURE_SSL_REDIRECT = config("SECURE_SSL_REDIRECT", default=False, cast=bool)
