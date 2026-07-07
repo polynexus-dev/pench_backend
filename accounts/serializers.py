@@ -197,7 +197,7 @@ class UserSerializer(serializers.ModelSerializer):
 class UserCreateSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)
     phone = serializers.CharField(
-        required=True,
+        required=False, allow_blank=True, allow_null=True,
         validators=[UniqueValidator(queryset=User.objects.all(), message="A user with this phone number already exists.")]
     )
     email = serializers.EmailField(
