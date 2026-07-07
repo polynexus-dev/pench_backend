@@ -17,6 +17,9 @@ if [ "$RUN_MIGRATIONS" = "1" ]; then
     # Remove any stale ready-file from a previous run
     rm -f "$READY_FILE"
 
+    # Automatically create the database if it doesn't exist
+    python create_database.py
+
     # fix_migrations.py uses Django's Python API directly.
     # It applies each migration in a savepoint and fakes any that fail
     # with "already exists" — no subprocess migrate_schemas calls at all.

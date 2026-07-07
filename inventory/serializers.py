@@ -168,6 +168,7 @@ class CustomerBottleBalanceSerializer(serializers.ModelSerializer):
             "bottle_type",
             "bottle_type_name",
             "balance",
+            "broken_balance",
         ]
 
 

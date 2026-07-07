@@ -2056,7 +2056,11 @@ class DriverViewSet(viewsets.ViewSet):
             # Get bottle balances
             balances = CustomerBottleBalance.objects.filter(customer=customer)
             balance_data = [
-                {"bottle_type": b.bottle_type.name, "balance": b.balance}
+                {
+                    "bottle_type": b.bottle_type.name,
+                    "balance": b.balance,
+                    "broken_balance": b.broken_balance,
+                }
                 for b in balances
             ]
 
