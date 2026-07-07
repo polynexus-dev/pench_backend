@@ -24,16 +24,79 @@ class CustomerViewSet(viewsets.ModelViewSet):
         Just send a JSON list instead of a single object.
         """
         is_many = isinstance(request.data, list)
+        
+        from django.db import IntegrityError, transaction
+        
         if not is_many:
-            return super().create(request, *args, **kwargs)
+            try:
+                with transaction.atomic():
+                    return super().create(request, *args, **kwargs)
+            except IntegrityError as e:
+                err_msg = str(e)
+                if "crm_customer_email_key" in err_msg or "email" in err_msg.lower():
+                    detail = "A customer with this email already exists."
+                elif "crm_customer_phone_key" in err_msg or "phone" in err_msg.lower():
+                    detail = "A customer with this phone number already exists."
+                else:
+                    detail = f"Database integrity error: {err_msg}"
+                return Response({"detail": detail}, status=status.HTTP_400_BAD_REQUEST)
 
-        serializer = self.get_serializer(data=request.data, many=True)
+        # Bulk creation payload validations
+        payload = request.data
+        emails = []
+        phones = []
+        for i, item in enumerate(payload):
+            if not isinstance(item, dict):
+                continue
+            email = item.get("email")
+            phone = item.get("phone")
+            
+            if email:
+                email_lower = email.strip().lower()
+                if email_lower in emails:
+                    return Response(
+                        {"detail": f"Duplicate email '{email}' found in the import sheet at row {i+1}."},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                emails.append(email_lower)
+                
+            if phone:
+                phone_strip = phone.strip()
+                if phone_strip in phones:
+                    return Response(
+                        {"detail": f"Duplicate phone '{phone}' found in the import sheet at row {i+1}."},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                phones.append(phone_strip)
+
+        serializer = self.get_serializer(data=payload, many=True)
         serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
+        
+        try:
+            with transaction.atomic():
+                self.perform_create(serializer)
+        except IntegrityError as e:
+            err_msg = str(e)
+            if "crm_customer_email_key" in err_msg or "email" in err_msg.lower():
+                detail = "One or more customers in the import sheet has an email that already exists in the database."
+            elif "crm_customer_phone_key" in err_msg or "phone" in err_msg.lower():
+                detail = "One or more customers in the import sheet has a phone number that already exists in the database."
+            else:
+                detail = f"Database integrity error during bulk import: {err_msg}"
+            return Response({"detail": detail}, status=status.HTTP_400_BAD_REQUEST)
+            
         headers = self.get_success_headers(serializer.data)
         return Response(
             serializer.data, status=status.HTTP_201_CREATED, headers=headers
         )
+
+    def perform_destroy(self, instance):
+        user = instance.user
+        instance.delete()
+        if user:
+            from django_tenants.utils import schema_context
+            with schema_context("public"):
+                user.delete()
 
     @action(detail=False, methods=["patch", "put"])
     def bulk_update(self, request):
