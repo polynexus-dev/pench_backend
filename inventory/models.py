@@ -112,6 +112,7 @@ class CustomerBottleBalance(BaseModel):
     )
     bottle_type = models.ForeignKey(BottleType, on_delete=models.CASCADE)
     balance = models.IntegerField(default=0)
+    broken_balance = models.IntegerField(default=0)
 
     class Meta:
         unique_together = ("customer", "bottle_type")

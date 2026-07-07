@@ -37,6 +37,9 @@ def record_bottle_transaction(
             balance_obj.balance += quantity
         elif transaction_type == BottleTransactionType.RETURNED:
             balance_obj.balance -= quantity
+        elif transaction_type == BottleTransactionType.BROKEN:
+            balance_obj.balance -= quantity
+            balance_obj.broken_balance += quantity
 
         balance_obj.save()
 

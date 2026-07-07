@@ -116,6 +116,23 @@ class DriverViewSet(viewsets.ModelViewSet):
         print(f"[DEBUG] Found {queryset.count()} drivers in this schema.")
         return super().list(request, *args, **kwargs)
 
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        user = instance.user
+        try:
+            from django.db import transaction
+            with transaction.atomic():
+                instance.delete()
+                if user:
+                    user.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except Exception as e:
+            return Response(
+                {"detail": f"Cannot delete driver: {str(e)}"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+
     def create(self, request, *args, **kwargs):
         """
         Supports creating multiple driver profiles in one request.

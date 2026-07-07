@@ -4,9 +4,7 @@ FROM python:3.12-slim
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
-# Placeholder so Django settings can load at image build time.
-# The real SECRET_KEY is injected at runtime via docker-compose env.
-ENV SECRET_KEY=build-time-placeholder-not-used-in-production
+ENV SECRET_KEY=build-time-placeholder-key-to-be-overridden-at-runtime
 
 # Install system dependencies for GIS and Postgres
 RUN apt-get update && apt-get install -y \
@@ -28,13 +26,23 @@ COPY requirements.txt /app/
 RUN pip install --no-cache-dir -r requirements.txt
 RUN pip install --no-cache-dir daphne channels channels-redis gunicorn
 
-# Copy project
+# Copy project files statically
 COPY . /app/
 
 # Strip Windows CR line endings from shell/python scripts that run in the container
 RUN sed -i 's/\r$//' /app/entrypoint.sh \
     && sed -i 's/\r$//' /app/fix_migrations.py \
     && chmod +x /app/entrypoint.sh
+
+# Collect static files during build time for optimal production startup
+RUN DJANGO_SETTINGS_MODULE=config.settings \
+    DB_NAME=placeholder \
+    DB_USER=placeholder \
+    DB_PASSWORD=placeholder \
+    DB_HOST=localhost \
+    DB_PORT=5432 \
+    REDIS_URL=redis://localhost:6379/0 \
+    python manage.py collectstatic --noinput
 
 EXPOSE 8083
 

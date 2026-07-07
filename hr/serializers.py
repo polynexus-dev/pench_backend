@@ -100,6 +100,28 @@ class EmployeeSerializer(serializers.ModelSerializer):
             pass
         return None
 
+
+class EmployeeListSerializer(serializers.ModelSerializer):
+    """Lightweight serializer for Employee list views — no per-row warehouse queries."""
+    full_name = serializers.CharField(source="user.get_full_name", read_only=True)
+    email = serializers.CharField(source="user.email", read_only=True)
+    department_name = serializers.CharField(source="department.name", read_only=True)
+
+    class Meta:
+        model = Employee
+        fields = [
+            "id",
+            "user",
+            "full_name",
+            "email",
+            "department",
+            "department_name",
+            "job_title",
+            "employee_id",
+            "date_joined",
+            "is_active",
+        ]
+
     def to_representation(self, instance):
         ret = super().to_representation(instance)
         # Manually inject the user fields into the serialized representation

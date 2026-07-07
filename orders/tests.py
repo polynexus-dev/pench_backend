@@ -391,4 +391,37 @@ class TestRouteManualControl(TenantTestCase):
         self.assertEqual(stop_entry["allowance_minutes"], 2.0)
         self.assertEqual(stop_entry["unproductive_minutes"], 13.0)
 
+    def test_broken_bottle_transaction_logic(self):
+        from inventory.models import BottleType, CustomerBottleBalance, BottleTransactionType
+        from inventory.services.bottle_service import record_bottle_transaction
+        
+        bottle_type = BottleType.objects.create(name="1L returnable bottle", volume_ml=1000)
+        
+        # Initialize customer balance to 5
+        balance_obj = CustomerBottleBalance.objects.create(
+            customer=self.customer,
+            bottle_type=bottle_type,
+            balance=5,
+            broken_balance=0
+        )
+        
+        # Record a broken transaction of quantity 2
+        record_bottle_transaction(
+            bottle_type=bottle_type,
+            quantity=2,
+            transaction_type=BottleTransactionType.BROKEN,
+            customer=self.customer,
+            user=self.manager_user
+        )
+        
+        # Refresh from db
+        balance_obj.refresh_from_db()
+        
+        # Verify balance was decremented (5 - 2 = 3)
+        self.assertEqual(balance_obj.balance, 3)
+        
+        # Verify broken_balance was incremented (0 + 2 = 2)
+        self.assertEqual(balance_obj.broken_balance, 2)
+
+
 

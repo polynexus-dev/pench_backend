@@ -102,3 +102,35 @@ class SubscriptionSerializer(serializers.ModelSerializer):
                 SubscriptionItem.objects.create(subscription=instance, **item_data)
 
         return instance
+
+
+class SubscriptionListSerializer(serializers.ModelSerializer):
+    """Lightweight serializer for Subscription list views — no nested items."""
+    customer_name = serializers.CharField(source="customer.name", read_only=True)
+    status_display = serializers.CharField(source="get_status_display", read_only=True)
+    frequency_display = serializers.CharField(
+        source="get_frequency_display", read_only=True
+    )
+    item_count = serializers.IntegerField(read_only=True, default=0)
+
+    class Meta:
+        model = Subscription
+        fields = [
+            "id",
+            "customer",
+            "customer_name",
+            "status",
+            "status_display",
+            "frequency",
+            "frequency_display",
+            "custom_days",
+            "start_date",
+            "end_date",
+            "is_paused",
+            "pause_start",
+            "pause_end",
+            "delivery_address",
+            "special_instructions",
+            "item_count",
+        ]
+

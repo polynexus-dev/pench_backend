@@ -4,11 +4,11 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from core.permissions import HasGroupPermission
 from .models import Customer, Lead, HAS_GIS, _parse_coordinates, _point_in_polygon
-from .serializers import CustomerSerializer, LeadSerializer
+from .serializers import CustomerSerializer, CustomerListSerializer, LeadSerializer
 
 
 class CustomerViewSet(viewsets.ModelViewSet):
-    queryset = Customer.objects.filter(is_active=True).select_related("zone").prefetch_related(
+    queryset = Customer.objects.filter(is_active=True).select_related("zone", "user").prefetch_related(
         "custom_prices", "subscriptions", "monthly_bills", "orders"
     )
     serializer_class = CustomerSerializer
@@ -18,22 +18,238 @@ class CustomerViewSet(viewsets.ModelViewSet):
     ordering_fields = ["name", "created_at"]
     filterset_fields = ["is_active", "is_new", "trial_approved", "zone"]
 
+    def get_queryset(self):
+        if self.action == "list":
+            # Optimized subqueries for listings to avoid N+1 queries and memory inflation
+            from django.db.models import OuterRef, Subquery, IntegerField, DecimalField, Count, Sum, F, Value
+            from django.db.models.functions import Coalesce
+            from subscriptions.models import Subscription, SubscriptionStatus
+            from finance.models import MonthlyBill, BillStatus
+            from orders.models import Order
+
+            active_subs_sub = Subscription.objects.filter(
+                customer=OuterRef("pk"),
+                status=SubscriptionStatus.ACTIVE
+            ).values("customer").annotate(count=Count("id")).values("count")
+
+            pending_balance_sub = MonthlyBill.objects.filter(
+                customer=OuterRef("pk")
+            ).exclude(status=BillStatus.CANCELLED).values("customer").annotate(
+                pending=Sum(
+                    F("total_amount") - F("amount_paid"),
+                    output_field=DecimalField(max_digits=10, decimal_places=2)
+                )
+            ).values("pending")
+
+            total_orders_sub = Order.objects.filter(
+                customer=OuterRef("pk")
+            ).values("customer").annotate(count=Count("id")).values("count")
+
+            return (
+                Customer.objects.filter(is_active=True)
+                .select_related("zone", "user")
+                .annotate(
+                    annotated_active_subs=Coalesce(Subquery(active_subs_sub, output_field=IntegerField()), 0),
+                    annotated_pending_balance=Coalesce(
+                        Subquery(pending_balance_sub, output_field=DecimalField(max_digits=10, decimal_places=2)),
+                        Value(0, output_field=DecimalField(max_digits=10, decimal_places=2)),
+                        output_field=DecimalField(max_digits=10, decimal_places=2)
+                    ),
+                    annotated_total_orders=Coalesce(Subquery(total_orders_sub, output_field=IntegerField()), 0),
+                )
+            )
+
+        return super().get_queryset()
+
+    def get_serializer_class(self):
+        if self.action == "list":
+            return CustomerListSerializer
+        return CustomerSerializer
+
     def create(self, request, *args, **kwargs):
         """
         Supports creating multiple customers in a single POST request.
         Just send a JSON list instead of a single object.
         """
         is_many = isinstance(request.data, list)
+        
+        from django.db import IntegrityError, transaction
+        
         if not is_many:
-            return super().create(request, *args, **kwargs)
+            try:
+                with transaction.atomic():
+                    return super().create(request, *args, **kwargs)
+            except IntegrityError as e:
+                err_msg = str(e)
+                if "crm_customer_email_key" in err_msg or "email" in err_msg.lower():
+                    detail = "A customer with this email already exists."
+                elif "crm_customer_phone_key" in err_msg or "phone" in err_msg.lower():
+                    detail = "A customer with this phone number already exists."
+                else:
+                    detail = f"Database integrity error: {err_msg}"
+                return Response({"detail": detail}, status=status.HTTP_400_BAD_REQUEST)
 
-        serializer = self.get_serializer(data=request.data, many=True)
-        serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
-        headers = self.get_success_headers(serializer.data)
-        return Response(
-            serializer.data, status=status.HTTP_201_CREATED, headers=headers
-        )
+        # Bulk creation payload validations - Skip duplicate phone/email by clearing them / using dummy values
+        payload = request.data
+        processed_payload = []
+        skipped_records = []
+        
+        seen_emails = set()
+        seen_phones = set()
+        
+        existing_phones = {p.strip() for p in Customer.objects.values_list("phone", flat=True) if p}
+        existing_emails = {e.strip().lower() for e in Customer.objects.exclude(email__isnull=True).exclude(email="").values_list("email", flat=True) if e}
+        
+        import random
+        import string
+        import time
+
+        for i, item in enumerate(payload):
+            row_num = i + 1
+            if not isinstance(item, dict):
+                skipped_records.append({
+                    "row": row_num,
+                    "reason": "Invalid record format (expected JSON object)"
+                })
+                continue
+                
+            name = item.get("name", "")
+            phone = item.get("phone")
+            email = item.get("email")
+            
+            # Clean inputs
+            email_clean = email.strip().lower() if email else None
+            phone_clean = phone.strip() if phone else None
+            
+            # Check/Sanitize phone: if duplicate, generate unique dummy phone
+            if not phone_clean:
+                random_str = "".join(random.choices(string.ascii_lowercase + string.digits, k=5))
+                timestamp = int(time.time() * 1000) % 1000000
+                phone_clean = f"N/A-{random_str}-{timestamp}"
+            elif (phone_clean in existing_phones) or (phone_clean in seen_phones):
+                random_str = "".join(random.choices(string.ascii_lowercase + string.digits, k=5))
+                timestamp = int(time.time() * 1000) % 1000000
+                phone_clean = f"N/A-{random_str}-{timestamp}"
+            else:
+                seen_phones.add(phone_clean)
+                
+            # Check/Sanitize email: if duplicate, set email to None (skip adding)
+            if email_clean:
+                if (email_clean in existing_emails) or (email_clean in seen_emails):
+                    email_clean = None
+                else:
+                    seen_emails.add(email_clean)
+            
+            # Update item with processed values
+            item["phone"] = phone_clean
+            item["email"] = email_clean
+            processed_payload.append((row_num, item))
+
+        valid_serializers = []
+        for row_num, item in processed_payload:
+            serializer = self.get_serializer(data=item)
+            if serializer.is_valid():
+                valid_serializers.append((row_num, serializer, item))
+            else:
+                errors_str = "; ".join([f"{k}: {v[0] if isinstance(v, list) else v}" for k, v in serializer.errors.items()])
+                skipped_records.append({
+                    "row": row_num,
+                    "name": item.get("name", ""),
+                    "phone": item.get("phone", ""),
+                    "email": item.get("email", ""),
+                    "reason": f"Validation errors: {errors_str}"
+                })
+
+        imported_records = []
+        if valid_serializers:
+            from accounts.models import User
+            from django_tenants.utils import schema_context
+            from django.db import connection
+            
+            target_schema = connection.schema_name
+            
+            try:
+                with transaction.atomic():
+                    for row_num, s, item in valid_serializers:
+                        # 1. Save Customer Profile
+                        instance = s.save()
+                        
+                        # 2. Extract Names for user creation (strip MR/MS/MRS prefixes)
+                        name_str = instance.name.strip()
+                        title_prefixes = ["mr.", "ms.", "mrs.", "mr", "ms", "mrs", "dr.", "dr"]
+                        parts = name_str.split()
+                        if parts and parts[0].lower() in title_prefixes:
+                            parts = parts[1:]
+                        
+                        if len(parts) >= 2:
+                            first_name = parts[0]
+                            last_name = parts[1]
+                        elif len(parts) == 1:
+                            first_name = parts[0]
+                            last_name = ""
+                        else:
+                            first_name = "customer"
+                            last_name = ""
+
+                        # 3. Build Username: lowercase firstname.lastname
+                        first_clean = "".join(c for c in first_name.lower() if c.isalnum())
+                        last_clean = "".join(c for c in last_name.lower() if c.isalnum())
+                        if last_clean:
+                            username = f"{first_clean}.{last_clean}"
+                        else:
+                            username = first_clean
+                            
+                        if not username:
+                            username = f"user_{str(instance.id)[:8]}"
+                            
+                        # Ensure username uniqueness in public schema
+                        base_username = username
+                        counter = 1
+                        with schema_context("public"):
+                            while User.objects.filter(username=username).exists():
+                                username = f"{base_username}{counter}"
+                                counter += 1
+                                
+                            # Create new user in public schema with Welcome@pench password
+                            new_user = User.objects.create(
+                                username=username,
+                                phone=instance.phone if instance.phone and not instance.phone.startswith("N/A-") else None,
+                                email=instance.email if instance.email else f"{username}@penchfoods.in",
+                                first_name=first_name,
+                                last_name=last_name,
+                                is_customer=True,
+                                tenant_schema=target_schema,
+                                is_active=True
+                            )
+                            new_user.set_password("Welcome@pench")
+                            new_user.save()
+                            
+                        # 4. Link User to Customer
+                        instance.user = new_user
+                        instance.save(update_fields=["user"])
+                        
+                        imported_records.append(self.get_serializer(instance).data)
+            except IntegrityError as e:
+                # Fallback database constraint check
+                return Response(
+                    {"detail": f"Database integrity error during bulk import save: {str(e)}"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+                
+        return Response({
+            "imported_count": len(imported_records),
+            "skipped_count": len(skipped_records),
+            "imported": imported_records,
+            "skipped": skipped_records
+        }, status=status.HTTP_201_CREATED if imported_records else status.HTTP_200_OK)
+
+    def perform_destroy(self, instance):
+        user = instance.user
+        instance.delete()
+        if user:
+            from django_tenants.utils import schema_context
+            with schema_context("public"):
+                user.delete()
 
     @action(detail=False, methods=["patch", "put"])
     def bulk_update(self, request):

@@ -5,20 +5,32 @@ from django.db.models import Sum, Count, Q
 from django.utils import timezone
 from core.permissions import IsERPUser, HasGroupPermission
 from .models import MonthlyBill, Transaction, BillStatus
-from .serializers import MonthlyBillSerializer, TransactionSerializer
+from .serializers import MonthlyBillSerializer, MonthlyBillListSerializer, TransactionSerializer
 from .services import bulk_generate_monthly_bills
 
 
 class MonthlyBillViewSet(viewsets.ModelViewSet):
-    queryset = (
-        MonthlyBill.objects.all()
-        .select_related("customer")
-        .prefetch_related("transactions")
-    )
     serializer_class = MonthlyBillSerializer
     permission_classes = [IsERPUser, HasGroupPermission]
     required_groups = ["Accountants", "ERP_Admins"]
     filterset_fields = ["status", "customer"]
+
+    def get_serializer_class(self):
+        if self.action == "list":
+            return MonthlyBillListSerializer
+        return MonthlyBillSerializer
+
+    def get_queryset(self):
+        if self.action == "list":
+            return (
+                MonthlyBill.objects.select_related("customer")
+                .annotate(transaction_count=Count("transactions"))
+            )
+        return (
+            MonthlyBill.objects.all()
+            .select_related("customer")
+            .prefetch_related("transactions")
+        )
 
     @action(detail=False, methods=["get"], url_path="summary")
     def summary(self, request):

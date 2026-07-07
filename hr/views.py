@@ -13,6 +13,7 @@ from .models import (
 )
 from .serializers import (
     EmployeeSerializer,
+    EmployeeListSerializer,
     DepartmentSerializer,
     SalaryStructureSerializer,
     MonthlyPayrollSerializer,
@@ -31,6 +32,11 @@ class EmployeeViewSet(viewsets.ModelViewSet):
     required_groups = ["HR_Managers", "ERP_Admins"]
     filterset_fields = ["department"]
     search_fields = ["user__first_name", "user__last_name", "employee_id"]
+
+    def get_serializer_class(self):
+        if self.action == "list":
+            return EmployeeListSerializer
+        return EmployeeSerializer
 
     def create(self, request, *args, **kwargs):
         """

@@ -48,6 +48,14 @@ class WarehouseSerializer(serializers.ModelSerializer):
             return []
 
 
+class WarehouseListSerializer(serializers.ModelSerializer):
+    """Lightweight serializer for Warehouse list views — no per-warehouse driver queries."""
+
+    class Meta:
+        model = Warehouse
+        fields = ["id", "name", "address", "is_active"]
+
+
 class RawMaterialSerializer(serializers.ModelSerializer):
     class Meta:
         model = RawMaterial
@@ -168,6 +176,7 @@ class CustomerBottleBalanceSerializer(serializers.ModelSerializer):
             "bottle_type",
             "bottle_type_name",
             "balance",
+            "broken_balance",
         ]
 
 
