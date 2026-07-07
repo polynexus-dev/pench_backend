@@ -21,7 +21,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         if self.action == "list":
             # Optimized subqueries for listings to avoid N+1 queries and memory inflation
-            from django.db.models import OuterRef, Subquery, IntegerField, DecimalField, Count, Sum, F
+            from django.db.models import OuterRef, Subquery, IntegerField, DecimalField, Count, Sum, F, Value
             from django.db.models.functions import Coalesce
             from subscriptions.models import Subscription, SubscriptionStatus
             from finance.models import MonthlyBill, BillStatus
@@ -35,7 +35,10 @@ class CustomerViewSet(viewsets.ModelViewSet):
             pending_balance_sub = MonthlyBill.objects.filter(
                 customer=OuterRef("pk")
             ).exclude(status=BillStatus.CANCELLED).values("customer").annotate(
-                pending=Sum(F("total_amount") - F("amount_paid"))
+                pending=Sum(
+                    F("total_amount") - F("amount_paid"),
+                    output_field=DecimalField(max_digits=10, decimal_places=2)
+                )
             ).values("pending")
 
             total_orders_sub = Order.objects.filter(
@@ -47,7 +50,11 @@ class CustomerViewSet(viewsets.ModelViewSet):
                 .select_related("zone")
                 .annotate(
                     annotated_active_subs=Coalesce(Subquery(active_subs_sub, output_field=IntegerField()), 0),
-                    annotated_pending_balance=Coalesce(Subquery(pending_balance_sub, output_field=DecimalField(max_digits=10, decimal_places=2)), 0.0),
+                    annotated_pending_balance=Coalesce(
+                        Subquery(pending_balance_sub, output_field=DecimalField(max_digits=10, decimal_places=2)),
+                        Value(0, output_field=DecimalField(max_digits=10, decimal_places=2)),
+                        output_field=DecimalField(max_digits=10, decimal_places=2)
+                    ),
                     annotated_total_orders=Coalesce(Subquery(total_orders_sub, output_field=IntegerField()), 0),
                 )
             )
