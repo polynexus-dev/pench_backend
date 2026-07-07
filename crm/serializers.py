@@ -154,11 +154,22 @@ class CustomerSerializer(serializers.ModelSerializer):
         lat = validated_data.pop("latitude", None)
         lng = validated_data.pop("longitude", None)
 
-        # Check request for 'lat'/'lng' aliases if not in validated_data
+        # Check initial_data or request for 'lat'/'lng' aliases if not in validated_data
         if lat is None:
-            lat = self.context["request"].data.get("lat")
+            if hasattr(self, "initial_data") and isinstance(self.initial_data, dict):
+                lat = self.initial_data.get("lat")
+            if lat is None and hasattr(self, "context") and self.context.get("request"):
+                req_data = self.context["request"].data
+                if isinstance(req_data, dict):
+                    lat = req_data.get("lat")
+
         if lng is None:
-            lng = self.context["request"].data.get("lng")
+            if hasattr(self, "initial_data") and isinstance(self.initial_data, dict):
+                lng = self.initial_data.get("lng")
+            if lng is None and hasattr(self, "context") and self.context.get("request"):
+                req_data = self.context["request"].data
+                if isinstance(req_data, dict):
+                    lng = req_data.get("lng")
 
         if lat is not None and lng is not None:
             if HAS_GIS and Point:
@@ -173,11 +184,11 @@ class CustomerSerializer(serializers.ModelSerializer):
 
         # Update custom prices if product_rates is provided
         product_rates_data = None
-        if hasattr(self, "initial_data") and "product_rates" in self.initial_data:
+        if hasattr(self, "initial_data") and isinstance(self.initial_data, dict) and "product_rates" in self.initial_data:
             product_rates_data = self.initial_data.get("product_rates")
         else:
             request = self.context.get("request")
-            if request and "product_rates" in request.data:
+            if request and isinstance(request.data, dict) and "product_rates" in request.data:
                 product_rates_data = request.data.get("product_rates")
 
         if product_rates_data and isinstance(product_rates_data, list):
@@ -213,9 +224,20 @@ class CustomerSerializer(serializers.ModelSerializer):
         lng = validated_data.pop("longitude", None)
 
         if lat is None:
-            lat = self.context["request"].data.get("lat")
+            if hasattr(self, "initial_data") and isinstance(self.initial_data, dict):
+                lat = self.initial_data.get("lat")
+            if lat is None and hasattr(self, "context") and self.context.get("request"):
+                req_data = self.context["request"].data
+                if isinstance(req_data, dict):
+                    lat = req_data.get("lat")
+
         if lng is None:
-            lng = self.context["request"].data.get("lng")
+            if hasattr(self, "initial_data") and isinstance(self.initial_data, dict):
+                lng = self.initial_data.get("lng")
+            if lng is None and hasattr(self, "context") and self.context.get("request"):
+                req_data = self.context["request"].data
+                if isinstance(req_data, dict):
+                    lng = req_data.get("lng")
 
         if lat is not None and lng is not None:
             if HAS_GIS and Point:
@@ -230,11 +252,11 @@ class CustomerSerializer(serializers.ModelSerializer):
 
         # Update custom prices if product_rates is provided
         product_rates_data = None
-        if hasattr(self, "initial_data") and "product_rates" in self.initial_data:
+        if hasattr(self, "initial_data") and isinstance(self.initial_data, dict) and "product_rates" in self.initial_data:
             product_rates_data = self.initial_data.get("product_rates")
         else:
             request = self.context.get("request")
-            if request and "product_rates" in request.data:
+            if request and isinstance(request.data, dict) and "product_rates" in request.data:
                 product_rates_data = request.data.get("product_rates")
 
         if product_rates_data and isinstance(product_rates_data, list):
