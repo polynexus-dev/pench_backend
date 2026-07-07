@@ -28,6 +28,7 @@ class OrderListSerializer(serializers.ModelSerializer):
     zone_name = serializers.CharField(source="customer.zone.name", read_only=True, default=None)
     is_new_customer = serializers.BooleanField(source="customer.is_new", read_only=True)
     item_count = serializers.IntegerField(read_only=True, default=0)
+    items = OrderItemSerializer(many=True, read_only=True)
 
     class Meta:
         model = Order
@@ -40,6 +41,7 @@ class OrderListSerializer(serializers.ModelSerializer):
             "status_display",
             "scheduled_delivery_date",
             "total",
+            "items",
             "delivery_address",
             "zone_name",
             "pod_image",
