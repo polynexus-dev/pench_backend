@@ -2,13 +2,30 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from .models import Subscription, SubscriptionSkipDate
-from .serializers import SubscriptionSerializer, SubscriptionSkipDateSerializer
+from .serializers import SubscriptionSerializer, SubscriptionListSerializer, SubscriptionSkipDateSerializer
 
 
 class SubscriptionViewSet(viewsets.ModelViewSet):
-    queryset = Subscription.objects.all().select_related("customer", "pause_updated_by").prefetch_related("items__product")
     serializer_class = SubscriptionSerializer
     filterset_fields = ["status", "frequency", "is_paused", "customer"]
+
+    def get_serializer_class(self):
+        if self.action == "list":
+            return SubscriptionListSerializer
+        return SubscriptionSerializer
+
+    def get_queryset(self):
+        from django.db.models import Count
+        if self.action == "list":
+            return (
+                Subscription.objects.select_related("customer")
+                .annotate(item_count=Count("items"))
+            )
+        return (
+            Subscription.objects.all()
+            .select_related("customer", "pause_updated_by")
+            .prefetch_related("items__product")
+        )
 
     @action(detail=False, methods=["get"], url_path="grouped-summary")
     def grouped_summary(self, request):

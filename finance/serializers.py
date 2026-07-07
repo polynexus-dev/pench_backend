@@ -46,3 +46,31 @@ class MonthlyBillSerializer(serializers.ModelSerializer):
             "invoice_number",
             "transactions",
         ]
+
+
+class MonthlyBillListSerializer(serializers.ModelSerializer):
+    """Lightweight serializer for MonthlyBill list views — no nested transactions."""
+    customer_name = serializers.CharField(source="customer.name", read_only=True)
+    status_display = serializers.CharField(source="get_status_display", read_only=True)
+    remaining_amount = serializers.DecimalField(
+        max_digits=12, decimal_places=2, read_only=True
+    )
+    transaction_count = serializers.IntegerField(read_only=True, default=0)
+
+    class Meta:
+        model = MonthlyBill
+        fields = [
+            "id",
+            "customer",
+            "customer_name",
+            "billing_month",
+            "total_amount",
+            "amount_paid",
+            "remaining_amount",
+            "status",
+            "status_display",
+            "due_date",
+            "invoice_number",
+            "transaction_count",
+        ]
+

@@ -19,6 +19,7 @@ from .serializers import (
     RawMaterialSerializer,
     StockSerializer,
     WarehouseSerializer,
+    WarehouseListSerializer,
     BottleTypeSerializer,
     BottleTransactionSerializer,
     CustomerBottleBalanceSerializer,
@@ -132,6 +133,11 @@ class WarehouseViewSet(viewsets.ModelViewSet):
     queryset = Warehouse.objects.all()
     serializer_class = WarehouseSerializer
     permission_classes = [IsERPUser]
+
+    def get_serializer_class(self):
+        if self.action == "list":
+            return WarehouseListSerializer
+        return WarehouseSerializer
 
     @action(detail=True, methods=["get"], url_path="forecast")
     def forecast(self, request, pk=None):

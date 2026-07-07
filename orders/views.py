@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from core.permissions import IsERPUser, HasGroupPermission
 from .models import Order, OrderStatus, Route
-from .serializers import OrderSerializer, RouteSerializer
+from .serializers import OrderSerializer, OrderListSerializer, RouteSerializer, RouteListSerializer
 from .services import create_optimized_route
 from orders.services.route_generator import (
     generate_daily_routes_for_date,
@@ -36,8 +36,24 @@ class OrderViewSet(viewsets.ModelViewSet):
         # Management actions require ERP permissions
         return [IsERPUser(), HasGroupPermission()]
 
+    def get_serializer_class(self):
+        if self.action == "list":
+            return OrderListSerializer
+        return OrderSerializer
+
     def get_queryset(self):
-        qs = super().get_queryset()
+        if self.action == "list":
+            from django.db.models import Count
+            qs = (
+                Order.objects.select_related("customer__zone")
+                .annotate(item_count=Count("items"))
+            )
+        else:
+            qs = (
+                Order.objects.select_related(
+                    "customer__zone__assigned_driver", "route_stop__route__driver"
+                ).prefetch_related("items__product")
+            )
         user = self.request.user
 
         # If user is ERP Admin/Manager, show all
@@ -728,6 +744,11 @@ class RouteViewSet(viewsets.ModelViewSet):
     required_groups = ["Logistics_Managers", "ERP_Admins"]
     filterset_fields = ["delivery_date", "is_completed"]
 
+    def get_serializer_class(self):
+        if self.action == "list":
+            return RouteListSerializer
+        return RouteSerializer
+
     def update(self, request, *args, **kwargs):
         is_completed = request.data.get("is_completed")
         status_val = request.data.get("status")
@@ -759,18 +780,26 @@ class RouteViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         from django.db.models import Count
 
-        queryset = (
-            Route.objects.annotate(stops_count=Count("stops"))
-            .filter(stops_count__gt=0)
-            .select_related("driver")
-            .prefetch_related(
-                "stops__order__customer__zone",
-                "stops__order__items__product__bottle_type",
-                "stops__order__subscription__items__product",
-                "stops__order__customer__subscriptions__items__product",
-                "additional_drivers"
+        if self.action == "list":
+            # Lightweight list query — no prefetch of nested stops/items
+            queryset = (
+                Route.objects.annotate(stops_count=Count("stops"))
+                .filter(stops_count__gt=0)
+                .select_related("driver")
             )
-        )
+        else:
+            queryset = (
+                Route.objects.annotate(stops_count=Count("stops"))
+                .filter(stops_count__gt=0)
+                .select_related("driver")
+                .prefetch_related(
+                    "stops__order__customer__zone",
+                    "stops__order__items__product__bottle_type",
+                    "stops__order__subscription__items__product",
+                    "stops__order__customer__subscriptions__items__product",
+                    "additional_drivers"
+                )
+            )
         driver_id = self.request.query_params.get("driver")
         if driver_id:
             from django.db.models import Q

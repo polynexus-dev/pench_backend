@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from core.permissions import HasGroupPermission
 from .models import Customer, Lead, HAS_GIS, _parse_coordinates, _point_in_polygon
-from .serializers import CustomerSerializer, LeadSerializer
+from .serializers import CustomerSerializer, CustomerListSerializer, LeadSerializer
 
 
 class CustomerViewSet(viewsets.ModelViewSet):
@@ -17,6 +17,47 @@ class CustomerViewSet(viewsets.ModelViewSet):
     search_fields = ["name", "company", "email", "phone"]
     ordering_fields = ["name", "created_at"]
     filterset_fields = ["is_active", "is_new", "trial_approved", "zone"]
+
+    def get_queryset(self):
+        if self.action == "list":
+            # Optimized subqueries for listings to avoid N+1 queries and memory inflation
+            from django.db.models import OuterRef, Subquery, IntegerField, DecimalField, Count, Sum, F
+            from django.db.models.functions import Coalesce
+            from subscriptions.models import Subscription, SubscriptionStatus
+            from finance.models import MonthlyBill, BillStatus
+            from orders.models import Order
+
+            active_subs_sub = Subscription.objects.filter(
+                customer=OuterRef("pk"),
+                status=SubscriptionStatus.ACTIVE
+            ).values("customer").annotate(count=Count("id")).values("count")
+
+            pending_balance_sub = MonthlyBill.objects.filter(
+                customer=OuterRef("pk")
+            ).exclude(status=BillStatus.CANCELLED).values("customer").annotate(
+                pending=Sum(F("total_amount") - F("amount_paid"))
+            ).values("pending")
+
+            total_orders_sub = Order.objects.filter(
+                customer=OuterRef("pk")
+            ).values("customer").annotate(count=Count("id")).values("count")
+
+            return (
+                Customer.objects.filter(is_active=True)
+                .select_related("zone")
+                .annotate(
+                    annotated_active_subs=Coalesce(Subquery(active_subs_sub, output_field=IntegerField()), 0),
+                    annotated_pending_balance=Coalesce(Subquery(pending_balance_sub, output_field=DecimalField(max_digits=10, decimal_places=2)), 0.0),
+                    annotated_total_orders=Coalesce(Subquery(total_orders_sub, output_field=IntegerField()), 0),
+                )
+            )
+
+        return super().get_queryset()
+
+    def get_serializer_class(self):
+        if self.action == "list":
+            return CustomerListSerializer
+        return CustomerSerializer
 
     def create(self, request, *args, **kwargs):
         """

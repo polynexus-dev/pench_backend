@@ -21,6 +21,38 @@ class OrderItemSerializer(serializers.ModelSerializer):
         ]
 
 
+class OrderListSerializer(serializers.ModelSerializer):
+    """Lightweight serializer for Order list views — no nested items, no method field queries."""
+    customer_name = serializers.CharField(source="customer.name", read_only=True)
+    status_display = serializers.CharField(source="get_status_display", read_only=True)
+    zone_name = serializers.CharField(source="customer.zone.name", read_only=True, default=None)
+    is_new_customer = serializers.BooleanField(source="customer.is_new", read_only=True)
+    item_count = serializers.IntegerField(read_only=True, default=0)
+
+    class Meta:
+        model = Order
+        fields = [
+            "id",
+            "customer",
+            "customer_name",
+            "subscription",
+            "status",
+            "status_display",
+            "scheduled_delivery_date",
+            "total",
+            "delivery_address",
+            "zone_name",
+            "pod_image",
+            "delivered_at",
+            "is_special",
+            "payment_method",
+            "amount_collected",
+            "payment_status",
+            "is_new_customer",
+            "item_count",
+        ]
+
+
 class OrderSerializer(serializers.ModelSerializer):
     customer_name = serializers.CharField(source="customer.name", read_only=True)
     items = OrderItemSerializer(many=True)
@@ -479,3 +511,29 @@ class RouteSerializer(serializers.ModelSerializer):
         except Exception:
             pass
         return total
+
+
+class RouteListSerializer(serializers.ModelSerializer):
+    """Lightweight serializer for Route list views — no nested stops/items."""
+    driver_name = serializers.CharField(source="driver.get_full_name", read_only=True)
+    route_id = serializers.CharField(source="id", read_only=True)
+    stops_count = serializers.IntegerField(read_only=True, default=0)
+
+    class Meta:
+        model = Route
+        fields = [
+            "id",
+            "route_id",
+            "name",
+            "driver",
+            "driver_name",
+            "delivery_date",
+            "status",
+            "is_locked",
+            "is_completed",
+            "stops_count",
+            "actual_distance_km",
+            "stoppage_duration_minutes",
+            "actual_duration_minutes",
+        ]
+

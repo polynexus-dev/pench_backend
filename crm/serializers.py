@@ -292,6 +292,61 @@ class CustomerSerializer(serializers.ModelSerializer):
         return updated_instance
 
 
+class CustomerListSerializer(serializers.ModelSerializer):
+    latitude = serializers.FloatField(required=False, allow_null=True)
+    longitude = serializers.FloatField(required=False, allow_null=True)
+    zone_name = serializers.CharField(source="zone.name", read_only=True)
+    dashboard = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Customer
+        fields = [
+            "id",
+            "name",
+            "company",
+            "email",
+            "phone",
+            "address",
+            "latitude",
+            "longitude",
+            "is_active",
+            "is_new",
+            "trial_approved",
+            "qr_code_id",
+            "created_at",
+            "zone",
+            "zone_name",
+            "dashboard",
+        ]
+        read_only_fields = ["id", "qr_code_id", "created_at"]
+
+    def get_dashboard(self, obj):
+        return {
+            "active_subscriptions": getattr(obj, "annotated_active_subs", 0),
+            "pending_balance": float(getattr(obj, "annotated_pending_balance", 0.0)),
+            "total_orders": getattr(obj, "annotated_total_orders", 0),
+        }
+
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        loc = instance.location
+
+        # Default to None
+        ret["latitude"] = None
+        ret["longitude"] = None
+
+        if loc:
+            # Case 1: GEOS Point object
+            if hasattr(loc, "x") and hasattr(loc, "y"):
+                ret["latitude"] = loc.y
+                ret["longitude"] = loc.x
+            # Case 2: Dictionary (JSONField fallback)
+            elif isinstance(loc, dict):
+                ret["latitude"] = loc.get("latitude") or loc.get("lat")
+                ret["longitude"] = loc.get("longitude") or loc.get("lng")
+        return ret
+
+
 class LeadSerializer(serializers.ModelSerializer):
     referred_by_name = serializers.CharField(source="referred_by.name", read_only=True)
 
