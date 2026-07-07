@@ -17,19 +17,15 @@ pipeline {
         stage('Build & Deploy Stack') {
             steps {
                 script {
-                    // Detect the branch and apply the correct Docker files
-                    if (env.BRANCH_NAME == 'development') {
-                        echo "🔨 Branch: development -> Building and Deploying Development Stack (Hot-Reloading)..."
-                        sh "docker compose -f docker-compose.yml build"
-                        sh "docker compose -f docker-compose.yml up -d"
-                    } else if (env.BRANCH_NAME == 'main' || env.BRANCH_NAME == 'master') {
-                        echo "🚀 Branch: main/master -> Building and Deploying Production Stack (Immutable)..."
-                        sh "docker compose -f docker-compose.prod.yml build"
-                        sh "docker compose -f docker-compose.prod.yml up -d"
+                    // Single production docker-compose configuration
+                    if (env.BRANCH_NAME == 'main' || env.BRANCH_NAME == 'master' || env.BRANCH_NAME == 'development') {
+                        echo "🚀 Building and Deploying Production Stack..."
+                        sh "docker compose build"
+                        sh "docker compose up -d"
                     } else {
-                        echo "⚠️ Branch: ${env.BRANCH_NAME} -> Unknown branch, building dev stack by default."
-                        sh "docker compose -f docker-compose.yml build"
-                        sh "docker compose -f docker-compose.yml up -d"
+                        echo "⚠️ Branch: ${env.BRANCH_NAME} -> building stack."
+                        sh "docker compose build"
+                        sh "docker compose up -d"
                     }
                 }
             }

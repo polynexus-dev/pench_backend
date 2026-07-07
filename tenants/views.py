@@ -152,3 +152,76 @@ class HolidayCalendarViewSet(viewsets.ModelViewSet):
             serializer.save(city=connection.tenant)
         else:
             serializer.save()
+
+
+from rest_framework.views import APIView
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.exceptions import PermissionDenied
+from django.db import connection, transaction
+from django_tenants.utils import schema_context
+from accounts.models import User
+
+
+class EraseAllDataView(APIView):
+    """
+    Temporary endpoint for SuperAdmin to erase all data except tenants (Cities/Domains) and superusers.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        # 1. Enforce superuser only
+        if not request.user.is_superuser:
+            raise PermissionDenied("Only superadmins are allowed to access this endpoint.")
+
+        logs = []
+
+        try:
+            # 2. Erase non-superuser accounts in the public schema
+            with transaction.atomic():
+                connection.set_schema_to_public()
+                non_superusers = User.objects.filter(is_superuser=False)
+                deleted_count, _ = non_superusers.delete()
+                logs.append(f"Deleted {deleted_count} non-superuser account(s) from public schema.")
+
+            # 3. Fetch all tenant cities (excluding public)
+            cities = City.objects.exclude(schema_name="public")
+
+            # 4. Clear data from all tenant schemas
+            for city in cities:
+                schema_name = city.schema_name
+                logs.append(f"Processing tenant schema: {schema_name}")
+                
+                with schema_context(schema_name):
+                    with connection.cursor() as cursor:
+                        # Fetch all tables in the current tenant schema
+                        cursor.execute("""
+                            SELECT table_name 
+                            FROM information_schema.tables 
+                            WHERE table_schema = %s 
+                            AND table_type = 'BASE TABLE'
+                            AND table_name NOT IN ('django_migrations', 'django_content_type', 'spatial_ref_sys')
+                        """, [schema_name])
+                        
+                        tables = [row[0] for row in cursor.fetchall()]
+                        
+                        if tables:
+                            # Truncate tables using CASCADE to handle foreign key dependencies cleanly
+                            quoted_tables = ", ".join([f'"{schema_name}"."{table}"' for table in tables])
+                            cursor.execute(f"TRUNCATE TABLE {quoted_tables} CASCADE;")
+                            logs.append(f"  Truncated {len(tables)} table(s) in schema {schema_name}.")
+                        else:
+                            logs.append(f"  No tables found to truncate in schema {schema_name}.")
+
+            return Response({
+                "status": "success",
+                "message": "All data except tenant configurations and superusers erased successfully.",
+                "logs": logs
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response({
+                "status": "error",
+                "message": f"An error occurred during data erasure: {str(e)}",
+                "logs": logs
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
