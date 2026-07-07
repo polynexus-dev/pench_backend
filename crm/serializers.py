@@ -15,6 +15,7 @@ class CustomerSerializer(serializers.ModelSerializer):
     dashboard = serializers.SerializerMethodField()
     product_rates = serializers.SerializerMethodField()
     zone_name = serializers.CharField(source="zone.name", read_only=True)
+    username = serializers.CharField(source="user.username", read_only=True, default=None)
     phone = serializers.CharField(
         required=True,
         validators=[UniqueValidator(queryset=Customer.objects.all(), message="A customer with this phone number already exists.")]
@@ -41,6 +42,7 @@ class CustomerSerializer(serializers.ModelSerializer):
             "product_rates",
             "zone",
             "zone_name",
+            "username",
         ]
         read_only_fields = ["id", "qr_code_id", "created_at"]
 
@@ -296,6 +298,7 @@ class CustomerListSerializer(serializers.ModelSerializer):
     latitude = serializers.FloatField(required=False, allow_null=True)
     longitude = serializers.FloatField(required=False, allow_null=True)
     zone_name = serializers.CharField(source="zone.name", read_only=True)
+    username = serializers.CharField(source="user.username", read_only=True, default=None)
     dashboard = serializers.SerializerMethodField()
 
     class Meta:
@@ -317,6 +320,7 @@ class CustomerListSerializer(serializers.ModelSerializer):
             "zone",
             "zone_name",
             "dashboard",
+            "username",
         ]
         read_only_fields = ["id", "qr_code_id", "created_at"]
 

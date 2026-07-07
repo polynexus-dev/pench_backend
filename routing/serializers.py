@@ -222,6 +222,7 @@ class DriverSerializer(serializers.ModelSerializer):
     full_name = serializers.SerializerMethodField()
     current_route = serializers.SerializerMethodField()
     warehouse_name = serializers.CharField(source="warehouse.name", read_only=True)
+    is_active = serializers.BooleanField(source="user.is_active", required=False)
 
     class Meta:
         model = Driver
@@ -238,7 +239,31 @@ class DriverSerializer(serializers.ModelSerializer):
             "current_route",
             "warehouse",
             "warehouse_name",
+            "is_active",
         ]
+
+    def update(self, instance, validated_data):
+        user_data = validated_data.pop("user", {})
+        is_active = user_data.get("is_active", None)
+
+        if is_active is not None:
+            user = instance.user
+            if user:
+                user.is_active = is_active
+                user.save(update_fields=["is_active"])
+
+                # Sync with Employee profile if exists
+                try:
+                    from hr.models import Employee
+                    employee = Employee.objects.filter(user=user).first()
+                    if employee:
+                        employee.is_active = is_active
+                        employee.save(update_fields=["is_active"])
+                except Exception:
+                    pass
+
+        return super().update(instance, validated_data)
+
 
     def get_full_name(self, obj):
         try:
