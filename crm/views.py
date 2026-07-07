@@ -41,54 +41,124 @@ class CustomerViewSet(viewsets.ModelViewSet):
                     detail = f"Database integrity error: {err_msg}"
                 return Response({"detail": detail}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Bulk creation payload validations
+        # Bulk creation payload validations - Skip duplicate records
         payload = request.data
-        emails = []
-        phones = []
-        for i, item in enumerate(payload):
-            if not isinstance(item, dict):
-                continue
-            email = item.get("email")
-            phone = item.get("phone")
-            
-            if email:
-                email_lower = email.strip().lower()
-                if email_lower in emails:
-                    return Response(
-                        {"detail": f"Duplicate email '{email}' found in the import sheet at row {i+1}."},
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
-                emails.append(email_lower)
-                
-            if phone:
-                phone_strip = phone.strip()
-                if phone_strip in phones:
-                    return Response(
-                        {"detail": f"Duplicate phone '{phone}' found in the import sheet at row {i+1}."},
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
-                phones.append(phone_strip)
-
-        serializer = self.get_serializer(data=payload, many=True)
-        serializer.is_valid(raise_exception=True)
+        valid_serializers = []
+        skipped_records = []
         
-        try:
-            with transaction.atomic():
-                self.perform_create(serializer)
-        except IntegrityError as e:
-            err_msg = str(e)
-            if "crm_customer_email_key" in err_msg or "email" in err_msg.lower():
-                detail = "One or more customers in the import sheet has an email that already exists in the database."
-            elif "crm_customer_phone_key" in err_msg or "phone" in err_msg.lower():
-                detail = "One or more customers in the import sheet has a phone number that already exists in the database."
-            else:
-                detail = f"Database integrity error during bulk import: {err_msg}"
-            return Response({"detail": detail}, status=status.HTTP_400_BAD_REQUEST)
+        seen_emails = set()
+        seen_phones = set()
+        
+        existing_phones = {p.strip() for p in Customer.objects.values_list("phone", flat=True) if p}
+        existing_emails = {e.strip().lower() for e in Customer.objects.exclude(email__isnull=True).exclude(email="").values_list("email", flat=True) if e}
+        
+        for i, item in enumerate(payload):
+            row_num = i + 1
+            if not isinstance(item, dict):
+                skipped_records.append({
+                    "row": row_num,
+                    "reason": "Invalid record format (expected JSON object)"
+                })
+                continue
+                
+            name = item.get("name", "")
+            phone = item.get("phone")
+            email = item.get("email")
             
-        headers = self.get_success_headers(serializer.data)
-        return Response(
-            serializer.data, status=status.HTTP_201_CREATED, headers=headers
-        )
+            # Clean inputs
+            email_clean = email.strip().lower() if email else None
+            phone_clean = phone.strip() if phone else None
+            
+            # Check phone uniqueness
+            if not phone_clean:
+                skipped_records.append({
+                    "row": row_num,
+                    "name": name,
+                    "phone": phone,
+                    "email": email,
+                    "reason": "Phone number is required"
+                })
+                continue
+                
+            if phone_clean in existing_phones:
+                skipped_records.append({
+                    "row": row_num,
+                    "name": name,
+                    "phone": phone,
+                    "email": email,
+                    "reason": f"Phone number '{phone}' already exists in database"
+                })
+                continue
+                
+            if phone_clean in seen_phones:
+                skipped_records.append({
+                    "row": row_num,
+                    "name": name,
+                    "phone": phone,
+                    "email": email,
+                    "reason": f"Duplicate phone number '{phone}' in the import sheet"
+                })
+                continue
+                
+            # Check email uniqueness
+            if email_clean:
+                if email_clean in existing_emails:
+                    skipped_records.append({
+                        "row": row_num,
+                        "name": name,
+                        "phone": phone,
+                        "email": email,
+                        "reason": f"Email '{email}' already exists in database"
+                    })
+                    continue
+                    
+                if email_clean in seen_emails:
+                    skipped_records.append({
+                        "row": row_num,
+                        "name": name,
+                        "phone": phone,
+                        "email": email,
+                        "reason": f"Duplicate email '{email}' in the import sheet"
+                    })
+                    continue
+            
+            # Run serializer validation
+            serializer = self.get_serializer(data=item)
+            if serializer.is_valid():
+                valid_serializers.append(serializer)
+                seen_phones.add(phone_clean)
+                if email_clean:
+                    seen_emails.add(email_clean)
+            else:
+                errors_str = "; ".join([f"{k}: {v[0] if isinstance(v, list) else v}" for k, v in serializer.errors.items()])
+                skipped_records.append({
+                    "row": row_num,
+                    "name": name,
+                    "phone": phone,
+                    "email": email,
+                    "reason": f"Validation errors: {errors_str}"
+                })
+
+        imported_records = []
+        if valid_serializers:
+            try:
+                with transaction.atomic():
+                    for s in valid_serializers:
+                        instance = s.save()
+                        imported_records.append(self.get_serializer(instance).data)
+            except IntegrityError as e:
+                # Fallback database constraint check
+                return Response(
+                    {"detail": f"Database integrity error during bulk import save: {str(e)}"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+                
+        return Response({
+            "imported_count": len(imported_records),
+            "skipped_count": len(skipped_records),
+            "imported": imported_records,
+            "skipped": skipped_records
+        }, status=status.HTTP_201_CREATED if imported_records else status.HTTP_200_OK)
 
     def perform_destroy(self, instance):
         user = instance.user
