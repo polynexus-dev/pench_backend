@@ -42,15 +42,35 @@ class RegisterView(generics.CreateAPIView):
     def create(self, request, *args, **kwargs):
         """
         Supports creating multiple user accounts in one request.
+
+        Each row is validated and created independently, so a duplicate
+        username/email or a bad row doesn't block the rest of the batch
+        from being created. Rows that fail validation (e.g. already exist)
+        are reported back in "skipped" instead of failing the whole request.
         """
         is_many = isinstance(request.data, list)
         if not is_many:
             return super().create(request, *args, **kwargs)
 
-        serializer = self.get_serializer(data=request.data, many=True)
-        serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        created = []
+        skipped = []
+        for index, item in enumerate(request.data):
+            serializer = self.get_serializer(data=item)
+            if serializer.is_valid():
+                self.perform_create(serializer)
+                created.append(serializer.data)
+            else:
+                skipped.append({"index": index, "errors": serializer.errors})
+
+        return Response(
+            {
+                "created": created,
+                "skipped": skipped,
+                "created_count": len(created),
+                "skipped_count": len(skipped),
+            },
+            status=status.HTTP_201_CREATED,
+        )
 
 
 class MeView(APIView):

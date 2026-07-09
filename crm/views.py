@@ -1772,6 +1772,107 @@ class CustomerViewSet(viewsets.ModelViewSet):
 
         return Response(CustomerSerializer(customer).data)
 
+    @action(detail=False, methods=["post"], url_path="bulk-approve")
+    def bulk_approve_trial(self, request):
+        """
+        Approves multiple new customers for trial deliveries in a single request.
+        Accepts:
+          - A list of customer UUIDs: `["uuid1", "uuid2"]`
+          - A dict wrapper: `{"ids": ["uuid1", "uuid2"]}` or `{"customer_ids": ["uuid1", "uuid2"]}`
+        """
+        import uuid
+        from django.db import transaction
+        from orders.models import Order, OrderStatus
+        from orders.services.route_generator import add_order_to_active_route_if_pending
+        from notifications.services import send_push_notification
+        import logging
+        logger = logging.getLogger(__name__)
+
+        data = request.data
+        customer_ids = None
+
+        if isinstance(data, list):
+            customer_ids = data
+        elif isinstance(data, dict):
+            customer_ids = data.get("ids") or data.get("customer_ids")
+
+        if not customer_ids or not isinstance(customer_ids, list):
+            return Response(
+                {
+                    "detail": "Expected a list of customer IDs, either as a flat JSON array or wrapped in 'ids' or 'customer_ids'."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Parse and validate UUIDs
+        cleaned_ids = []
+        for cid in customer_ids:
+            try:
+                cleaned_ids.append(uuid.UUID(str(cid)))
+            except (ValueError, TypeError):
+                continue
+
+        if not cleaned_ids:
+            return Response(
+                {"detail": "No valid UUIDs found in the provided list of customer IDs."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        customers_qs = Customer.objects.filter(id__in=cleaned_ids, is_new=True)
+        if not customers_qs.exists():
+            return Response(
+                {"detail": "No trial customers found matching the provided IDs."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        approved_count = 0
+        approved_customers = []
+
+        with transaction.atomic():
+            for customer in customers_qs:
+                customer.trial_approved = True
+                customer.save(update_fields=["trial_approved"])
+                approved_count += 1
+                approved_customers.append({
+                    "id": str(customer.id),
+                    "name": customer.name,
+                    "phone": customer.phone
+                })
+
+                # Automatically assign pending orders to active routes
+                try:
+                    pending_orders = Order.objects.filter(
+                        customer=customer,
+                        status__in=[OrderStatus.PENDING, OrderStatus.CONFIRMED]
+                    )
+                    for order in pending_orders:
+                        add_order_to_active_route_if_pending(order)
+                except Exception as e:
+                    logger.error(f"[Bulk Trial Approval Route Assignment Error] {e}")
+
+                # Send push notification
+                try:
+                    if customer.user:
+                        title = "🎉 Trial Approved!"
+                        body = "Congratulations! Your trial has been approved. You'll receive your demo product shortly! 🚚"
+                        send_push_notification(
+                            user=customer.user,
+                            title=title,
+                            body=body,
+                            notification_type="general"
+                        )
+                except Exception as e:
+                    logger.error(f"[Bulk Trial Approval Notification Error] {e}")
+
+        return Response(
+            {
+                "message": f"Successfully approved {approved_count} trial customers.",
+                "approved_customers": approved_customers
+            },
+            status=status.HTTP_200_OK
+        )
+
+
 
 class LeadViewSet(viewsets.ModelViewSet):
     queryset = Lead.objects.all()

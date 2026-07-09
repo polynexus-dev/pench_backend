@@ -47,6 +47,7 @@ class OrderViewSet(viewsets.ModelViewSet):
             qs = (
                 Order.objects.select_related("customer__zone")
                 .annotate(item_count=Count("items"))
+                .prefetch_related("items__product")
             )
         else:
             qs = (
