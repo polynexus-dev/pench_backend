@@ -7,7 +7,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = config("SECRET_KEY")
 DEBUG = config("DEBUG", default=False, cast=bool)
-ALLOWED_HOSTS = config("ALLOWED_HOSTS", default="").split(",")
+ALLOWED_HOSTS = [h.strip() for h in config("ALLOWED_HOSTS", default="").split(",") if h.strip()]
+# Default fallback domains for penchfoods
+for host in [".penchfoods.com", ".shop.penchfoods.com"]:
+    if host not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(host)
+
 if DEBUG:
     ALLOWED_HOSTS += [
         "localhost",
@@ -262,6 +267,7 @@ CORS_ALLOWED_ORIGINS = [
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https://[\w-]+\.pench\.polynexus\.in$",
     r"^https://pench\.polynexus\.in$",
+    r"^https?://([a-zA-Z0-9-]+\.)*penchfoods\.com$",
 ]
 CSRF_TRUSTED_ORIGINS = [
     o.strip()
@@ -273,6 +279,14 @@ if "https://pench.polynexus.in" not in CSRF_TRUSTED_ORIGINS:
     CSRF_TRUSTED_ORIGINS.append("https://pench.polynexus.in")
 if "https://*.pench.polynexus.in" not in CSRF_TRUSTED_ORIGINS:
     CSRF_TRUSTED_ORIGINS.append("https://*.pench.polynexus.in")
+if "https://shop.penchfoods.com" not in CSRF_TRUSTED_ORIGINS:
+    CSRF_TRUSTED_ORIGINS.append("https://shop.penchfoods.com")
+if "https://*.penchfoods.com" not in CSRF_TRUSTED_ORIGINS:
+    CSRF_TRUSTED_ORIGINS.append("https://*.penchfoods.com")
+if "http://shop.penchfoods.com" not in CSRF_TRUSTED_ORIGINS:
+    CSRF_TRUSTED_ORIGINS.append("http://shop.penchfoods.com")
+if "http://*.penchfoods.com" not in CSRF_TRUSTED_ORIGINS:
+    CSRF_TRUSTED_ORIGINS.append("http://*.penchfoods.com")
 
 # Security Settings
 SECURE_SSL_REDIRECT = config("SECURE_SSL_REDIRECT", default=False, cast=bool)
