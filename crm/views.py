@@ -247,8 +247,16 @@ class CustomerViewSet(viewsets.ModelViewSet):
         user = instance.user
         instance.delete()
         if user:
-            from django_tenants.utils import schema_context
-            with schema_context("public"):
+            has_other_roles = (
+                user.is_staff
+                or user.is_superuser
+                or user.is_erp_user
+                or getattr(user, "is_driver", False)
+            )
+            if has_other_roles:
+                user.is_customer = False
+                user.save(update_fields=["is_customer"])
+            else:
                 user.delete()
 
     @action(detail=False, methods=["patch", "put"])

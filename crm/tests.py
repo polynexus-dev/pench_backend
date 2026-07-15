@@ -616,6 +616,40 @@ class CustomerBulkDeleteTestCase(TenantTestCase):
         response = self.client.post(url, [str(uuid.uuid4())], format="json", HTTP_HOST="tenant.test.com")
         self.assertEqual(response.status_code, 404)
 
+    def test_single_delete_customer_success(self):
+        connection.set_tenant(self.tenant)
+        User = get_user_model()
+        user = User.objects.create_user(
+            username="single_del_user", email="single_u@example.com", phone="9000000035", is_customer=True, tenant_schema="test"
+        )
+        cust = Customer.objects.get(user=user)
+
+        url = f"/api/erp/customers/{cust.id}/"
+        response = self.client.delete(url, HTTP_HOST="tenant.test.com")
+        self.assertEqual(response.status_code, 204)
+
+        self.assertFalse(Customer.objects.filter(id=cust.id).exists())
+        self.assertFalse(User.objects.filter(id=user.id).exists())
+
+    def test_single_delete_customer_multi_role(self):
+        connection.set_tenant(self.tenant)
+        User = get_user_model()
+        user = User.objects.create_user(
+            username="multi_del_user", email="multi_u@example.com", phone="9000000036", is_customer=True, is_driver=True, tenant_schema="test"
+        )
+        cust = Customer.objects.get(user=user)
+
+        url = f"/api/erp/customers/{cust.id}/"
+        response = self.client.delete(url, HTTP_HOST="tenant.test.com")
+        self.assertEqual(response.status_code, 204)
+
+        self.assertFalse(Customer.objects.filter(id=cust.id).exists())
+        self.assertTrue(User.objects.filter(id=user.id).exists())
+        
+        user.refresh_from_db()
+        self.assertFalse(user.is_customer)
+        self.assertTrue(user.is_driver)
+
 
 class CustomerTrialTestCase(TenantTestCase):
     @classmethod
