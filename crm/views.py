@@ -1712,9 +1712,9 @@ class CustomerViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=["get"], url_path="new-customers")
     def new_customers(self, request):
         """
-        Endpoint to retrieve customers currently in trial mode (is_new=True).
+        Endpoint to retrieve customers currently in trial mode (is_new=True and trial_approved=False).
         """
-        queryset = self.get_queryset().filter(is_new=True)
+        queryset = self.get_queryset().filter(is_new=True, trial_approved=False)
         page = self.paginate_queryset(queryset)
         if page is not None:
             serializer = self.get_serializer(page, many=True)
@@ -1727,7 +1727,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
     def approve_trial(self, request, pk=None):
         """
         Approves a new customer for trial deliveries.
-        Sets trial_approved = True.
+        Sets trial_approved = True and creates a trial order.
         """
         customer = self.get_object()
         if not customer.is_new:
@@ -1736,12 +1736,87 @@ class CustomerViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        customer.trial_approved = True
-        customer.save(update_fields=["trial_approved"])
+        from django.db import transaction
+        from orders.models import Order, OrderItem, OrderStatus
+        from inventory.models import Product, CustomerProductPrice
+
+        product_id = request.data.get("product_id") or request.data.get("productId")
+        delivery_date = request.data.get("delivery_date") or request.data.get("deliveryDate") or request.data.get("scheduled_delivery_date") or request.data.get("scheduledDeliveryDate")
+        quantity = request.data.get("quantity", 1)
+
+        if not product_id:
+            return Response(
+                {"detail": "product_id is required to approve trial deliveries."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not delivery_date:
+            return Response(
+                {"detail": "delivery_date is required to approve trial deliveries."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            product = Product.objects.get(id=product_id)
+        except (Product.DoesNotExist, ValueError, TypeError):
+            return Response(
+                {"detail": f"Product with ID '{product_id}' not found."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Parse delivery date
+        import datetime
+        try:
+            if isinstance(delivery_date, str):
+                parsed_date = datetime.datetime.strptime(delivery_date, "%Y-%m-%d").date()
+            else:
+                parsed_date = delivery_date
+        except (ValueError, TypeError):
+            return Response(
+                {"detail": "Invalid delivery_date format. Expected YYYY-MM-DD."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            quantity = int(quantity)
+            if quantity <= 0:
+                raise ValueError()
+        except (ValueError, TypeError):
+            return Response(
+                {"detail": "Quantity must be a positive integer."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        with transaction.atomic():
+            customer.trial_approved = True
+            customer.save(update_fields=["trial_approved"])
+
+            unit_price = product.unit_price
+            custom_price_obj = CustomerProductPrice.objects.filter(
+                customer=customer, product=product
+            ).first()
+            if custom_price_obj:
+                unit_price = custom_price_obj.custom_price
+
+            delivery_address = customer.address or "Trial Address"
+
+            order = Order.objects.create(
+                customer=customer,
+                scheduled_delivery_date=parsed_date,
+                delivery_address=delivery_address,
+                status=OrderStatus.PENDING,
+                is_special=True,
+                total=unit_price * quantity,
+            )
+
+            OrderItem.objects.create(
+                order=order,
+                product=product,
+                quantity=quantity,
+                unit_price=unit_price,
+            )
 
         # Automatically assign any of this customer's pending/confirmed orders to active routes
         try:
-            from orders.models import Order, OrderStatus
             from orders.services.route_generator import add_order_to_active_route_if_pending
             pending_orders = Order.objects.filter(
                 customer=customer,
@@ -1778,11 +1853,12 @@ class CustomerViewSet(viewsets.ModelViewSet):
         Approves multiple new customers for trial deliveries in a single request.
         Accepts:
           - A list of customer UUIDs: `["uuid1", "uuid2"]`
-          - A dict wrapper: `{"ids": ["uuid1", "uuid2"]}` or `{"customer_ids": ["uuid1", "uuid2"]}`
+          - A dict wrapper: `{"ids": ["uuid1", "uuid2"], "product_id": "...", "delivery_date": "...", "quantity": 1}`
         """
         import uuid
         from django.db import transaction
-        from orders.models import Order, OrderStatus
+        from orders.models import Order, OrderItem, OrderStatus
+        from inventory.models import Product, CustomerProductPrice
         from orders.services.route_generator import add_order_to_active_route_if_pending
         from notifications.services import send_push_notification
         import logging
@@ -1790,17 +1866,65 @@ class CustomerViewSet(viewsets.ModelViewSet):
 
         data = request.data
         customer_ids = None
+        product_id = None
+        delivery_date = None
+        quantity = 1
 
         if isinstance(data, list):
             customer_ids = data
         elif isinstance(data, dict):
             customer_ids = data.get("ids") or data.get("customer_ids")
+            product_id = data.get("product_id") or data.get("productId")
+            delivery_date = data.get("delivery_date") or data.get("deliveryDate") or data.get("scheduled_delivery_date") or data.get("scheduledDeliveryDate")
+            quantity = data.get("quantity", 1)
 
         if not customer_ids or not isinstance(customer_ids, list):
             return Response(
                 {
                     "detail": "Expected a list of customer IDs, either as a flat JSON array or wrapped in 'ids' or 'customer_ids'."
                 },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not product_id:
+            return Response(
+                {"detail": "product_id is required to bulk approve trial deliveries."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not delivery_date:
+            return Response(
+                {"detail": "delivery_date is required to bulk approve trial deliveries."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            product = Product.objects.get(id=product_id)
+        except (Product.DoesNotExist, ValueError, TypeError):
+            return Response(
+                {"detail": f"Product with ID '{product_id}' not found."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Parse delivery date
+        import datetime
+        try:
+            if isinstance(delivery_date, str):
+                parsed_date = datetime.datetime.strptime(delivery_date, "%Y-%m-%d").date()
+            else:
+                parsed_date = delivery_date
+        except (ValueError, TypeError):
+            return Response(
+                {"detail": "Invalid delivery_date format. Expected YYYY-MM-DD."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            quantity = int(quantity)
+            if quantity <= 0:
+                raise ValueError()
+        except (ValueError, TypeError):
+            return Response(
+                {"detail": "Quantity must be a positive integer."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -1839,14 +1963,40 @@ class CustomerViewSet(viewsets.ModelViewSet):
                     "phone": customer.phone
                 })
 
+                # Create trial order
+                unit_price = product.unit_price
+                custom_price_obj = CustomerProductPrice.objects.filter(
+                    customer=customer, product=product
+                ).first()
+                if custom_price_obj:
+                    unit_price = custom_price_obj.custom_price
+
+                delivery_address = customer.address or "Trial Address"
+
+                order = Order.objects.create(
+                    customer=customer,
+                    scheduled_delivery_date=parsed_date,
+                    delivery_address=delivery_address,
+                    status=OrderStatus.PENDING,
+                    is_special=True,
+                    total=unit_price * quantity,
+                )
+
+                OrderItem.objects.create(
+                    order=order,
+                    product=product,
+                    quantity=quantity,
+                    unit_price=unit_price,
+                )
+
                 # Automatically assign pending orders to active routes
                 try:
                     pending_orders = Order.objects.filter(
                         customer=customer,
                         status__in=[OrderStatus.PENDING, OrderStatus.CONFIRMED]
                     )
-                    for order in pending_orders:
-                        add_order_to_active_route_if_pending(order)
+                    for order_item in pending_orders:
+                        add_order_to_active_route_if_pending(order_item)
                 except Exception as e:
                     logger.error(f"[Bulk Trial Approval Route Assignment Error] {e}")
 

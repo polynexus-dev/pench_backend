@@ -693,8 +693,13 @@ class CustomerTrialTestCase(TenantTestCase):
         self.assertNotIn("Subscribed Customer", names)
 
     def test_approve_trial_endpoint(self):
-        """Verify trial customer approval toggles trial_approved and triggers notification."""
+        """Verify trial customer approval toggles trial_approved, creates order, and triggers notification."""
         connection.set_tenant(self.tenant)
+        from inventory.models import Product
+        from orders.models import Order
+        
+        product = Product.objects.create(name="Cow Milk (1L)", sku="MILK-1L", unit_price=60.00, unit="liter")
+        
         cust = Customer.objects.create(
             name="Trial Customer 2",
             email="trial2@example.com",
@@ -704,12 +709,26 @@ class CustomerTrialTestCase(TenantTestCase):
         )
 
         url = f"/api/erp/customers/{cust.id}/approve/"
-        response = self.client.post(url, {}, HTTP_HOST="tenant.test.com")
+        response = self.client.post(
+            url,
+            {
+                "product_id": str(product.id),
+                "delivery_date": "2026-07-16",
+                "quantity": 2
+            },
+            HTTP_HOST="tenant.test.com"
+        )
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.data["trial_approved"])
 
         cust.refresh_from_db()
         self.assertTrue(cust.trial_approved)
+        
+        # Verify trial order was created correctly
+        order = Order.objects.filter(customer=cust).first()
+        self.assertIsNotNone(order)
+        self.assertTrue(order.is_special)
+        self.assertEqual(order.total, 120.00)
 
     def test_subscription_creation_clears_trial(self):
         """Verify creating an active subscription resets is_new and approves trial/delivery."""
@@ -825,9 +844,21 @@ class CustomerTrialTestCase(TenantTestCase):
             status="pending"
         )
 
+        # Create a product
+        from inventory.models import Product
+        product = Product.objects.create(name="Cow Milk (1L)", sku="MILK-1L", unit_price=60.00, unit="liter")
+
         # Trigger trial approval endpoint
         url = f"/api/erp/customers/{cust.id}/approve/"
-        response = self.client.post(url, {}, HTTP_HOST="tenant.test.com")
+        response = self.client.post(
+            url,
+            {
+                "product_id": str(product.id),
+                "delivery_date": str(today),
+                "quantity": 1
+            },
+            HTTP_HOST="tenant.test.com"
+        )
         self.assertEqual(response.status_code, 200)
 
         # Verify order is now assigned to the route
