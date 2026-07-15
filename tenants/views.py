@@ -2,11 +2,15 @@ from rest_framework import viewsets, status
 from rest_framework.response import Response
 from .models import Company, City, HolidayCalendar, Domain
 from .serializers import CompanySerializer, CitySerializer, HolidayCalendarSerializer
-
-
 class CityViewSet(viewsets.ModelViewSet):
     queryset = City.objects.select_related("company").exclude(schema_name="public")
     serializer_class = CitySerializer
+
+    def get_permissions(self):
+        from rest_framework.permissions import AllowAny, IsAuthenticated
+        if self.action in ["list", "retrieve"]:
+            return [AllowAny()]
+        return [IsAuthenticated()]
 
     def get_queryset(self):
         queryset = self.queryset
@@ -121,8 +125,6 @@ class CityViewSet(viewsets.ModelViewSet):
         provision_city_schema_task.delay(str(city.id))
 
         return city
-
-
 class CompanyViewSet(viewsets.ModelViewSet):
     """
     Public schema endpoint to fetch Companies and their associated Cities.
@@ -131,6 +133,12 @@ class CompanyViewSet(viewsets.ModelViewSet):
 
     queryset = Company.objects.prefetch_related("cities").filter(is_active=True)
     serializer_class = CompanySerializer
+
+    def get_permissions(self):
+        from rest_framework.permissions import AllowAny, IsAuthenticated
+        if self.action in ["list", "retrieve"]:
+            return [AllowAny()]
+        return [IsAuthenticated()]
 
 
 class HolidayCalendarViewSet(viewsets.ModelViewSet):
