@@ -220,6 +220,9 @@ class ZoneSerializer(serializers.ModelSerializer):
 
 class DriverSerializer(serializers.ModelSerializer):
     full_name = serializers.SerializerMethodField()
+    username = serializers.SerializerMethodField()
+    password = serializers.SerializerMethodField()
+    phone = serializers.SerializerMethodField()
     current_route = serializers.SerializerMethodField()
     warehouse_name = serializers.CharField(source="warehouse.name", read_only=True)
     is_active = serializers.BooleanField(source="user.is_active", required=False)
@@ -230,6 +233,9 @@ class DriverSerializer(serializers.ModelSerializer):
             "id",
             "user",
             "full_name",
+            "username",
+            "password",
+            "phone",
             "vehicle_plate",
             "vehicle_type",
             "max_capacity_kg",
@@ -241,6 +247,15 @@ class DriverSerializer(serializers.ModelSerializer):
             "warehouse_name",
             "is_active",
         ]
+
+    def get_username(self, obj):
+        return obj.user.username if obj and obj.user else ""
+
+    def get_password(self, obj):
+        return obj.user.password if obj and obj.user else ""
+
+    def get_phone(self, obj):
+        return obj.user.phone if obj and obj.user else ""
 
     def update(self, instance, validated_data):
         user_data = validated_data.pop("user", {})
