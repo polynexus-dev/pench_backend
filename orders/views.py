@@ -781,26 +781,18 @@ class RouteViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         from django.db.models import Count
 
-        if self.action == "list":
-            # Lightweight list query — no prefetch of nested stops/items
-            queryset = (
-                Route.objects.annotate(stops_count=Count("stops"))
-                .filter(stops_count__gt=0)
-                .select_related("driver")
+        queryset = (
+            Route.objects.annotate(stops_count=Count("stops"))
+            .filter(stops_count__gt=0)
+            .select_related("driver")
+            .prefetch_related(
+                "stops__order__customer__zone",
+                "stops__order__items__product__bottle_type",
+                "stops__order__subscription__items__product",
+                "stops__order__customer__subscriptions__items__product",
+                "additional_drivers"
             )
-        else:
-            queryset = (
-                Route.objects.annotate(stops_count=Count("stops"))
-                .filter(stops_count__gt=0)
-                .select_related("driver")
-                .prefetch_related(
-                    "stops__order__customer__zone",
-                    "stops__order__items__product__bottle_type",
-                    "stops__order__subscription__items__product",
-                    "stops__order__customer__subscriptions__items__product",
-                    "additional_drivers"
-                )
-            )
+        )
         driver_id = self.request.query_params.get("driver")
         if driver_id:
             from django.db.models import Q
