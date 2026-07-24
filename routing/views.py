@@ -2,7 +2,8 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from core.permissions import IsDriverOrReadOnly, IsERPUser
+from rest_framework.parsers import MultiPartParser
+from core.permissions import IsDriverOrReadOnly, IsERPUser, HasGroupPermission
 from .models import Route, Driver, TrackingEvent, DailyReconciliation, Zone
 from .serializers import (
     RouteSerializer,
@@ -224,6 +225,9 @@ class DailyReconciliationViewSet(viewsets.ModelViewSet):
 class ZoneViewSet(viewsets.ModelViewSet):
     serializer_class = ZoneSerializer
     permission_classes = [IsAuthenticated]
+    # Default for HasGroupPermission; only actually enforced on actions whose
+    # permission_classes include HasGroupPermission (see generate_from_excel below).
+    required_groups = []
     filterset_fields = ["is_active", "assigned_driver"]
 
     def get_queryset(self):
@@ -231,3 +235,191 @@ class ZoneViewSet(viewsets.ModelViewSet):
         if connection.schema_name == "public":
             return Zone.objects.none()
         return Zone.objects.select_related("assigned_driver")
+
+    @action(
+        detail=False,
+        methods=["post"],
+        url_path="generate-from-excel",
+        permission_classes=[IsAuthenticated, HasGroupPermission],
+        required_groups=["ERP_Admins"],
+        parser_classes=[MultiPartParser],
+    )
+    def generate_from_excel(self, request):
+        """
+        Accepts an Excel file of customers + their assigned driver/rider, and
+        regenerates one non-overlapping Voronoi zone per driver from their
+        customers' locations. Safe to re-run: existing zones are updated in place.
+        """
+        import uuid
+        from django.db import connection, transaction
+        from crm.models import Customer, HAS_GIS as CRM_HAS_GIS, _parse_coordinates
+        from .services.excel_import import parse_customer_excel
+        from .services.zone_generation import generate_voronoi_zones
+
+        upload = request.FILES.get("file")
+        if not upload:
+            return Response(
+                {"detail": "No file uploaded. Send it as multipart form field 'file'."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            parsed = parse_customer_excel(upload)
+        except ValueError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        rows = parsed["rows"]
+        skipped = list(parsed["skipped"])
+        if not rows:
+            return Response(
+                {"detail": "No usable rows found in the sheet.", "skipped": skipped},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # --- Resolve each row's driver identifier to a routing.Driver, by phone then name ---
+        drivers = list(Driver.objects.select_related("user"))
+        phone_to_driver = {}
+        name_to_driver = {}
+        for d in drivers:
+            if d.user:
+                if d.user.phone:
+                    phone_to_driver[d.user.phone.strip()] = d
+                full_name = (d.user.get_full_name() or "").strip().lower()
+                if full_name:
+                    name_to_driver.setdefault(full_name, d)
+
+        def resolve_driver(row):
+            if row["driver_phone"] and row["driver_phone"] in phone_to_driver:
+                return phone_to_driver[row["driver_phone"]]
+            if row["driver_name"]:
+                return name_to_driver.get(row["driver_name"].strip().lower())
+            return None
+
+        resolved_rows = []  # (row, driver)
+        for row in rows:
+            driver = resolve_driver(row)
+            if driver is None:
+                identifier = row["driver_phone"] or row["driver_name"]
+                skipped.append(
+                    {
+                        "row_num": row["row_num"],
+                        "reason": f"No matching driver found for '{identifier}'.",
+                    }
+                )
+                continue
+            resolved_rows.append((row, driver))
+
+        distinct_driver_ids = {driver.id for _, driver in resolved_rows}
+        if len(distinct_driver_ids) < 2:
+            return Response(
+                {
+                    "detail": (
+                        "Need customers mapped to at least 2 different drivers to generate a "
+                        "Voronoi partition. Only matched: "
+                        f"{len(distinct_driver_ids)}."
+                    ),
+                    "skipped": skipped,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        Point = None
+        if CRM_HAS_GIS:
+            from django.contrib.gis.geos import Point
+
+        try:
+            with transaction.atomic():
+                # --- Add new customers only; existing ones (matched by phone/email) are left untouched ---
+                all_customers = list(Customer.objects.all())
+                existing_by_phone = {c.phone: c for c in all_customers if c.phone}
+                existing_by_email = {c.email.lower(): c for c in all_customers if c.email}
+
+                created_count = 0
+                skipped_existing_count = 0
+                driver_points = {}
+                driver_by_id = {}
+
+                for row, driver in resolved_rows:
+                    customer = None
+                    if row["phone"] and row["phone"] in existing_by_phone:
+                        customer = existing_by_phone[row["phone"]]
+                    elif row["email"] and row["email"].lower() in existing_by_email:
+                        customer = existing_by_email[row["email"].lower()]
+
+                    if customer:
+                        # Already exists — skip it entirely, use its own stored location (if any)
+                        # for the Voronoi calculation instead of overwriting it with the row's.
+                        skipped_existing_count += 1
+                        point = _parse_coordinates(customer.location) or (row["lon"], row["lat"])
+                    else:
+                        location = (
+                            Point(row["lon"], row["lat"])
+                            if CRM_HAS_GIS
+                            else {"lat": row["lat"], "lng": row["lon"]}
+                        )
+                        phone = row["phone"] or f"IMPORT-{uuid.uuid4().hex[:10]}"
+                        email = row["email"] if row["email"] not in existing_by_email else None
+                        customer = Customer.objects.create(
+                            name=row["name"],
+                            phone=phone,
+                            email=email,
+                            address=row["address"],
+                            location=location,
+                        )
+                        existing_by_phone[customer.phone] = customer
+                        if customer.email:
+                            existing_by_email[customer.email.lower()] = customer
+                        created_count += 1
+                        point = (row["lon"], row["lat"])
+
+                    driver_points.setdefault(driver.id, []).append(point)
+                    driver_by_id[driver.id] = driver
+
+                # --- Generate the Voronoi partition, clipped to the city boundary ---
+                city = connection.tenant
+                clip_boundary = getattr(city, "boundary", None)
+                result = generate_voronoi_zones(
+                    driver_points, clip_boundary=clip_boundary, has_gis=CRM_HAS_GIS
+                )
+
+                # --- Create/update one zone per driver ---
+                zones_created = 0
+                zones_updated = 0
+                for driver_id, geometry in result["zones"].items():
+                    driver = driver_by_id[driver_id]
+                    user = driver.user
+                    zone = Zone.objects.filter(assigned_driver=user).first()
+                    is_new = zone is None
+                    if is_new:
+                        zone = Zone(
+                            assigned_driver=user,
+                            name=f"{user.get_full_name() or user.username}'s Zone",
+                        )
+                    zone.boundary = geometry
+                    zone.is_active = True
+                    zone.save()
+
+                    if driver.zone_id != zone.id:
+                        driver.zone = zone
+                        driver.save(update_fields=["zone"])
+
+                    if is_new:
+                        zones_created += 1
+                    else:
+                        zones_updated += 1
+        except ValueError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(
+            {
+                "message": "Zones generated successfully.",
+                "customers_created": created_count,
+                "customers_skipped_existing": skipped_existing_count,
+                "zones_created": zones_created,
+                "zones_updated": zones_updated,
+                "drivers_matched": len(distinct_driver_ids),
+                "warnings": result["warnings"],
+                "skipped": skipped,
+            },
+            status=status.HTTP_200_OK,
+        )

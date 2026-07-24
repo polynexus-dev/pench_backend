@@ -2946,6 +2946,41 @@
                             }
                         },
                         {
+                            "name": "POST Generate Zones From Excel",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{city_url}}/api/ems/zones/generate-from-excel/",
+                                    "host": [
+                                        "{{city_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "ems",
+                                        "zones",
+                                        "generate-from-excel",
+                                        ""
+                                    ]
+                                },
+                                "body": {
+                                    "mode": "formdata",
+                                    "formdata": [
+                                        {
+                                            "key": "file",
+                                            "type": "file",
+                                            "description": "Excel (.xlsx) with customer name/phone/email/address/lat/lon columns plus a driver/rider column. Generates one non-overlapping Voronoi zone per driver from their customers' locations, clipped to the city boundary. Existing customers (matched by phone/email) are left untouched; only new ones are created. Safe to re-run \u2014 existing zones are updated in place instead of duplicated. Requires the ERP_Admins group."
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        {
                             "name": "GET Single Zone",
                             "request": {
                                 "method": "GET",

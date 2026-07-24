@@ -641,3 +641,207 @@ class TestDriverRouteAutoRefresh(TenantTestCase):
         # Check response still has only 1 stop
         self.assertEqual(len(response.data["stops"]), 1)
         self.assertEqual(self.route.stops.count(), 1)
+
+
+class TestZoneGenerationFromExcel(TenantTestCase):
+    """End-to-end tests for POST /api/ems/zones/generate-from-excel/."""
+
+    @classmethod
+    def setup_tenant(cls, tenant):
+        tenant.name = "Test City"
+        tenant.state = "Test State"
+        tenant.code = "TST"
+        tenant.create_schema(sync_schema=True)
+
+    def setUp(self):
+        super().setUp()
+        from django.contrib.auth import get_user_model
+        from django.contrib.auth.models import Group
+        from routing.models import Driver
+        from rest_framework.test import APIClient
+
+        User = get_user_model()
+
+        self.admin_user = User.objects.create_user(
+            username="zone_admin",
+            email="zone_admin@example.com",
+            password="testpassword",
+            tenant_schema="test",
+        )
+        erp_admins_group, _ = Group.objects.get_or_create(name="ERP_Admins")
+        self.admin_user.groups.add(erp_admins_group)
+
+        self.driver_user_a = User.objects.create_user(
+            username="driver_a",
+            email="driver_a@example.com",
+            phone="9990000001",
+            first_name="Driver",
+            last_name="A",
+            is_driver=True,
+            tenant_schema="test",
+        )
+        self.driver_user_b = User.objects.create_user(
+            username="driver_b",
+            email="driver_b@example.com",
+            phone="9990000002",
+            first_name="Driver",
+            last_name="B",
+            is_driver=True,
+            tenant_schema="test",
+        )
+        self.driver_a, _ = Driver.objects.get_or_create(
+            user=self.driver_user_a, defaults={"vehicle_plate": "A-1"}
+        )
+        self.driver_b, _ = Driver.objects.get_or_create(
+            user=self.driver_user_b, defaults={"vehicle_plate": "B-1"}
+        )
+
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.admin_user)
+
+    def _build_workbook(self, rows):
+        import openpyxl
+        from io import BytesIO
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.append(["Name", "Phone", "Latitude", "Longitude", "Driver Phone"])
+        for row in rows:
+            ws.append(row)
+        buf = BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+        return SimpleUploadedFile(
+            "customers.xlsx",
+            buf.read(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+
+    def test_generates_one_non_overlapping_zone_per_driver(self):
+        from routing.models import Zone
+        from crm.models import Customer
+
+        # Two well-separated clusters, one per driver.
+        rows = [
+            ["Cust A1", "8880000001", 21.00, 79.00, "9990000001"],
+            ["Cust A2", "8880000002", 21.01, 79.01, "9990000001"],
+            ["Cust A3", "8880000003", 21.02, 79.00, "9990000001"],
+            ["Cust B1", "8880000004", 21.50, 79.00, "9990000002"],
+            ["Cust B2", "8880000005", 21.51, 79.01, "9990000002"],
+            ["Cust B3", "8880000006", 21.52, 79.00, "9990000002"],
+        ]
+        upload = self._build_workbook(rows)
+
+        url = "/api/ems/zones/generate-from-excel/"
+        response = self.client.post(
+            url, {"file": upload}, format="multipart", HTTP_HOST="tenant.test.com"
+        )
+
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["customers_created"], 6)
+        self.assertEqual(response.data["zones_created"], 2)
+        self.assertEqual(response.data["drivers_matched"], 2)
+        self.assertEqual(response.data["warnings"], [])
+
+        self.driver_a.refresh_from_db()
+        self.driver_b.refresh_from_db()
+        self.assertIsNotNone(self.driver_a.zone_id)
+        self.assertIsNotNone(self.driver_b.zone_id)
+        self.assertNotEqual(self.driver_a.zone_id, self.driver_b.zone_id)
+
+        zone_a = Zone.objects.get(assigned_driver=self.driver_user_a)
+        zone_b = Zone.objects.get(assigned_driver=self.driver_user_b)
+        self.assertIsNotNone(zone_a.boundary)
+        self.assertIsNotNone(zone_b.boundary)
+
+        # Zones must tile the area: no overlap between the two.
+        overlap = zone_a.boundary.intersection(zone_b.boundary)
+        self.assertAlmostEqual(overlap.area, 0.0, places=9)
+
+        # Every customer should have been auto-assigned to its driver's zone
+        # by the existing Zone post_save signal.
+        for phone in ("8880000001", "8880000002", "8880000003"):
+            self.assertEqual(Customer.objects.get(phone=phone).zone_id, zone_a.id)
+        for phone in ("8880000004", "8880000005", "8880000006"):
+            self.assertEqual(Customer.objects.get(phone=phone).zone_id, zone_b.id)
+
+    def test_skips_existing_customers_without_modifying_them(self):
+        from crm.models import Customer
+        from django.conf import settings
+
+        HAS_GIS = getattr(settings, "HAS_GDAL", False)
+        if HAS_GIS:
+            from django.contrib.gis.geos import Point
+
+            original_loc = Point(79.00, 21.00)
+        else:
+            original_loc = {"lat": 21.00, "lng": 79.00}
+
+        existing = Customer.objects.create(
+            name="Original Name",
+            phone="8880000001",
+            address="Original Address",
+            location=original_loc,
+        )
+
+        rows = [
+            # Same phone as `existing`, but different name/address/coords in the sheet.
+            ["Renamed In Sheet", "8880000001", 25.00, 85.00, "9990000001"],
+            ["Cust A2", "8880000002", 21.01, 79.01, "9990000001"],
+            ["Cust B1", "8880000004", 21.50, 79.00, "9990000002"],
+        ]
+        upload = self._build_workbook(rows)
+
+        url = "/api/ems/zones/generate-from-excel/"
+        response = self.client.post(
+            url, {"file": upload}, format="multipart", HTTP_HOST="tenant.test.com"
+        )
+
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["customers_created"], 2)
+        self.assertEqual(response.data["customers_skipped_existing"], 1)
+
+        existing.refresh_from_db()
+        self.assertEqual(existing.name, "Original Name")
+        self.assertEqual(existing.address, "Original Address")
+
+        self.assertTrue(Customer.objects.filter(phone="8880000002").exists())
+        self.assertTrue(Customer.objects.filter(phone="8880000004").exists())
+
+    def test_rejects_upload_with_fewer_than_two_drivers(self):
+        rows = [
+            ["Cust A1", "8880000001", 21.00, 79.00, "9990000001"],
+            ["Cust A2", "8880000002", 21.01, 79.01, "9990000001"],
+        ]
+        upload = self._build_workbook(rows)
+
+        url = "/api/ems/zones/generate-from-excel/"
+        response = self.client.post(
+            url, {"file": upload}, format="multipart", HTTP_HOST="tenant.test.com"
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_rerun_updates_existing_zones_instead_of_duplicating(self):
+        from routing.models import Zone
+
+        rows = [
+            ["Cust A1", "8880000001", 21.00, 79.00, "9990000001"],
+            ["Cust B1", "8880000004", 21.50, 79.00, "9990000002"],
+        ]
+        url = "/api/ems/zones/generate-from-excel/"
+
+        first = self.client.post(
+            url, {"file": self._build_workbook(rows)}, format="multipart", HTTP_HOST="tenant.test.com"
+        )
+        self.assertEqual(first.status_code, 200, first.data)
+        self.assertEqual(first.data["zones_created"], 2)
+
+        second = self.client.post(
+            url, {"file": self._build_workbook(rows)}, format="multipart", HTTP_HOST="tenant.test.com"
+        )
+        self.assertEqual(second.status_code, 200, second.data)
+        self.assertEqual(second.data["zones_created"], 0)
+        self.assertEqual(second.data["zones_updated"], 2)
+        self.assertEqual(Zone.objects.count(), 2)
