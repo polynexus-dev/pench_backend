@@ -516,10 +516,21 @@ class RouteSerializer(serializers.ModelSerializer):
 
 
 class RouteListSerializer(serializers.ModelSerializer):
-    """Lightweight serializer for Route list views — no nested stops/items."""
+    """Lightweight serializer for Route list views — includes stops_count, total_stops, and dummy stops array for frontend compatibility."""
     driver_name = serializers.CharField(source="driver.get_full_name", read_only=True)
     route_id = serializers.CharField(source="id", read_only=True)
     stops_count = serializers.IntegerField(read_only=True, default=0)
+    total_stops = serializers.IntegerField(source="stops_count", read_only=True, default=0)
+    stops = serializers.SerializerMethodField()
+
+    def get_stops(self, obj):
+        count = getattr(obj, "stops_count", None)
+        if count is None:
+            try:
+                count = obj.stops.count()
+            except Exception:
+                count = 0
+        return [{}] * count
 
     class Meta:
         model = Route
@@ -534,8 +545,11 @@ class RouteListSerializer(serializers.ModelSerializer):
             "is_locked",
             "is_completed",
             "stops_count",
+            "total_stops",
+            "stops",
             "actual_distance_km",
             "stoppage_duration_minutes",
             "actual_duration_minutes",
         ]
+
 
