@@ -536,12 +536,23 @@ class RouteSerializer(serializers.ModelSerializer):
 
 
 class RouteListSerializer(serializers.ModelSerializer):
-    """Serializer for Route list views — includes full stops array so route cards and customer lists render seamlessly."""
+    """Serializer for Route list views — includes full stops array, bottle counts, and additional drivers."""
     driver_name = serializers.CharField(source="driver.get_full_name", read_only=True)
     route_id = serializers.CharField(source="id", read_only=True)
     stops_count = serializers.IntegerField(read_only=True, default=0)
     total_stops = serializers.IntegerField(source="stops_count", read_only=True, default=0)
     stops = RouteStopSerializer(many=True, read_only=True)
+    dispatch_bottles_1L = serializers.SerializerMethodField()
+    dispatch_bottles_500ml = serializers.SerializerMethodField()
+    additional_driver_names = serializers.SerializerMethodField()
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from accounts.models import User
+
+        self.fields["additional_drivers"] = serializers.PrimaryKeyRelatedField(
+            many=True, queryset=User.objects.all(), required=False
+        )
 
     class Meta:
         model = Route
@@ -558,9 +569,41 @@ class RouteListSerializer(serializers.ModelSerializer):
             "stops_count",
             "total_stops",
             "stops",
+            "dispatch_bottles_1L",
+            "dispatch_bottles_500ml",
+            "additional_drivers",
+            "additional_driver_names",
             "actual_distance_km",
             "stoppage_duration_minutes",
             "actual_duration_minutes",
         ]
 
+    def get_dispatch_bottles_1L(self, obj):
+        total = 0
+        try:
+            for stop in obj.stops.all():
+                for item in stop.order.items.all():
+                    product = item.product
+                    if product.bottle_type and product.bottle_type.volume_ml == 1000:
+                        total += item.quantity
+        except Exception:
+            pass
+        return total
+
+    def get_dispatch_bottles_500ml(self, obj):
+        total = 0
+        try:
+            for stop in obj.stops.all():
+                for item in stop.order.items.all():
+                    product = item.product
+                    if product.bottle_type and product.bottle_type.volume_ml == 500:
+                        total += item.quantity
+        except Exception:
+            pass
+        return total
+
+    def get_additional_driver_names(self, obj):
+        return [
+            drv.get_full_name() or drv.username for drv in obj.additional_drivers.all()
+        ]
 
