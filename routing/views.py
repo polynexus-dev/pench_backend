@@ -19,11 +19,11 @@ from .tasks import optimize_route_task
 class RouteViewSet(viewsets.ModelViewSet):
     serializer_class = RouteSerializer
     permission_classes = [IsAuthenticated]
-    filterset_fields = ["status"]
-    ordering_fields = ["created_at"]
+    filterset_fields = ["status", "delivery_date", "warehouse"]
+    ordering_fields = ["created_at", "delivery_date"]
 
     def get_queryset(self):
-        queryset = Route.objects.select_related("driver__user").prefetch_related(
+        queryset = Route.objects.select_related("driver__user", "warehouse").prefetch_related(
             "orders__items__product__bottle_type",
             "additional_drivers__user"
         )
@@ -34,6 +34,15 @@ class RouteViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(
                 Q(driver_id=driver_id) | Q(additional_drivers__id=driver_id)
             ).distinct()
+
+        date_val = self.request.query_params.get("delivery_date") or self.request.query_params.get("date")
+        if date_val:
+            queryset = queryset.filter(delivery_date=date_val)
+
+        warehouse_id = self.request.query_params.get("warehouse")
+        if warehouse_id:
+            queryset = queryset.filter(warehouse_id=warehouse_id)
+
         return queryset
 
     def perform_create(self, serializer):

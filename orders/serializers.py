@@ -578,6 +578,10 @@ class RouteListSerializer(serializers.ModelSerializer):
     stops = RouteStopSerializer(many=True, read_only=True)
     dispatch_bottles_1L = serializers.SerializerMethodField()
     dispatch_bottles_500ml = serializers.SerializerMethodField()
+    empty_bottles_to_pick_1L = serializers.SerializerMethodField()
+    empty_bottles_to_pick_500ml = serializers.SerializerMethodField()
+    returned_bottles_1L = serializers.SerializerMethodField()
+    returned_bottles_500ml = serializers.SerializerMethodField()
     additional_driver_names = serializers.SerializerMethodField()
 
     def __init__(self, *args, **kwargs):
@@ -605,6 +609,10 @@ class RouteListSerializer(serializers.ModelSerializer):
             "stops",
             "dispatch_bottles_1L",
             "dispatch_bottles_500ml",
+            "empty_bottles_to_pick_1L",
+            "empty_bottles_to_pick_500ml",
+            "returned_bottles_1L",
+            "returned_bottles_500ml",
             "additional_drivers",
             "additional_driver_names",
             "actual_distance_km",
@@ -632,6 +640,64 @@ class RouteListSerializer(serializers.ModelSerializer):
                     product = item.product
                     if product.bottle_type and product.bottle_type.volume_ml == 500:
                         total += item.quantity
+        except Exception:
+            pass
+        return total
+
+    def get_empty_bottles_to_pick_1L(self, obj):
+        total = 0
+        try:
+            for stop in obj.stops.all():
+                cust = stop.order.customer
+                if cust:
+                    b = cust.bottle_balances.filter(bottle_type__volume_ml=1000).first()
+                    if b:
+                        total += b.balance
+        except Exception:
+            pass
+        return total
+
+    def get_empty_bottles_to_pick_500ml(self, obj):
+        total = 0
+        try:
+            for stop in obj.stops.all():
+                cust = stop.order.customer
+                if cust:
+                    b = cust.bottle_balances.filter(bottle_type__volume_ml=500).first()
+                    if b:
+                        total += b.balance
+        except Exception:
+            pass
+        return total
+
+    def get_returned_bottles_1L(self, obj):
+        total = 0
+        try:
+            from inventory.models import BottleTransaction, BottleTransactionType
+            order_ids = [stop.order.id for stop in obj.stops.all() if stop.order]
+            if order_ids:
+                txs = BottleTransaction.objects.filter(
+                    order_id__in=order_ids,
+                    transaction_type=BottleTransactionType.RETURNED,
+                    bottle_type__volume_ml=1000,
+                )
+                total = sum(t.quantity for t in txs)
+        except Exception:
+            pass
+        return total
+
+    def get_returned_bottles_500ml(self, obj):
+        total = 0
+        try:
+            from inventory.models import BottleTransaction, BottleTransactionType
+            order_ids = [stop.order.id for stop in obj.stops.all() if stop.order]
+            if order_ids:
+                txs = BottleTransaction.objects.filter(
+                    order_id__in=order_ids,
+                    transaction_type=BottleTransactionType.RETURNED,
+                    bottle_type__volume_ml=500,
+                )
+                total = sum(t.quantity for t in txs)
         except Exception:
             pass
         return total
