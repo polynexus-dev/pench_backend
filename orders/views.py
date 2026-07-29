@@ -745,6 +745,12 @@ class RouteViewSet(viewsets.ModelViewSet):
     required_groups = ["Logistics_Managers", "ERP_Admins"]
     filterset_fields = ["delivery_date", "is_completed"]
 
+    def get_serializer_class(self):
+        if self.action == "list" and self.request.query_params.get("summary") == "true":
+            from orders.serializers import RouteListSerializer
+            return RouteListSerializer
+        return RouteSerializer
+
     def update(self, request, *args, **kwargs):
         is_completed = request.data.get("is_completed")
         status_val = request.data.get("status")

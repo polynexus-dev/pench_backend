@@ -435,6 +435,31 @@ class RouteStopSerializer(serializers.ModelSerializer):
 
 
 
+class RouteListSerializer(serializers.ModelSerializer):
+    driver_name = serializers.CharField(source="driver.get_full_name", read_only=True)
+    stops_count = serializers.IntegerField(read_only=True)
+    status = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Route
+        fields = [
+            "id",
+            "name",
+            "delivery_date",
+            "status",
+            "is_completed",
+            "driver",
+            "driver_name",
+            "stops_count",
+            "created_at",
+        ]
+
+    def get_status(self, obj):
+        if obj.status == "in_progress":
+            return "in_transit"
+        return obj.status
+
+
 class RouteSerializer(serializers.ModelSerializer):
     stops = RouteStopSerializer(many=True, read_only=True)
     driver_name = serializers.CharField(source="driver.get_full_name", read_only=True)
