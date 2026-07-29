@@ -110,6 +110,11 @@ DATABASES = {
         "PASSWORD": config("DB_PASSWORD"),
         "HOST": config("DB_HOST"),
         "PORT": config("DB_PORT"),
+        # Reuse connections across requests instead of opening/closing one per
+        # request -- avoids exhausting Postgres max_connections under bursty
+        # concurrent traffic (e.g. many logins at once).
+        "CONN_MAX_AGE": config("DB_CONN_MAX_AGE", default=60, cast=int),
+        "CONN_HEALTH_CHECKS": True,
     }
 }
 
@@ -173,6 +178,30 @@ CHANNEL_LAYERS = {
 
 AUTH_USER_MODEL = "accounts.User"
 
+# Argon2 first: OWASP's current recommendation over PBKDF2, and typically
+# faster to verify at an equivalent security level, easing CPU pressure from
+# concurrent login bursts. PBKDF2 stays listed so existing password hashes
+# keep working -- Django transparently re-hashes them to Argon2 on next
+# successful login, no migration needed.
+PASSWORD_HASHERS = [
+    "django.contrib.auth.hashers.Argon2PasswordHasher",
+    "django.contrib.auth.hashers.PBKDF2PasswordHasher",
+    "django.contrib.auth.hashers.PBKDF2SHA1PasswordHasher",
+    "django.contrib.auth.hashers.BCryptSHA256PasswordHasher",
+]
+
+# Redis-backed cache -- shared across all worker processes, unlike Django's
+# default per-process LocMemCache. Required for DRF throttling (below) to
+# actually enforce a rate limit once the app runs multiple worker processes,
+# and reusable for caching other hot lookups later.
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": config("CACHE_REDIS_URL", default="redis://127.0.0.1:6379/1"),
+        "OPTIONS": {"CLIENT_CLASS": "django_redis.client.DefaultClient"},
+    }
+}
+
 AUTH_PASSWORD_VALIDATORS = [
     {
         "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"
@@ -201,7 +230,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # SIMPLE_JWT
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(days=1),
+    "ACCESS_TOKEN_LIFETIME": timedelta(days=30),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
     "ROTATE_REFRESH_TOKENS": False,
     "BLACKLIST_AFTER_ROTATION": False,
@@ -232,6 +261,16 @@ REST_FRAMEWORK = {
         "rest_framework.permissions.IsAuthenticated",
     ],
     "DEFAULT_FILTER_BACKENDS": ("django_filters.rest_framework.DjangoFilterBackend",),
+    # Scoped (opt-in per view via throttle_scope) rather than global, so this only
+    # protects the auth endpoints against retry storms/abuse without rate-limiting
+    # the rest of the API. Per-client (IP for anonymous requests), so it guards
+    # against a single misbehaving client hammering the endpoint -- it does not
+    # cap total legitimate concurrent users, which is a capacity/worker-count concern.
+    "DEFAULT_THROTTLE_CLASSES": ["rest_framework.throttling.ScopedRateThrottle"],
+    "DEFAULT_THROTTLE_RATES": {
+        "login": config("THROTTLE_RATE_LOGIN", default="20/min"),
+        "otp_request": config("THROTTLE_RATE_OTP", default="5/min"),
+    },
 }
 
 # Celery

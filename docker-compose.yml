@@ -1,6 +1,7 @@
 services:
   db:
     image: postgis/postgis:15-3.3
+    command: ["postgres", "-c", "max_connections=300"]
     environment:
       - POSTGRES_DB=delivery_erp
       - POSTGRES_USER=postgres
@@ -27,7 +28,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: daphne -b 0.0.0.0 -p 8083 config.asgi:application
+    # Multiple worker processes instead of a single bare daphne process --
+    # gives real OS-level parallelism across CPU cores (a single async process
+    # still serializes CPU-bound work like password hashing on the GIL).
+    # WEB_CONCURRENCY defaults to 4; tune to roughly (2 x CPU cores) + 1.
+    command: gunicorn config.asgi:application -k uvicorn_worker.UvicornWorker --workers ${WEB_CONCURRENCY:-4} --bind 0.0.0.0:8083 --timeout 60
     ports:
       - "8083:8083"
     environment:
@@ -40,6 +45,7 @@ services:
       - DB_HOST=db
       - DB_PORT=5432
       - REDIS_URL=redis://redis:6379/0
+      - CACHE_REDIS_URL=redis://redis:6379/1       # Separate Redis DB from the channel layer (db 0)
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - ALLOWED_HOSTS=.pench.api.polynexus.in,.pench.dev.api.polynexus.in,13.235.143.251,localhost,127.0.0.1,.localhost

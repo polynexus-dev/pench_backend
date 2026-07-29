@@ -24,7 +24,7 @@ WORKDIR /app
 # Install Python dependencies
 COPY requirements.txt /app/
 RUN pip install --no-cache-dir -r requirements.txt
-RUN pip install --no-cache-dir daphne channels channels-redis gunicorn
+RUN pip install --no-cache-dir daphne channels channels-redis gunicorn "uvicorn[standard]" uvicorn-worker
 
 # Copy project files statically
 COPY . /app/

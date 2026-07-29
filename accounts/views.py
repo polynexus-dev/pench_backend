@@ -32,6 +32,7 @@ from core.permissions import IsERPUser
 
 class MyTokenObtainPairView(TokenObtainPairView):
     serializer_class = MyTokenObtainPairSerializer
+    throttle_scope = "login"
 
 
 class RegisterView(generics.CreateAPIView):
@@ -89,6 +90,7 @@ class MeView(APIView):
 
 class RequestOTPView(APIView):
     permission_classes = [permissions.AllowAny]
+    throttle_scope = "otp_request"
 
     def post(self, request):
         serializer = RequestOTPSerializer(data=request.data)
@@ -166,6 +168,7 @@ class RequestOTPView(APIView):
 
 class LoginOTPView(APIView):
     permission_classes = [permissions.AllowAny]
+    throttle_scope = "login"
 
     def post(self, request):
         serializer = LoginOTPSerializer(data=request.data)
