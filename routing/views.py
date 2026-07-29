@@ -150,6 +150,41 @@ class DriverViewSet(viewsets.ModelViewSet):
         self.perform_create(serializer)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
+    @action(detail=True, methods=["post"], url_path="reset-credentials")
+    def reset_credentials(self, request, pk=None):
+        """
+        Allows Admin to update or reset a Rider's Username (User ID) and Password directly.
+        """
+        driver = self.get_object()
+        user = driver.user
+        if not user:
+            return Response({"detail": "User account for this driver not found."}, status=status.HTTP_400_BAD_REQUEST)
+
+        username = request.data.get("username", "").strip()
+        password = request.data.get("password", "").strip()
+
+        if not username and not password:
+            return Response({"detail": "Provide at least a new username or password."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if username and username != user.username:
+            from accounts.models import User
+            if User.objects.filter(username=username).exclude(id=user.id).exists():
+                return Response({"detail": f"Username '{username}' is already taken by another user."}, status=status.HTTP_400_BAD_REQUEST)
+            user.username = username
+
+        if password:
+            if len(password) < 4:
+                return Response({"detail": "Password must be at least 4 characters long."}, status=status.HTTP_400_BAD_REQUEST)
+            user.set_password(password)
+
+        user.save()
+        return Response({
+            "message": "Rider credentials updated successfully!",
+            "username": user.username,
+            "driver_id": driver.id,
+            "full_name": user.get_full_name()
+        }, status=status.HTTP_200_OK)
+
     @action(detail=False, methods=["post"], url_path="check-in")
     def check_in(self, request):
         from hr.models import Employee, Attendance

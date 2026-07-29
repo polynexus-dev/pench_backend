@@ -12,14 +12,7 @@ except ImportError:
 class CustomerSerializer(serializers.ModelSerializer):
     latitude = serializers.FloatField(required=False, allow_null=True)
     longitude = serializers.FloatField(required=False, allow_null=True)
-    dashboard = serializers.SerializerMethodField()
-    product_rates = serializers.SerializerMethodField()
-    zone_name = serializers.CharField(source="zone.name", read_only=True)
-    username = serializers.CharField(source="user.username", read_only=True, default=None)
-    phone = serializers.CharField(
-        required=True,
-        validators=[UniqueValidator(queryset=Customer.objects.all(), message="A customer with this phone number already exists.")]
-    )
+    bottle_balances = serializers.SerializerMethodField()
 
     class Meta:
         model = Customer
@@ -43,8 +36,53 @@ class CustomerSerializer(serializers.ModelSerializer):
             "zone",
             "zone_name",
             "username",
+            "bottle_balances",
         ]
         read_only_fields = ["id", "qr_code_id", "created_at"]
+
+    def get_bottle_balances(self, obj):
+        if hasattr(obj, "_prefetched_objects_cache") and "bottle_balances" in obj._prefetched_objects_cache:
+            balances = obj.bottle_balances.all()
+        else:
+            balances = obj.bottle_balances.select_related("bottle_type").all()
+
+        unreturned_1L = 0
+        unreturned_500ml = 0
+        broken_count = 0
+        lost_count = 0
+        by_type = []
+
+        for b in balances:
+            unreturned = b.balance
+            broken = getattr(b, "broken_balance", 0)
+            lost = getattr(b, "lost_balance", 0)
+
+            if b.bottle_type.volume_ml == 1000:
+                unreturned_1L += unreturned
+            elif b.bottle_type.volume_ml == 500:
+                unreturned_500ml += unreturned
+
+            broken_count += broken
+            lost_count += lost
+
+            by_type.append({
+                "bottle_type_id": str(b.bottle_type.id),
+                "bottle_type_name": b.bottle_type.name,
+                "volume_ml": b.bottle_type.volume_ml,
+                "unreturned_balance": unreturned,
+                "broken_balance": broken,
+                "lost_balance": lost,
+                "deposit_amount": float(b.bottle_type.deposit_amount),
+            })
+
+        return {
+            "unreturned_1L": unreturned_1L,
+            "unreturned_500ml": unreturned_500ml,
+            "total_unreturned": unreturned_1L + unreturned_500ml,
+            "total_broken": broken_count,
+            "total_lost": lost_count,
+            "by_type": by_type,
+        }
 
     def get_dashboard(self, obj):
         """Aggregates metrics for the customer within the current schema."""
@@ -300,6 +338,7 @@ class CustomerListSerializer(serializers.ModelSerializer):
     zone_name = serializers.CharField(source="zone.name", read_only=True)
     username = serializers.CharField(source="user.username", read_only=True, default=None)
     dashboard = serializers.SerializerMethodField()
+    bottle_balances = serializers.SerializerMethodField()
 
     class Meta:
         model = Customer
@@ -321,6 +360,7 @@ class CustomerListSerializer(serializers.ModelSerializer):
             "zone_name",
             "dashboard",
             "username",
+            "bottle_balances",
         ]
         read_only_fields = ["id", "qr_code_id", "created_at"]
 
@@ -329,6 +369,51 @@ class CustomerListSerializer(serializers.ModelSerializer):
             "active_subscriptions": getattr(obj, "annotated_active_subs", 0),
             "pending_balance": float(getattr(obj, "annotated_pending_balance", 0.0)),
             "total_orders": getattr(obj, "annotated_total_orders", 0),
+        }
+
+    def get_bottle_balances(self, obj):
+        if hasattr(obj, "_prefetched_objects_cache") and "bottle_balances" in obj._prefetched_objects_cache:
+            balances = obj.bottle_balances.all()
+        else:
+            balances = obj.bottle_balances.all()
+
+        unreturned_1L = 0
+        unreturned_500ml = 0
+        broken_count = 0
+        lost_count = 0
+        by_type = []
+
+        for b in balances:
+            unreturned = b.balance
+            broken = getattr(b, "broken_balance", 0)
+            lost = getattr(b, "lost_balance", 0)
+
+            if b.bottle_type and b.bottle_type.volume_ml == 1000:
+                unreturned_1L += unreturned
+            elif b.bottle_type and b.bottle_type.volume_ml == 500:
+                unreturned_500ml += unreturned
+
+            broken_count += broken
+            lost_count += lost
+
+            if b.bottle_type:
+                by_type.append({
+                    "bottle_type_id": str(b.bottle_type.id),
+                    "bottle_type_name": b.bottle_type.name,
+                    "volume_ml": b.bottle_type.volume_ml,
+                    "unreturned_balance": unreturned,
+                    "broken_balance": broken,
+                    "lost_balance": lost,
+                    "deposit_amount": float(b.bottle_type.deposit_amount),
+                })
+
+        return {
+            "unreturned_1L": unreturned_1L,
+            "unreturned_500ml": unreturned_500ml,
+            "total_unreturned": unreturned_1L + unreturned_500ml,
+            "total_broken": broken_count,
+            "total_lost": lost_count,
+            "by_type": by_type,
         }
 
     def to_representation(self, instance):

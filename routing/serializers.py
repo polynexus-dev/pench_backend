@@ -258,22 +258,65 @@ class DriverSerializer(serializers.ModelSerializer):
         return obj.user.phone if obj and obj.user else ""
 
     def update(self, instance, validated_data):
-        user_data = validated_data.pop("user", {})
-        is_active = user_data.get("is_active", None)
+        user = instance.user
 
-        if is_active is not None:
-            user = instance.user
-            if user:
-                user.is_active = is_active
-                user.save(update_fields=["is_active"])
+        # Extract potential user/rider fields passed in payload
+        raw_data = {}
+        if hasattr(self, "initial_data") and isinstance(self.initial_data, dict):
+            raw_data = self.initial_data
+        elif hasattr(self, "context") and self.context.get("request"):
+            req = self.context["request"]
+            if isinstance(req.data, dict):
+                raw_data = req.data
+
+        full_name = raw_data.get("full_name")
+        username = raw_data.get("username")
+        password = raw_data.get("password") or raw_data.get("new_password")
+        phone = raw_data.get("phone")
+        is_active = raw_data.get("is_active")
+
+        if user:
+            user_updated = False
+            if full_name and isinstance(full_name, str):
+                parts = full_name.strip().split(" ", 1)
+                user.first_name = parts[0]
+                user.last_name = parts[1] if len(parts) > 1 else ""
+                user_updated = True
+
+            if username and isinstance(username, str) and username.strip() and username.strip() != user.username:
+                from accounts.models import User
+                new_username = username.strip()
+                if not User.objects.filter(username=new_username).exclude(id=user.id).exists():
+                    user.username = new_username
+                    user_updated = True
+
+            if phone is not None and isinstance(phone, str) and phone.strip() != user.phone:
+                user.phone = phone.strip()
+                user_updated = True
+
+            if password and isinstance(password, str) and password.strip():
+                user.set_password(password.strip())
+                user_updated = True
+
+            if is_active is not None:
+                user.is_active = bool(is_active)
+                user_updated = True
+
+            if user_updated:
+                user.save()
 
                 # Sync with Employee profile if exists
                 try:
                     from hr.models import Employee
                     employee = Employee.objects.filter(user=user).first()
                     if employee:
-                        employee.is_active = is_active
-                        employee.save(update_fields=["is_active"])
+                        if full_name:
+                            employee.first_name = user.first_name
+                            employee.last_name = user.last_name
+                        if phone is not None:
+                            employee.phone = user.phone
+                        employee.is_active = user.is_active
+                        employee.save()
                 except Exception:
                     pass
 

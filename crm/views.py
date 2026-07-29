@@ -48,6 +48,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
             return (
                 Customer.objects.filter(is_active=True)
                 .select_related("zone", "user")
+                .prefetch_related("bottle_balances__bottle_type")
                 .annotate(
                     annotated_active_subs=Coalesce(Subquery(active_subs_sub, output_field=IntegerField()), 0),
                     annotated_pending_balance=Coalesce(

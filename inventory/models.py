@@ -116,6 +116,10 @@ class CustomerBottleBalance(BaseModel):
 
     class Meta:
         unique_together = ("customer", "bottle_type")
+        indexes = [
+            models.Index(fields=["customer"]),
+            models.Index(fields=["bottle_type"]),
+        ]
 
     def __str__(self):
         return f"{self.customer.name} - {self.bottle_type.name}: {self.balance}"
@@ -160,6 +164,11 @@ class BottleTransaction(BaseModel):
 
     class Meta:
         ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["customer"]),
+            models.Index(fields=["transaction_type"]),
+            models.Index(fields=["created_at"]),
+        ]
 
     def __str__(self):
         return f"{self.transaction_type} of {self.quantity} for {self.bottle_type.name}"

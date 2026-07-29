@@ -68,6 +68,13 @@ class Customer(BaseModel):
         ordering = ["name"]
         verbose_name = "Customer"
         verbose_name_plural = "Customers"
+        indexes = [
+            models.Index(fields=["name"]),
+            models.Index(fields=["phone"]),
+            models.Index(fields=["is_active"]),
+            models.Index(fields=["is_new"]),
+            models.Index(fields=["created_at"]),
+        ]
 
     def __str__(self):
         return f"{self.name} ({self.company or self.email})"

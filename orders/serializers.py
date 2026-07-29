@@ -445,6 +445,8 @@ class RouteSerializer(serializers.ModelSerializer):
     route_geometry = serializers.SerializerMethodField()
     dispatch_bottles_1L = serializers.SerializerMethodField()
     dispatch_bottles_500ml = serializers.SerializerMethodField()
+    empty_bottles_to_pick_1L = serializers.SerializerMethodField()
+    empty_bottles_to_pick_500ml = serializers.SerializerMethodField()
 
     additional_driver_names = serializers.SerializerMethodField()
 
@@ -494,6 +496,8 @@ class RouteSerializer(serializers.ModelSerializer):
             "stops",
             "dispatch_bottles_1L",
             "dispatch_bottles_500ml",
+            "empty_bottles_to_pick_1L",
+            "empty_bottles_to_pick_500ml",
             "additional_drivers",
             "additional_driver_names",
             "company_upi_id",
@@ -530,6 +534,36 @@ class RouteSerializer(serializers.ModelSerializer):
                     product = item.product
                     if product.bottle_type and product.bottle_type.volume_ml == 500:
                         total += item.quantity
+        except Exception:
+            pass
+        return total
+
+    def get_empty_bottles_to_pick_1L(self, obj):
+        total = 0
+        try:
+            from inventory.models import CustomerBottleBalance
+            for stop in obj.stops.all():
+                if stop.order and stop.order.customer:
+                    bal = CustomerBottleBalance.objects.filter(
+                        customer=stop.order.customer, bottle_type__volume_ml=1000
+                    ).first()
+                    if bal:
+                        total += bal.balance
+        except Exception:
+            pass
+        return total
+
+    def get_empty_bottles_to_pick_500ml(self, obj):
+        total = 0
+        try:
+            from inventory.models import CustomerBottleBalance
+            for stop in obj.stops.all():
+                if stop.order and stop.order.customer:
+                    bal = CustomerBottleBalance.objects.filter(
+                        customer=stop.order.customer, bottle_type__volume_ml=500
+                    ).first()
+                    if bal:
+                        total += bal.balance
         except Exception:
             pass
         return total
