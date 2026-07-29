@@ -795,6 +795,11 @@ class RouteViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(
                 Q(driver_id=driver_id) | Q(additional_drivers__id=driver_id)
             ).distinct()
+
+        date_val = self.request.query_params.get("delivery_date") or self.request.query_params.get("date")
+        if date_val:
+            queryset = queryset.filter(delivery_date=date_val)
+
         return queryset
 
     @action(detail=False, methods=["post"], url_path="create-optimized")
