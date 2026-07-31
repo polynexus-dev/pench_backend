@@ -53,27 +53,28 @@ class CustomerSerializer(serializers.ModelSerializer):
         by_type = []
 
         for b in balances:
-            unreturned = b.balance
-            broken = getattr(b, "broken_balance", 0)
-            lost = getattr(b, "lost_balance", 0)
+            unreturned = b.balance or 0
+            broken = getattr(b, "broken_balance", 0) or 0
+            lost = getattr(b, "lost_balance", 0) or 0
 
-            if b.bottle_type.volume_ml == 1000:
+            if b.bottle_type and b.bottle_type.volume_ml == 1000:
                 unreturned_1L += unreturned
-            elif b.bottle_type.volume_ml == 500:
+            elif b.bottle_type and b.bottle_type.volume_ml == 500:
                 unreturned_500ml += unreturned
 
             broken_count += broken
             lost_count += lost
 
-            by_type.append({
-                "bottle_type_id": str(b.bottle_type.id),
-                "bottle_type_name": b.bottle_type.name,
-                "volume_ml": b.bottle_type.volume_ml,
-                "unreturned_balance": unreturned,
-                "broken_balance": broken,
-                "lost_balance": lost,
-                "deposit_amount": float(b.bottle_type.deposit_amount),
-            })
+            if b.bottle_type:
+                by_type.append({
+                    "bottle_type_id": str(b.bottle_type.id),
+                    "bottle_type_name": b.bottle_type.name or "",
+                    "volume_ml": b.bottle_type.volume_ml or 0,
+                    "unreturned_balance": unreturned,
+                    "broken_balance": broken,
+                    "lost_balance": lost,
+                    "deposit_amount": float(b.bottle_type.deposit_amount) if b.bottle_type.deposit_amount is not None else 0.0,
+                })
 
         return {
             "unreturned_1L": unreturned_1L,
@@ -101,7 +102,7 @@ class CustomerSerializer(serializers.ModelSerializer):
         # 2. Pending Balance
         if hasattr(obj, "_prefetched_objects_cache") and "monthly_bills" in obj._prefetched_objects_cache:
             total_pending = sum(
-                (bill.total_amount - bill.amount_paid) 
+                ((bill.total_amount or 0) - (bill.amount_paid or 0)) 
                 for bill in obj.monthly_bills.all() 
                 if bill.status != BillStatus.CANCELLED
             )
@@ -109,7 +110,7 @@ class CustomerSerializer(serializers.ModelSerializer):
             bills = MonthlyBill.objects.filter(customer=obj).exclude(
                 status=BillStatus.CANCELLED
             )
-            total_pending = sum((bill.total_amount - bill.amount_paid) for bill in bills)
+            total_pending = sum(((bill.total_amount or 0) - (bill.amount_paid or 0)) for bill in bills)
 
         # 3. Total Orders
         if hasattr(obj, "_prefetched_objects_cache") and "orders" in obj._prefetched_objects_cache:
@@ -119,7 +120,7 @@ class CustomerSerializer(serializers.ModelSerializer):
 
         return {
             "active_subscriptions": active_subs,
-            "pending_balance": float(total_pending),
+            "pending_balance": float(total_pending or 0.0),
             "total_orders": total_orders,
         }
 
@@ -146,16 +147,16 @@ class CustomerSerializer(serializers.ModelSerializer):
         rates = []
         for p in products:
             cp = custom_prices.get(p.id)
-            discount = cp.discount if cp else 0.00
-            final_amount = cp.custom_price if cp else p.unit_price
+            discount = cp.discount if (cp and cp.discount is not None) else 0.00
+            final_amount = cp.custom_price if (cp and cp.custom_price is not None) else p.unit_price
 
             rates.append(
                 {
-                    "product_id": p.id,
-                    "product_name": p.name,
-                    "mrp": float(p.unit_price),
-                    "discount": float(discount),
-                    "final_amount": float(final_amount),
+                    "product_id": str(p.id),
+                    "product_name": p.name or "",
+                    "mrp": float(p.unit_price) if p.unit_price is not None else 0.0,
+                    "discount": float(discount) if discount is not None else 0.0,
+                    "final_amount": float(final_amount) if final_amount is not None else 0.0,
                 }
             )
         return rates
