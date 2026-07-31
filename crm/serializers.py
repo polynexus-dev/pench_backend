@@ -12,6 +12,10 @@ except ImportError:
 class CustomerSerializer(serializers.ModelSerializer):
     latitude = serializers.FloatField(required=False, allow_null=True)
     longitude = serializers.FloatField(required=False, allow_null=True)
+    zone_name = serializers.CharField(source="zone.name", read_only=True, default=None)
+    username = serializers.CharField(source="user.username", read_only=True, default=None)
+    dashboard = serializers.SerializerMethodField()
+    product_rates = serializers.SerializerMethodField()
     bottle_balances = serializers.SerializerMethodField()
 
     class Meta:
@@ -385,9 +389,9 @@ class CustomerListSerializer(serializers.ModelSerializer):
         by_type = []
 
         for b in balances:
-            unreturned = b.balance
-            broken = getattr(b, "broken_balance", 0)
-            lost = getattr(b, "lost_balance", 0)
+            unreturned = b.balance or 0
+            broken = getattr(b, "broken_balance", 0) or 0
+            lost = getattr(b, "lost_balance", 0) or 0
 
             if b.bottle_type and b.bottle_type.volume_ml == 1000:
                 unreturned_1L += unreturned
@@ -400,12 +404,12 @@ class CustomerListSerializer(serializers.ModelSerializer):
             if b.bottle_type:
                 by_type.append({
                     "bottle_type_id": str(b.bottle_type.id),
-                    "bottle_type_name": b.bottle_type.name,
-                    "volume_ml": b.bottle_type.volume_ml,
+                    "bottle_type_name": b.bottle_type.name or "",
+                    "volume_ml": b.bottle_type.volume_ml or 0,
                     "unreturned_balance": unreturned,
                     "broken_balance": broken,
                     "lost_balance": lost,
-                    "deposit_amount": float(b.bottle_type.deposit_amount),
+                    "deposit_amount": float(b.bottle_type.deposit_amount) if b.bottle_type.deposit_amount is not None else 0.0,
                 })
 
         return {
