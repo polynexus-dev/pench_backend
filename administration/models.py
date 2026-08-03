@@ -16,6 +16,10 @@ class AdminConfiguration(BaseModel):
         default=False,
         help_text="If enabled, drivers must collect a signature on delivery.",
     )
+    is_secured = models.BooleanField(
+        default=False,
+        help_text="Default secured route flag for tenant routes.",
+    )
 
     # Returnable Containers Settings
     charge_bottle_penalty = models.BooleanField(

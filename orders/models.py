@@ -158,6 +158,9 @@ class Route(BaseModel):
     )
     is_locked = models.BooleanField(default=False)
     is_completed = models.BooleanField(default=False)
+    is_secured = models.BooleanField(
+        default=False, help_text="Indicates whether this route is secured."
+    )
     started_at = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
     total_distance_km = models.DecimalField(max_digits=8, decimal_places=2, default=0)

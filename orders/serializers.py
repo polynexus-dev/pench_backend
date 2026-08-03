@@ -477,6 +477,7 @@ class RouteSerializer(serializers.ModelSerializer):
 
     company_upi_id = serializers.SerializerMethodField()
     company_upi_name = serializers.SerializerMethodField()
+    is_secured = serializers.SerializerMethodField()
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -505,6 +506,15 @@ class RouteSerializer(serializers.ModelSerializer):
         config = AdminConfiguration.get_solo()
         return config.company_upi_name or config.company_name
 
+    def get_is_secured(self, obj):
+        if getattr(obj, "is_secured", False):
+            return True
+        from administration.models import AdminConfiguration
+        try:
+            return AdminConfiguration.get_solo().is_secured
+        except Exception:
+            return False
+
     class Meta:
         model = Route
         fields = [
@@ -517,6 +527,7 @@ class RouteSerializer(serializers.ModelSerializer):
             "status",
             "is_locked",
             "is_completed",
+            "is_secured",
             "route_geometry",
             "stops",
             "dispatch_bottles_1L",
@@ -608,6 +619,7 @@ class RouteListSerializer(serializers.ModelSerializer):
     returned_bottles_1L = serializers.SerializerMethodField()
     returned_bottles_500ml = serializers.SerializerMethodField()
     additional_driver_names = serializers.SerializerMethodField()
+    is_secured = serializers.SerializerMethodField()
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -616,6 +628,15 @@ class RouteListSerializer(serializers.ModelSerializer):
         self.fields["additional_drivers"] = serializers.PrimaryKeyRelatedField(
             many=True, queryset=User.objects.all(), required=False
         )
+
+    def get_is_secured(self, obj):
+        if getattr(obj, "is_secured", False):
+            return True
+        from administration.models import AdminConfiguration
+        try:
+            return AdminConfiguration.get_solo().is_secured
+        except Exception:
+            return False
 
     class Meta:
         model = Route
@@ -629,6 +650,7 @@ class RouteListSerializer(serializers.ModelSerializer):
             "status",
             "is_locked",
             "is_completed",
+            "is_secured",
             "stops_count",
             "total_stops",
             "stops",

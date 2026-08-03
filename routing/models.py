@@ -100,6 +100,9 @@ class Route(BaseModel):
         max_length=20, choices=RouteStatus.choices, default=RouteStatus.PENDING
     )
     is_completed = models.BooleanField(default=False)
+    is_secured = models.BooleanField(
+        default=False, help_text="Indicates whether this route is secured."
+    )
     is_test_route = models.BooleanField(
         default=False, help_text="Auto-created dummy route for GPS tracking tests."
     )

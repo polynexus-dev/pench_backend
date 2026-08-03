@@ -416,6 +416,7 @@ class RouteSerializer(serializers.ModelSerializer):
         many=True, queryset=Driver.objects.all(), required=False
     )
     additional_driver_names = serializers.SerializerMethodField()
+    is_secured = serializers.SerializerMethodField()
 
     def get_status(self, obj):
         if obj.status == "in_progress":
@@ -427,6 +428,15 @@ class RouteSerializer(serializers.ModelSerializer):
             drv.user.get_full_name() for drv in obj.additional_drivers.all() if drv.user
         ]
 
+    def get_is_secured(self, obj):
+        if getattr(obj, "is_secured", False):
+            return True
+        from administration.models import AdminConfiguration
+        try:
+            return AdminConfiguration.get_solo().is_secured
+        except Exception:
+            return False
+
     class Meta:
         model = Route
         fields = [
@@ -435,6 +445,7 @@ class RouteSerializer(serializers.ModelSerializer):
             "driver_name",
             "order_ids",
             "status",
+            "is_secured",
             "geometry",
             "waypoints",
             "estimated_duration_minutes",
