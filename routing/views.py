@@ -213,9 +213,23 @@ class DriverViewSet(viewsets.ModelViewSet):
         if not user:
             return Response({"detail": "User account for this driver not found."}, status=status.HTTP_400_BAD_REQUEST)
 
-        recipients = getattr(settings, "RIDER_CREDENTIALS_RECIPIENTS", [])
+        recipients = list(getattr(settings, "RIDER_CREDENTIALS_RECIPIENTS", []))
+
+        custom_email = request.data.get("recipient_email") or request.data.get("email")
+        if custom_email and isinstance(custom_email, str):
+            for e in custom_email.split(","):
+                clean_e = e.strip()
+                if clean_e and clean_e not in recipients:
+                    recipients.append(clean_e)
+
+        custom_emails = request.data.get("recipient_emails", [])
+        if isinstance(custom_emails, list):
+            for e in custom_emails:
+                if isinstance(e, str) and e.strip() and e.strip() not in recipients:
+                    recipients.append(e.strip())
+
         if not recipients:
-            return Response({"detail": "No credential recipient email is configured on the server."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({"detail": "No credential recipient email was specified or configured on the server."}, status=status.HTTP_400_BAD_REQUEST)
 
         alphabet = string.ascii_letters + string.digits
         new_password = "".join(secrets.choice(alphabet) for _ in range(12))
@@ -247,6 +261,7 @@ class DriverViewSet(viewsets.ModelViewSet):
 
         return Response({
             "message": f"Credentials sent to {', '.join(recipients)}.",
+            "recipients": recipients,
             "username": user.username,
             "driver_id": driver.id,
         }, status=status.HTTP_200_OK)
