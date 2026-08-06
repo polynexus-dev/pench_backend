@@ -194,6 +194,62 @@ class DriverViewSet(viewsets.ModelViewSet):
             "full_name": user.get_full_name()
         }, status=status.HTTP_200_OK)
 
+    @action(detail=True, methods=["post"], url_path="send-credentials")
+    def send_credentials(self, request, pk=None):
+        """
+        Generates a brand-new random password for this rider, hashes and
+        stores it, and emails the plaintext password to the configured
+        admin recipients (never to the API response / frontend). This
+        replaces showing/decrypting the rider's existing password, which
+        is not possible for a one-way hash and was never a real feature.
+        """
+        import secrets
+        import string
+        from django.conf import settings
+        from django.core.mail import send_mail
+
+        driver = self.get_object()
+        user = driver.user
+        if not user:
+            return Response({"detail": "User account for this driver not found."}, status=status.HTTP_400_BAD_REQUEST)
+
+        recipients = getattr(settings, "RIDER_CREDENTIALS_RECIPIENTS", [])
+        if not recipients:
+            return Response({"detail": "No credential recipient email is configured on the server."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        alphabet = string.ascii_letters + string.digits
+        new_password = "".join(secrets.choice(alphabet) for _ in range(12))
+
+        subject = f"Rider Login Credentials - {user.get_full_name() or user.username}"
+        message = (
+            f"New login credentials have been generated for rider '{user.get_full_name() or user.username}'.\n\n"
+            f"Username: {user.username}\n"
+            f"Password: {new_password}\n\n"
+            f"Please share these with the rider directly. This password will not be shown again in the admin panel."
+        )
+
+        try:
+            send_mail(
+                subject,
+                message,
+                settings.DEFAULT_FROM_EMAIL,
+                recipients,
+                fail_silently=False,
+            )
+        except Exception as e:
+            return Response({"detail": f"Failed to send credentials email: {str(e)}"}, status=status.HTTP_502_BAD_GATEWAY)
+
+        # Only persist the new password once the email has actually gone out,
+        # so a failed send never leaves the rider unable to log in silently.
+        user.set_password(new_password)
+        user.save()
+
+        return Response({
+            "message": f"Credentials sent to {', '.join(recipients)}.",
+            "username": user.username,
+            "driver_id": driver.id,
+        }, status=status.HTTP_200_OK)
+
     @action(detail=False, methods=["post"], url_path="check-in")
     def check_in(self, request):
         from hr.models import Employee, Attendance
