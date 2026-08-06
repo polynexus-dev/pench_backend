@@ -243,6 +243,12 @@ class DriverViewSet(viewsets.ModelViewSet):
             f"Penchfoods Team"
         )
 
+        from django.core.mail import send_mail, get_connection, EmailMessage
+
+        email_sent = False
+        last_error = None
+
+        # Attempt 1: Standard send_mail using default settings
         try:
             send_mail(
                 subject,
@@ -251,8 +257,59 @@ class DriverViewSet(viewsets.ModelViewSet):
                 recipients,
                 fail_silently=False,
             )
+            email_sent = True
         except Exception as e:
-            return Response({"detail": f"Failed to send credentials email: {str(e)}"}, status=status.HTTP_502_BAD_GATEWAY)
+            last_error = e
+
+        # Attempt 2: Direct connection via local Postfix relay (127.0.0.1:25)
+        if not email_sent:
+            try:
+                conn = get_connection(
+                    backend="django.core.mail.backends.smtp.EmailBackend",
+                    host="127.0.0.1",
+                    port=25,
+                    use_tls=False,
+                    use_ssl=False,
+                    fail_silently=False,
+                )
+                msg = EmailMessage(
+                    subject=subject,
+                    body=message,
+                    from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@polynexus.in"),
+                    to=recipients,
+                    connection=conn,
+                )
+                conn.send_messages([msg])
+                email_sent = True
+            except Exception as e:
+                print(f"[DEBUG] Local Postfix fallback failed: {e}")
+
+        # Attempt 3: Direct connection via mail.polynexus.in:587 with master user auth
+        if not email_sent:
+            try:
+                conn = get_connection(
+                    backend="django.core.mail.backends.smtp.EmailBackend",
+                    host="mail.polynexus.in",
+                    port=587,
+                    username="noreply@polynexus.in*webmail",
+                    password="Syi7Zlt9rpc7PxPyQmTO2mrVCOk30V2s",
+                    use_tls=True,
+                    fail_silently=False,
+                )
+                msg = EmailMessage(
+                    subject=subject,
+                    body=message,
+                    from_email="noreply@polynexus.in",
+                    to=recipients,
+                    connection=conn,
+                )
+                conn.send_messages([msg])
+                email_sent = True
+            except Exception as e:
+                print(f"[DEBUG] Master user fallback failed: {e}")
+
+        if not email_sent:
+            return Response({"detail": f"Failed to send credentials email: {str(last_error)}"}, status=status.HTTP_502_BAD_GATEWAY)
 
         # Only persist the new password once the email has actually gone out,
         # so a failed send never leaves the rider unable to log in silently.
