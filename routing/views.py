@@ -234,29 +234,114 @@ class DriverViewSet(viewsets.ModelViewSet):
         alphabet = string.ascii_letters + string.digits
         new_password = "".join(secrets.choice(alphabet) for _ in range(12))
 
-        subject = "Regarding penchfoods"
-        message = (
-            f"New login credentials have been generated for rider '{user.get_full_name() or user.username}'.\n\n"
-            f"Username: {user.username}\n"
-            f"Password: {new_password}\n\n"
-            f"Please share these with the rider directly. This password will not be shown again in the admin panel.\n\n"
-            f"Penchfoods Team"
+        rider_name = user.get_full_name() or user.username
+        subject = f"[Pench Foods] Login Credentials for Rider {rider_name}"
+
+        text_content = (
+            f"Dear Team,\n\n"
+            f"New mobile application access credentials have been generated for rider '{rider_name}'.\n\n"
+            f"----------------------------------------\n"
+            f"Rider Name: {rider_name}\n"
+            f"Username:   {user.username}\n"
+            f"Password:   {new_password}\n"
+            f"----------------------------------------\n\n"
+            f"Please share these credentials directly with the rider for mobile app login.\n"
+            f"Note: This password is encrypted in the system and will not be displayed again.\n\n"
+            f"Best regards,\n"
+            f"Pench Foods Operations Team"
         )
 
-        from django.core.mail import send_mail, get_connection, EmailMessage
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <style>
+            body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; color: #1e293b; margin: 0; padding: 24px; }}
+            .container {{ max-width: 560px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }}
+            .header {{ background: #0f172a; color: #ffffff; padding: 24px 28px; text-align: left; border-bottom: 3px solid #0284c7; }}
+            .header h2 {{ margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -0.5px; color: #ffffff; }}
+            .header p {{ margin: 4px 0 0 0; font-size: 11px; color: #38bdf8; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 700; }}
+            .body {{ padding: 28px; }}
+            .greeting {{ font-size: 15px; font-weight: 700; color: #0f172a; margin-top: 0; }}
+            .intro {{ font-size: 13px; color: #475569; line-height: 1.6; margin-bottom: 20px; }}
+            .card {{ background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 12px; padding: 20px; margin: 20px 0; }}
+            .field-row {{ display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #e2e8f0; font-size: 13px; }}
+            .field-row:last-child {{ border-bottom: none; padding-bottom: 0; }}
+            .field-label {{ color: #64748b; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }}
+            .field-value {{ font-weight: 700; color: #0f172a; }}
+            .password-box {{ background: #0f172a; color: #38bdf8; font-family: 'Courier New', Courier, monospace; padding: 6px 14px; border-radius: 6px; font-size: 16px; font-weight: 800; letter-spacing: 1.5px; display: inline-block; border: 1px solid #0284c7; }}
+            .note {{ font-size: 12px; color: #475569; background: #f0f9ff; padding: 14px 16px; border-radius: 10px; border-left: 4px solid #0284c7; margin-top: 24px; line-height: 1.5; }}
+            .footer {{ border-top: 1px solid #f1f5f9; padding: 18px 28px; font-size: 11px; color: #94a3b8; text-align: left; background: #fafafa; }}
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h2>Pench Foods</h2>
+              <p>Rider Account Credentials</p>
+            </div>
+            <div class="body">
+              <div class="greeting">Dear Operations Team,</div>
+              <div class="intro">
+                New mobile application access credentials have been successfully generated for rider <strong>{rider_name}</strong>.
+              </div>
+
+              <div class="card">
+                <div class="field-row">
+                  <span class="field-label">Rider Name</span>
+                  <span class="field-value">{rider_name}</span>
+                </div>
+                <div class="field-row">
+                  <span class="field-label">Username (User ID)</span>
+                  <span class="field-value" style="font-family: monospace;">{user.username}</span>
+                </div>
+                <div class="field-row" style="margin-top: 6px;">
+                  <span class="field-label">Temporary Password</span>
+                  <span class="password-box">{new_password}</span>
+                </div>
+              </div>
+
+              <div class="note">
+                <strong>Security Notice:</strong> Please share these credentials directly with the rider for mobile application login. Passwords are securely hashed in the database and will not be displayed again in the system dashboard.
+              </div>
+            </div>
+            <div class="footer">
+              <strong>Pench Foods Operations Team</strong><br>
+              Automated System Notification — Please do not reply directly to this email.
+            </div>
+          </div>
+        </body>
+        </html>
+        """
+
+        from django.core.mail import send_mail, get_connection, EmailMultiAlternatives
 
         email_sent = False
         last_error = None
 
-        # Attempt 1: Standard send_mail using default settings
+        def send_with_conn(connection=None):
+            messages = []
+            for recipient in recipients:
+                msg = EmailMultiAlternatives(
+                    subject=subject,
+                    body=text_content,
+                    from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@polynexus.in"),
+                    to=[recipient],
+                    connection=connection,
+                )
+                msg.attach_alternative(html_content, "text/html")
+                messages.append(msg)
+
+            if connection:
+                connection.send_messages(messages)
+            else:
+                for msg in messages:
+                    msg.send(fail_silently=False)
+
+        # Attempt 1: Standard connection using default settings
         try:
-            send_mail(
-                subject,
-                message,
-                settings.DEFAULT_FROM_EMAIL,
-                recipients,
-                fail_silently=False,
-            )
+            send_with_conn()
             email_sent = True
         except Exception as e:
             last_error = e
@@ -272,14 +357,7 @@ class DriverViewSet(viewsets.ModelViewSet):
                     use_ssl=False,
                     fail_silently=False,
                 )
-                msg = EmailMessage(
-                    subject=subject,
-                    body=message,
-                    from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@polynexus.in"),
-                    to=recipients,
-                    connection=conn,
-                )
-                conn.send_messages([msg])
+                send_with_conn(conn)
                 email_sent = True
             except Exception as e:
                 print(f"[DEBUG] Local Postfix fallback failed: {e}")
@@ -296,14 +374,7 @@ class DriverViewSet(viewsets.ModelViewSet):
                     use_tls=True,
                     fail_silently=False,
                 )
-                msg = EmailMessage(
-                    subject=subject,
-                    body=message,
-                    from_email="noreply@polynexus.in",
-                    to=recipients,
-                    connection=conn,
-                )
-                conn.send_messages([msg])
+                send_with_conn(conn)
                 email_sent = True
             except Exception as e:
                 print(f"[DEBUG] Master user fallback failed: {e}")
