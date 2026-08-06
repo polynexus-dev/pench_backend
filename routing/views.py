@@ -220,12 +220,13 @@ class DriverViewSet(viewsets.ModelViewSet):
         alphabet = string.ascii_letters + string.digits
         new_password = "".join(secrets.choice(alphabet) for _ in range(12))
 
-        subject = f"Rider Login Credentials - {user.get_full_name() or user.username}"
+        subject = "Regarding penchfoods"
         message = (
             f"New login credentials have been generated for rider '{user.get_full_name() or user.username}'.\n\n"
             f"Username: {user.username}\n"
             f"Password: {new_password}\n\n"
-            f"Please share these with the rider directly. This password will not be shown again in the admin panel."
+            f"Please share these with the rider directly. This password will not be shown again in the admin panel.\n\n"
+            f"Penchfoods Team"
         )
 
         try:
