@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.validators import UniqueValidator
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.contrib.auth.models import Group, Permission
@@ -412,10 +413,13 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
         except Exception as exc:
             if user_obj and not user_obj.is_active:
                 status_code = "FAILED_INACTIVE"
+                err_msg = "Account is inactive. Please contact support."
             elif user_obj:
                 status_code = "FAILED_INVALID_PASSWORD"
+                err_msg = "Incorrect password."
             else:
                 status_code = "FAILED_USER_NOT_FOUND"
+                err_msg = f"Incorrect credentials (username '{username_val}' does not exist)"
 
             LoginAuditLog.objects.create(
                 username_or_phone=username_val,
@@ -424,7 +428,7 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
                 ip_address=ip,
                 user_agent=user_agent,
             )
-            raise exc
+            raise AuthenticationFailed({"detail": err_msg, "message": err_msg})
 
         data["user"] = UserSerializer(self.user).data
 
