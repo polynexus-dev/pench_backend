@@ -36,6 +36,7 @@ class UserSerializer(serializers.ModelSerializer):
             "is_superuser",
             "is_staff",
             "has_password",
+            "password_changed_at",
         ]
         read_only_fields = [
             "id",
@@ -47,6 +48,7 @@ class UserSerializer(serializers.ModelSerializer):
             "is_superuser",
             "is_staff",
             "has_password",
+            "password_changed_at",
         ]
 
     def get_customer_dashboard(self, obj):
@@ -381,7 +383,49 @@ class LoginOTPSerializer(serializers.Serializer):
 
 class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
-        data = super().validate(attrs)
+        from .models import LoginAuditLog, User
+
+        request = self.context.get("request")
+        ip = None
+        user_agent = ""
+        if request:
+            x_forwarded = request.META.get("HTTP_X_FORWARDED_FOR")
+            ip = x_forwarded.split(",")[0].strip() if x_forwarded else request.META.get("REMOTE_ADDR")
+            user_agent = request.META.get("HTTP_USER_AGENT", "")[:255]
+
+        username_val = attrs.get(self.username_field, "")
+        user_obj = User.objects.filter(username=username_val).first()
+        if not user_obj and "@" in username_val:
+            user_obj = User.objects.filter(email=username_val).first()
+        if not user_obj and len(username_val) >= 10:
+            user_obj = User.objects.filter(phone=username_val).first()
+
+        try:
+            data = super().validate(attrs)
+            LoginAuditLog.objects.create(
+                username_or_phone=username_val,
+                user=self.user,
+                status="SUCCESS",
+                ip_address=ip,
+                user_agent=user_agent,
+            )
+        except Exception as exc:
+            if user_obj and not user_obj.is_active:
+                status_code = "FAILED_INACTIVE"
+            elif user_obj:
+                status_code = "FAILED_INVALID_PASSWORD"
+            else:
+                status_code = "FAILED_USER_NOT_FOUND"
+
+            LoginAuditLog.objects.create(
+                username_or_phone=username_val,
+                user=user_obj,
+                status=status_code,
+                ip_address=ip,
+                user_agent=user_agent,
+            )
+            raise exc
+
         data["user"] = UserSerializer(self.user).data
 
         # Route Admin/ERP users to the Public Domain

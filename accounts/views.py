@@ -13,7 +13,7 @@ from django.core.mail import send_mail
 from django.conf import settings
 from django.contrib.auth.models import Group, Permission
 from django.db.models import Q
-from .models import User, OTP
+from .models import User, OTP, PasswordChangeLog
 from .serializers import (
     UserSerializer,
     UserCreateSerializer,
@@ -324,6 +324,15 @@ class SetPasswordView(APIView):
         request.user.set_password(serializer.validated_data["password"])
         request.user.save()
 
+        x_forwarded = request.META.get("HTTP_X_FORWARDED_FOR")
+        ip = x_forwarded.split(",")[0].strip() if x_forwarded else request.META.get("REMOTE_ADDR")
+        PasswordChangeLog.objects.create(
+            user=request.user,
+            changed_by=request.user,
+            source="self_set_password",
+            ip_address=ip,
+        )
+
         return Response({
             "message": "Password set successfully.",
             "user": UserSerializer(request.user).data
@@ -442,6 +451,15 @@ class ResetPasswordView(APIView):
         # 4. Set new password
         user.set_password(new_password)
         user.save()
+
+        x_forwarded = request.META.get("HTTP_X_FORWARDED_FOR")
+        ip = x_forwarded.split(",")[0].strip() if x_forwarded else request.META.get("REMOTE_ADDR")
+        PasswordChangeLog.objects.create(
+            user=user,
+            changed_by=user,
+            source="otp_password_reset",
+            ip_address=ip,
+        )
 
         return Response({"message": "Password reset successfully."})
 

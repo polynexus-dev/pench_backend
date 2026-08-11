@@ -185,6 +185,15 @@ class DriverViewSet(viewsets.ModelViewSet):
             if len(password) < 4:
                 return Response({"detail": "Password must be at least 4 characters long."}, status=status.HTTP_400_BAD_REQUEST)
             user.set_password(password)
+            from accounts.models import PasswordChangeLog
+            x_forwarded = request.META.get("HTTP_X_FORWARDED_FOR")
+            ip = x_forwarded.split(",")[0].strip() if x_forwarded else request.META.get("REMOTE_ADDR")
+            PasswordChangeLog.objects.create(
+                user=user,
+                changed_by=request.user if request.user.is_authenticated else None,
+                source="driver_credentials_update",
+                ip_address=ip,
+            )
 
         user.save()
         return Response({
@@ -193,6 +202,67 @@ class DriverViewSet(viewsets.ModelViewSet):
             "driver_id": driver.id,
             "full_name": user.get_full_name()
         }, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["get"], url_path="activity-logs")
+    def activity_logs(self, request, pk=None):
+        """
+        Returns combined password change logs and login audit logs for this driver.
+        """
+        driver = self.get_object()
+        user = driver.user
+        if not user:
+            return Response([], status=status.HTTP_200_OK)
+
+        from accounts.models import PasswordChangeLog, LoginAuditLog
+        from django.db.models import Q
+
+        pass_logs = PasswordChangeLog.objects.filter(user=user).select_related("changed_by")
+        login_logs = LoginAuditLog.objects.filter(
+            Q(user=user) | Q(username_or_phone=user.username) | (Q(username_or_phone=user.phone) if user.phone else Q(pk__isnull=True))
+        )
+
+        combined = []
+        for pl in pass_logs:
+            changed_by_name = (
+                pl.changed_by.get_full_name() or pl.changed_by.username
+                if pl.changed_by
+                else "System / Self"
+            )
+            combined.append({
+                "id": f"pass_{pl.id}",
+                "type": "PASSWORD_CHANGE",
+                "timestamp": pl.changed_at,
+                "title": "Password Changed",
+                "status": "INFO",
+                "details": f"Source: {pl.source} | Changed By: {changed_by_name}",
+                "source": pl.source,
+                "ip_address": pl.ip_address,
+                "changed_by": changed_by_name,
+            })
+
+        for ll in login_logs:
+            status_map = {
+                "SUCCESS": ("Login Successful", "SUCCESS"),
+                "FAILED_INVALID_PASSWORD": ("Login Failed (Invalid Password)", "ERROR"),
+                "FAILED_USER_NOT_FOUND": ("Login Failed (User Not Found)", "ERROR"),
+                "FAILED_INACTIVE": ("Login Failed (User Inactive)", "WARNING"),
+            }
+            title, status_code = status_map.get(ll.status, (f"Login Attempt ({ll.status})", "INFO"))
+
+            combined.append({
+                "id": f"login_{ll.id}",
+                "type": "LOGIN_ATTEMPT",
+                "timestamp": ll.attempt_time,
+                "title": title,
+                "status": status_code,
+                "details": f"Attempted Username/Phone: {ll.username_or_phone}",
+                "raw_status": ll.status,
+                "ip_address": ll.ip_address,
+                "user_agent": ll.user_agent,
+            })
+
+        combined.sort(key=lambda x: x["timestamp"], reverse=True)
+        return Response(combined, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=["post"], url_path="send-credentials")
     def send_credentials(self, request, pk=None):
@@ -386,6 +456,16 @@ class DriverViewSet(viewsets.ModelViewSet):
         # so a failed send never leaves the rider unable to log in silently.
         user.set_password(new_password)
         user.save()
+
+        from accounts.models import PasswordChangeLog
+        x_forwarded = request.META.get("HTTP_X_FORWARDED_FOR")
+        ip = x_forwarded.split(",")[0].strip() if x_forwarded else request.META.get("REMOTE_ADDR")
+        PasswordChangeLog.objects.create(
+            user=user,
+            changed_by=request.user if request.user.is_authenticated else None,
+            source="admin_send_credentials",
+            ip_address=ip,
+        )
 
         return Response({
             "message": f"Credentials sent to {', '.join(recipients)}.",

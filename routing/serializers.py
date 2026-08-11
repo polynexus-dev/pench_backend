@@ -225,6 +225,7 @@ class DriverSerializer(serializers.ModelSerializer):
     current_route = serializers.SerializerMethodField()
     warehouse_name = serializers.CharField(source="warehouse.name", read_only=True)
     is_active = serializers.BooleanField(source="user.is_active", required=False)
+    password_changed_at = serializers.DateTimeField(source="user.password_changed_at", read_only=True)
 
     class Meta:
         model = Driver
@@ -244,6 +245,7 @@ class DriverSerializer(serializers.ModelSerializer):
             "warehouse",
             "warehouse_name",
             "is_active",
+            "password_changed_at",
         ]
 
     def get_username(self, obj):
