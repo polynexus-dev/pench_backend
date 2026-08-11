@@ -1,7 +1,4 @@
 from django.urls import path, include
-from rest_framework_simplejwt.views import (
-    TokenRefreshView,
-)
 from rest_framework.routers import DefaultRouter
 from .views import (
     RegisterView,
@@ -9,6 +6,7 @@ from .views import (
     RequestOTPView,
     LoginOTPView,
     MyTokenObtainPairView,
+    MyTokenRefreshView,
     SetPasswordView,
     ForgotPasswordView,
     ResetPasswordView,
@@ -24,7 +22,7 @@ router.register("permissions", PermissionViewSet, basename="permission")
 
 urlpatterns = [
     path("login/", MyTokenObtainPairView.as_view(), name="token_obtain_pair"),
-    path("login/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
+    path("login/refresh/", MyTokenRefreshView.as_view(), name="token_refresh"),
     path("login-otp/", LoginOTPView.as_view(), name="login_otp"),
     path("request-otp/", RequestOTPView.as_view(), name="request_otp"),
     path("set-password/", SetPasswordView.as_view(), name="set_password"),

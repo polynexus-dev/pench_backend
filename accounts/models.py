@@ -143,6 +143,8 @@ class LoginAuditLog(models.Model):
             ("FAILED_INVALID_PASSWORD", "Failed - Invalid Password"),
             ("FAILED_USER_NOT_FOUND", "Failed - User Not Found"),
             ("FAILED_INACTIVE", "Failed - User Inactive"),
+            ("TOKEN_REFRESH_SUCCESS", "Token Refresh Success"),
+            ("TOKEN_REFRESH_FAILED", "Token Refresh Failed"),
         ],
     )
     ip_address = models.CharField(max_length=45, null=True, blank=True)

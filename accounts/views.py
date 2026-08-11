@@ -3,7 +3,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from django.utils import timezone
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
@@ -13,7 +13,7 @@ from django.core.mail import send_mail
 from django.conf import settings
 from django.contrib.auth.models import Group, Permission
 from django.db.models import Q
-from .models import User, OTP, PasswordChangeLog
+from .models import User, OTP, PasswordChangeLog, LoginAuditLog
 from .serializers import (
     UserSerializer,
     UserCreateSerializer,
@@ -33,6 +33,45 @@ from core.permissions import IsERPUser
 class MyTokenObtainPairView(TokenObtainPairView):
     serializer_class = MyTokenObtainPairSerializer
     throttle_scope = "login"
+
+
+class MyTokenRefreshView(TokenRefreshView):
+    def post(self, request, *args, **kwargs):
+        response = super().post(request, *args, **kwargs)
+        try:
+            x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
+            ip = x_forwarded_for.split(",")[0].strip() if x_forwarded_for else request.META.get("REMOTE_ADDR")
+            user_agent = request.META.get("HTTP_USER_AGENT", "")[:255]
+
+            is_success = status.is_success(response.status_code)
+            status_str = "TOKEN_REFRESH_SUCCESS" if is_success else "TOKEN_REFRESH_FAILED"
+
+            refresh_str = request.data.get("refresh") if isinstance(request.data, dict) else None
+            user_inst = None
+            username_val = "Unknown (Refresh)"
+
+            if refresh_str:
+                try:
+                    token_obj = RefreshToken(refresh_str)
+                    user_id = token_obj.payload.get("user_id")
+                    if user_id:
+                        user_inst = User.objects.filter(id=user_id).first()
+                        if user_inst:
+                            username_val = user_inst.username or user_inst.phone or f"User-{user_inst.id}"
+                except Exception:
+                    pass
+
+            LoginAuditLog.objects.create(
+                username_or_phone=username_val,
+                user=user_inst,
+                status=status_str,
+                ip_address=ip,
+                user_agent=user_agent,
+            )
+        except Exception:
+            pass
+
+        return response
 
 
 class RegisterView(generics.CreateAPIView):
