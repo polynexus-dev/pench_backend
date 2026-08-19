@@ -3,6 +3,7 @@ from django.urls import path, include
 from schema_graph.views import Schema
 from django.conf import settings
 from django.conf.urls.static import static
+from core.views import PrivacyPolicyView, AccountDeletionView
 
 
 class CleanSchema(Schema):
@@ -25,6 +26,10 @@ class CleanSchema(Schema):
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+    # Public, tenant-independent privacy policy (used for Play Store / App Store listings)
+    path("privacy-policy/", PrivacyPolicyView.as_view(), name="privacy-policy"),
+    # Public account deletion request page (used for Play Store Data Safety compliance)
+    path("delete-account/", AccountDeletionView.as_view(), name="delete-account"),
     # ERP portal - public/shared endpoints only
     path(
         "api/erp/",
