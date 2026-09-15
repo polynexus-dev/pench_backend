@@ -158,3 +158,49 @@ class LoginAuditLog(models.Model):
     def __str__(self):
         return f"Login attempt ({self.status}) for {self.username_or_phone} at {self.attempt_time}"
 
+
+
+class AccountDeletionLog(models.Model):
+    """
+    Audit trail of self-service account deletions.
+
+    Deliberately holds no personal data: the point of a deletion is that the
+    name, email, phone and address are gone. What remains is enough to prove a
+    deletion happened, and to let finance follow up on money that was still
+    owed at the time. There is no FK to User because the User row is destroyed.
+    """
+
+    deleted_user_id = models.IntegerField(
+        help_text="Primary key of the User row that was deleted."
+    )
+    tenant_schema = models.CharField(
+        max_length=63,
+        null=True,
+        blank=True,
+        help_text="Tenant the customer belonged to.",
+    )
+    reason = models.TextField(
+        blank=True, help_text="Optional reason supplied by the user."
+    )
+    outstanding_balance = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0,
+        help_text="Unpaid balance at the moment of deletion, for finance follow-up.",
+    )
+    customer_anonymized = models.BooleanField(
+        default=False,
+        help_text="True if a linked CRM customer record was found and scrubbed.",
+    )
+    subscriptions_removed = models.PositiveIntegerField(default=0)
+    orders_cancelled = models.PositiveIntegerField(default=0)
+    deleted_at = models.DateTimeField(auto_now_add=True)
+    ip_address = models.CharField(max_length=45, null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Account Deletion Log"
+        verbose_name_plural = "Account Deletion Logs"
+        ordering = ["-deleted_at"]
+
+    def __str__(self):
+        return f"Account {self.deleted_user_id} deleted at {self.deleted_at}"

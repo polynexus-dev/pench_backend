@@ -613,6 +613,20 @@ class ResetPasswordSerializer(serializers.Serializer):
     new_password = serializers.CharField(write_only=True, min_length=8)
 
 
+class DeleteAccountSerializer(serializers.Serializer):
+    """
+    Payload for self-service account deletion.
+
+    Deliberately minimal: the mobile client already gates this behind a
+    type-to-confirm field and a destructive confirmation dialog, so the only
+    thing worth carrying over the wire is the optional free-text reason.
+    """
+
+    reason = serializers.CharField(
+        required=False, allow_blank=True, max_length=1000, trim_whitespace=True
+    )
+
+
 class PermissionSerializer(serializers.ModelSerializer):
     content_type = serializers.PrimaryKeyRelatedField(
         queryset=ContentType.objects.all(), required=False, allow_null=True

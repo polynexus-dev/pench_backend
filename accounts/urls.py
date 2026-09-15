@@ -10,6 +10,7 @@ from .views import (
     SetPasswordView,
     ForgotPasswordView,
     ResetPasswordView,
+    DeleteAccountView,
     UserViewSet,
     PermissionViewSet,
     GroupViewSet,
@@ -30,5 +31,6 @@ urlpatterns = [
     path("reset-password/", ResetPasswordView.as_view(), name="reset_password"),
     path("register/", RegisterView.as_view(), name="register"),
     path("me/", MeView.as_view(), name="me"),
+    path("delete-account/", DeleteAccountView.as_view(), name="delete_account"),
     path("", include(router.urls)),
 ]

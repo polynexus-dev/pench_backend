@@ -297,6 +297,7 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "login": config("THROTTLE_RATE_LOGIN", default="20/min"),
         "otp_request": config("THROTTLE_RATE_OTP", default="5/min"),
+        "delete_account": config("THROTTLE_RATE_DELETE_ACCOUNT", default="5/hour"),
     },
 }
 
