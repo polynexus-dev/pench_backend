@@ -1,7 +1,7 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from core.permissions import IsERPUser, HasGroupPermission, IsDriverUser
 from .models import (
     Product,
@@ -43,10 +43,19 @@ class ProductViewSet(viewsets.ModelViewSet):
     search_fields = ["name", "sku"]
 
     def get_permissions(self):
+        # The catalogue is the storefront: guests browse products before they
+        # have an account, so reads are open. Writes stay ERP-only.
         if self.action in ["list", "retrieve"]:
-            from rest_framework.permissions import IsAuthenticated
-            return [IsAuthenticated()]
+            return [AllowAny()]
         return super().get_permissions()
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        # Signed-in ERP staff manage discontinued products; the public
+        # storefront should only ever see what is actually on sale.
+        if not self.request.user.is_authenticated:
+            qs = qs.filter(is_active=True)
+        return qs
 
 
     def create(self, request, *args, **kwargs):

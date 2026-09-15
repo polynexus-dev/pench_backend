@@ -1,4 +1,4 @@
-from rest_framework import viewsets, status
+from rest_framework import permissions, viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from .models import Subscription, SubscriptionSkipDate
@@ -8,6 +8,14 @@ from .serializers import SubscriptionSerializer, SubscriptionListSerializer, Sub
 class SubscriptionViewSet(viewsets.ModelViewSet):
     serializer_class = SubscriptionSerializer
     filterset_fields = ["status", "frequency", "is_paused", "customer"]
+
+    def get_permissions(self):
+        # Only the aggregate plan catalogue is public, so guests can see what
+        # is on offer. Everything else stays authenticated - `list` exposes
+        # other customers' subscriptions.
+        if self.action == "grouped_summary":
+            return [permissions.AllowAny()]
+        return super().get_permissions()
 
     def get_serializer_class(self):
         if self.action == "list":
@@ -60,15 +68,17 @@ class SubscriptionViewSet(viewsets.ModelViewSet):
             
             label = f"{freq_display} - {qty}x {prod_name}"
             
-            results.append({
+            row = {
                 "frequency": freq,
                 "frequency_display": freq_display,
                 "product_name": prod_name,
                 "quantity": qty,
                 "unit": unit,
-                "count": count,
                 "label": label
-            })
+            }
+            if request.user.is_authenticated:
+                row["count"] = count
+            results.append(row)
 
         return Response(results)
 
