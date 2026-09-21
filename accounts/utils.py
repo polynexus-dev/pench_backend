@@ -1,11 +1,28 @@
 import secrets
 import string
 import logging
+from django.conf import settings
 from django.utils import timezone
 from datetime import timedelta
 from .models import OTP
 
 logger = logging.getLogger(__name__)
+
+
+def get_client_ip(request):
+    """
+    Resolves the client IP for audit logging.
+
+    X-Forwarded-For is client-suppliable and only reflects reality when a
+    trusted reverse proxy sets/overwrites it, so it's only honored when
+    settings.TRUST_X_FORWARDED_FOR is enabled for that deployment; otherwise
+    REMOTE_ADDR is used so a client can't spoof its own logged IP.
+    """
+    if getattr(settings, "TRUST_X_FORWARDED_FOR", False):
+        x_forwarded = request.META.get("HTTP_X_FORWARDED_FOR")
+        if x_forwarded:
+            return x_forwarded.split(",")[0].strip()
+    return request.META.get("REMOTE_ADDR")
 
 
 def generate_otp(phone):

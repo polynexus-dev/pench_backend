@@ -364,6 +364,11 @@ SECURE_PROXY_SSL_HEADER_RAW = config("SECURE_PROXY_SSL_HEADER", default="")
 if SECURE_PROXY_SSL_HEADER_RAW:
     SECURE_PROXY_SSL_HEADER = tuple(SECURE_PROXY_SSL_HEADER_RAW.split(","))
 
+# Only trust the client-supplied X-Forwarded-For header (used for audit-log IPs)
+# when the app is known to be deployed behind a proxy that sets/overwrites it.
+# Left False, REMOTE_ADDR is used instead so a client can't spoof its logged IP.
+TRUST_X_FORWARDED_FOR = config("TRUST_X_FORWARDED_FOR", default=False, cast=bool)
+
 # Firebase Config (for FCM push notifications)
 FIREBASE_TYPE = config("FIREBASE_TYPE", default="service_account")
 FIREBASE_PROJECT_ID = config("FIREBASE_PROJECT_ID", default="")
