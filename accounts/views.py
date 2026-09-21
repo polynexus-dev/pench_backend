@@ -37,7 +37,7 @@ from .serializers import (
     PermissionSerializer,
     GroupSerializer,
 )
-from .utils import generate_otp
+from .utils import generate_otp, get_client_ip
 from core.permissions import IsERPUser
 
 logger = logging.getLogger(__name__)
@@ -52,8 +52,7 @@ class MyTokenRefreshView(TokenRefreshView):
     def post(self, request, *args, **kwargs):
         response = super().post(request, *args, **kwargs)
         try:
-            x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
-            ip = x_forwarded_for.split(",")[0].strip() if x_forwarded_for else request.META.get("REMOTE_ADDR")
+            ip = get_client_ip(request)
             user_agent = request.META.get("HTTP_USER_AGENT", "")[:255]
 
             is_success = status.is_success(response.status_code)
@@ -376,8 +375,7 @@ class SetPasswordView(APIView):
         request.user.set_password(serializer.validated_data["password"])
         request.user.save()
 
-        x_forwarded = request.META.get("HTTP_X_FORWARDED_FOR")
-        ip = x_forwarded.split(",")[0].strip() if x_forwarded else request.META.get("REMOTE_ADDR")
+        ip = get_client_ip(request)
         PasswordChangeLog.objects.create(
             user=request.user,
             changed_by=request.user,
@@ -441,12 +439,7 @@ class DeleteAccountView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        x_forwarded = request.META.get("HTTP_X_FORWARDED_FOR")
-        ip = (
-            x_forwarded.split(",")[0].strip()
-            if x_forwarded
-            else request.META.get("REMOTE_ADDR")
-        )
+        ip = get_client_ip(request)
 
         user_id = user.id
         tenant_schema = user.tenant_schema
@@ -686,8 +679,7 @@ class ResetPasswordView(APIView):
         user.set_password(new_password)
         user.save()
 
-        x_forwarded = request.META.get("HTTP_X_FORWARDED_FOR")
-        ip = x_forwarded.split(",")[0].strip() if x_forwarded else request.META.get("REMOTE_ADDR")
+        ip = get_client_ip(request)
         PasswordChangeLog.objects.create(
             user=user,
             changed_by=user,
@@ -718,7 +710,9 @@ class UserViewSet(viewsets.ModelViewSet):
         return UserSerializer
 
     def get_queryset(self):
-        queryset = super().get_queryset()
+        # UserSerializer.get_groups/get_user_permissions iterate these M2Ms
+        # per row - without prefetching, a list of N users runs 2N extra queries.
+        queryset = super().get_queryset().prefetch_related("groups", "user_permissions")
         group_name = self.request.query_params.get("group")
         if group_name:
             queryset = queryset.filter(groups__name=group_name)
@@ -773,6 +767,23 @@ class UserViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        # IsERPUser admits any ERP account (Managers/Staff/ERP_Admins), not just
+        # SuperAdmin - without this check any of them could self-assign (or
+        # assign to anyone) into the SuperAdmin group via this endpoint.
+        requester = request.user
+        is_super_admin = (
+            requester.is_superuser
+            or requester.groups.filter(name="SuperAdmin").exists()
+        )
+        privileged = [
+            g.name for g in valid_groups if g.name in UserCreateSerializer.PRIVILEGED_ROLES
+        ]
+        if privileged and not is_super_admin:
+            return Response(
+                {"error": f"Only a SuperAdmin can assign these groups: {', '.join(privileged)}."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         user.groups.set(valid_groups)
         return Response(
             {
@@ -783,14 +794,15 @@ class UserViewSet(viewsets.ModelViewSet):
 
 
 class PermissionViewSet(viewsets.ModelViewSet):
-    queryset = Permission.objects.all().order_by("id")
+    queryset = Permission.objects.all().order_by("id").select_related("content_type")
     serializer_class = PermissionSerializer
     permission_classes = [permissions.IsAuthenticated, IsERPUser]
     search_fields = ["name", "codename"]
 
 
 class GroupViewSet(viewsets.ModelViewSet):
-    queryset = Group.objects.all().order_by("id")
+    # GroupSerializer.get_permissions_detail iterates this M2M per row.
+    queryset = Group.objects.all().order_by("id").prefetch_related("permissions")
     serializer_class = GroupSerializer
     permission_classes = [permissions.IsAuthenticated, IsERPUser]
     search_fields = ["name"]

@@ -3,8 +3,10 @@ from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.validators import UniqueValidator
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.contrib.auth.models import Group, Permission
+from django.contrib.auth.password_validation import validate_password as django_validate_password
 from django.contrib.contenttypes.models import ContentType
 from .models import User
+from .utils import get_client_ip
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -87,9 +89,9 @@ class UserSerializer(serializers.ModelSerializer):
                     status=BillStatus.CANCELLED
                 )
 
-                total_pending = 0
-                for bill in bills:
-                    total_pending += bill.total_amount - bill.amount_paid
+                total_pending = bills.aggregate(
+                    pending=Sum(F("total_amount") - F("amount_paid"))
+                )["pending"] or 0
 
                 # 3. Total Orders
                 total_orders = Order.objects.filter(customer__user=obj).count()
@@ -110,6 +112,14 @@ class UserSerializer(serializers.ModelSerializer):
         """
         if not obj.is_customer or not obj.tenant_schema:
             return None
+
+        # Avoid N+1 query and schema switching in list views (mirrors get_customer_dashboard)
+        request = self.context.get("request")
+        if request and request.parser_context:
+            view = request.parser_context.get("view")
+            action = getattr(view, "action", None)
+            if action == "list" and obj != request.user:
+                return None
 
         from django_tenants.utils import schema_context
         from crm.models import Customer
@@ -198,6 +208,12 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class UserCreateSerializer(serializers.ModelSerializer):
+    # Roles/groups that grant ERP-level or superuser access. Only an existing
+    # SuperAdmin may grant one of these to a new account - anyone else
+    # (including the unauthenticated /register/ endpoint) is restricted to
+    # non-privileged roles like Drivers/Customers.
+    PRIVILEGED_ROLES = {"SuperAdmin", "Managers", "Staff", "ERP_Admins"}
+
     password = serializers.CharField(write_only=True, min_length=8)
     phone = serializers.CharField(
         required=False,
@@ -262,7 +278,48 @@ class UserCreateSerializer(serializers.ModelSerializer):
             "is_superuser",
             "is_staff",
         ]
-        read_only_fields = ["id", "is_superuser", "is_staff"]
+        # is_driver/is_customer/is_erp_user are derived from `role` inside
+        # create() (which applies the SuperAdmin check below) rather than
+        # trusted directly from the client - otherwise anyone hitting the
+        # public /register/ endpoint could POST "is_erp_user": true and get
+        # ERP-panel access with no role/group trickery needed at all.
+        read_only_fields = [
+            "id",
+            "is_superuser",
+            "is_staff",
+            "is_driver",
+            "is_customer",
+            "is_erp_user",
+        ]
+
+    def _requesting_user_is_super_admin(self):
+        request = self.context.get("request")
+        user = getattr(request, "user", None) if request else None
+        return bool(
+            user
+            and user.is_authenticated
+            and (user.is_superuser or user.groups.filter(name="SuperAdmin").exists())
+        )
+
+    def validate_password(self, value):
+        django_validate_password(value)
+        return value
+
+    def validate_role(self, value):
+        if value in self.PRIVILEGED_ROLES and not self._requesting_user_is_super_admin():
+            raise serializers.ValidationError(
+                "Only a SuperAdmin can assign this role."
+            )
+        return value
+
+    def validate_groups(self, value):
+        if not self._requesting_user_is_super_admin():
+            privileged = [g.name for g in value if g.name in self.PRIVILEGED_ROLES]
+            if privileged:
+                raise serializers.ValidationError(
+                    f"Only a SuperAdmin can assign these groups: {', '.join(privileged)}."
+                )
+        return value
 
     def create(self, validated_data):
         groups_data = validated_data.pop("groups", [])
@@ -390,8 +447,7 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
         ip = None
         user_agent = ""
         if request:
-            x_forwarded = request.META.get("HTTP_X_FORWARDED_FOR")
-            ip = x_forwarded.split(",")[0].strip() if x_forwarded else request.META.get("REMOTE_ADDR")
+            ip = get_client_ip(request)
             user_agent = request.META.get("HTTP_USER_AGENT", "")[:255]
 
         username_val = attrs.get(self.username_field, "")
@@ -410,16 +466,20 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
                 ip_address=ip,
                 user_agent=user_agent,
             )
-        except Exception as exc:
+        except AuthenticationFailed:
+            # Audit log keeps the precise reason internally, but the response
+            # to the client is always the same generic message - distinguishing
+            # "wrong password" from "no such user" lets an attacker enumerate
+            # valid usernames/phones/emails.
             if user_obj and not user_obj.is_active:
                 status_code = "FAILED_INACTIVE"
                 err_msg = "Account is inactive. Please contact support."
             elif user_obj:
                 status_code = "FAILED_INVALID_PASSWORD"
-                err_msg = "Incorrect password."
+                err_msg = "Incorrect credentials."
             else:
                 status_code = "FAILED_USER_NOT_FOUND"
-                err_msg = f"Incorrect credentials (username '{username_val}' does not exist)"
+                err_msg = "Incorrect credentials."
 
             LoginAuditLog.objects.create(
                 username_or_phone=username_val,
@@ -586,6 +646,12 @@ class SetPasswordSerializer(serializers.Serializer):
     current_password = serializers.CharField(write_only=True, required=False, allow_blank=True)
     password = serializers.CharField(write_only=True, min_length=8)
 
+    def validate_password(self, value):
+        request = self.context.get("request")
+        user = getattr(request, "user", None) if request else None
+        django_validate_password(value, user=user)
+        return value
+
     def validate(self, attrs):
         request = self.context.get("request")
         if request and request.user:
@@ -611,6 +677,10 @@ class ResetPasswordSerializer(serializers.Serializer):
     phone = serializers.CharField(max_length=20)
     code = serializers.CharField(max_length=6)
     new_password = serializers.CharField(write_only=True, min_length=8)
+
+    def validate_new_password(self, value):
+        django_validate_password(value)
+        return value
 
 
 class DeleteAccountSerializer(serializers.Serializer):
