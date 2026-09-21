@@ -780,7 +780,35 @@ class RouteViewSet(viewsets.ModelViewSet):
         return super().partial_update(request, *args, **kwargs)
 
     def get_queryset(self):
-        from django.db.models import Count
+        from django.db.models import Count, Prefetch, Q
+        from inventory.models import CustomerBottleBalance
+
+        req_params = getattr(self.request, "query_params", getattr(self.request, "GET", {})) if self.request else {}
+
+        # 1. Summary mode: fast single query without fetching stops/balances
+        if self.action == "list" and req_params.get("summary") == "true":
+            queryset = (
+                Route.objects.annotate(stops_count=Count("stops"))
+                .select_related("driver")
+            )
+            driver_id = req_params.get("driver")
+            if driver_id:
+                queryset = queryset.filter(driver_id=driver_id)
+            date_val = req_params.get("delivery_date") or req_params.get("date")
+            if date_val:
+                queryset = queryset.filter(delivery_date=date_val)
+            elif req_params.get("all") != "true":
+                from django.utils import timezone
+                from datetime import timedelta
+                recent_threshold = timezone.now().date() - timedelta(days=3)
+                queryset = queryset.filter(delivery_date__gte=recent_threshold)
+            return queryset.order_by("-delivery_date", "-created_at")
+
+        # 2. Detailed mode: prefetch all relationships including customer bottle balances to avoid N+1 queries
+        bottle_balance_prefetch = Prefetch(
+            "stops__order__customer__bottle_balances",
+            queryset=CustomerBottleBalance.objects.select_related("bottle_type")
+        )
 
         queryset = (
             Route.objects.annotate(stops_count=Count("stops"))
@@ -791,22 +819,32 @@ class RouteViewSet(viewsets.ModelViewSet):
                 "stops__order__items__product__bottle_type",
                 "stops__order__subscription__items__product",
                 "stops__order__customer__subscriptions__items__product",
+                bottle_balance_prefetch,
                 "additional_drivers"
             )
         )
-        driver_id = self.request.query_params.get("driver")
-        if driver_id:
-            from django.db.models import Q
 
+        # Defer geometry in list views unless explicitly requested (avoids ctypes FFI unpacking 1M+ coords)
+        if self.action == "list" and req_params.get("include_geometry") != "true":
+            queryset = queryset.defer("geometry")
+
+        driver_id = req_params.get("driver")
+        if driver_id:
             queryset = queryset.filter(
                 Q(driver_id=driver_id) | Q(additional_drivers__id=driver_id)
             ).distinct()
 
-        date_val = self.request.query_params.get("delivery_date") or self.request.query_params.get("date")
+        date_val = req_params.get("delivery_date") or req_params.get("date")
         if date_val:
             queryset = queryset.filter(delivery_date=date_val)
+        elif self.action == "list" and req_params.get("all") != "true":
+            # Default to recent routes (last 3 days + upcoming) to prevent dumping 1,700+ historical routes at once
+            from django.utils import timezone
+            from datetime import timedelta
+            recent_threshold = timezone.now().date() - timedelta(days=3)
+            queryset = queryset.filter(delivery_date__gte=recent_threshold)
 
-        return queryset
+        return queryset.order_by("-delivery_date", "-created_at")
 
     @action(detail=False, methods=["post"], url_path="create-optimized")
     def create_optimized(self, request):

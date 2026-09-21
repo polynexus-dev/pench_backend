@@ -33,6 +33,71 @@
             "key": "last_id",
             "value": "1",
             "type": "string"
+        },
+        {
+            "key": "refresh_token",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "qr_id",
+            "value": "qr_123",
+            "type": "string"
+        },
+        {
+            "key": "ws_url",
+            "value": "ws://nagpur.localhost:8000",
+            "type": "string"
+        },
+        {
+            "key": "company_id",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "city_id",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "zone_id",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "product_id",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "warehouse_id",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "driver_user_id",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "driver_profile_id",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "customer_user_id",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "customer_profile_id",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "subscription_id",
+            "value": "",
+            "type": "string"
         }
     ],
     "item": [
@@ -557,6 +622,54 @@
                             "body": "{\n    \"detail\": \"Success\",\n    \"status\": \"Request processed successfully\"\n}"
                         }
                     ]
+                },
+                {
+                    "name": "POST Submit Undelivered",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "formdata",
+                            "formdata": [
+                                {
+                                    "key": "pod_image",
+                                    "type": "file",
+                                    "src": []
+                                },
+                                {
+                                    "key": "pod_latitude",
+                                    "value": "21.1458",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "pod_longitude",
+                                    "value": "79.0882",
+                                    "type": "text"
+                                }
+                            ]
+                        },
+                        "url": {
+                            "raw": "{{city_url}}/api/erp/orders/driver/{{last_id}}/submit-undelivered/",
+                            "host": [
+                                "{{city_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "erp",
+                                "orders",
+                                "driver",
+                                "{{last_id}}",
+                                "submit-undelivered",
+                                ""
+                            ]
+                        }
+                    },
+                    "response": []
                 }
             ]
         },
@@ -633,6 +746,30 @@
                             ],
                             "cookie": [],
                             "body": "{\n    \"detail\": \"Success\",\n    \"status\": \"Request processed successfully\"\n}"
+                        }
+                    ],
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (pm.response.code === 200) {",
+                                    "    var jsonData = pm.response.json();",
+                                    "    var token = jsonData.access || jsonData.access_token || (jsonData.tokens && jsonData.tokens.access);",
+                                    "    if (token) {",
+                                    "        pm.environment.set(\"access_token\", token);",
+                                    "        pm.collectionVariables.set(\"access_token\", token);",
+                                    "        console.log(\"Saved access_token:\", token);",
+                                    "    }",
+                                    "    var refresh = jsonData.refresh || jsonData.refresh_token || (jsonData.tokens && jsonData.tokens.refresh);",
+                                    "    if (refresh) {",
+                                    "        pm.environment.set(\"refresh_token\", refresh);",
+                                    "        pm.collectionVariables.set(\"refresh_token\", refresh);",
+                                    "    }",
+                                    "}"
+                                ]
+                            }
                         }
                     ]
                 },
@@ -845,6 +982,30 @@
                             "cookie": [],
                             "body": "{\n    \"detail\": \"Success\",\n    \"status\": \"Request processed successfully\"\n}"
                         }
+                    ],
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (pm.response.code === 200) {",
+                                    "    var jsonData = pm.response.json();",
+                                    "    var token = jsonData.access || jsonData.access_token || (jsonData.tokens && jsonData.tokens.access);",
+                                    "    if (token) {",
+                                    "        pm.environment.set(\"access_token\", token);",
+                                    "        pm.collectionVariables.set(\"access_token\", token);",
+                                    "        console.log(\"Saved access_token:\", token);",
+                                    "    }",
+                                    "    var refresh = jsonData.refresh || jsonData.refresh_token || (jsonData.tokens && jsonData.tokens.refresh);",
+                                    "    if (refresh) {",
+                                    "        pm.environment.set(\"refresh_token\", refresh);",
+                                    "        pm.collectionVariables.set(\"refresh_token\", refresh);",
+                                    "    }",
+                                    "}"
+                                ]
+                            }
+                        }
                     ]
                 },
                 {
@@ -862,7 +1023,7 @@
                                 ],
                                 "body": {
                                     "mode": "raw",
-                                    "raw": "{\n    \"username\": \"driver_name\",\n    \"phone\": \"9876543210\",\n    \"role\": \"Drivers\",\n    \"tenant_schema\": \"nagpur\",\n    \"vehicle_plate\": \"MH-31-AZ-1234\",\n    \"vehicle_type\": \"Mini Van\",\n    \"max_capacity_kg\": 500,\n    \"zone\": \"UUID_OF_ZONE\"\n}"
+                                    "raw": "{\n    \"username\": \"superadmin\",\n    \"password\": \"password123\",\n    \"email\": \"super@example.com\",\n    \"phone\": \"9100000001\",\n    \"first_name\": \"Super\",\n    \"last_name\": \"Admin\",\n    \"role\": \"SuperAdmin\",\n    \"is_erp_user\": true\n}"
                                 },
                                 "url": {
                                     "raw": "{{base_url}}/api/accounts/register/",
@@ -935,7 +1096,7 @@
                                 ],
                                 "body": {
                                     "mode": "raw",
-                                    "raw": "{\n    \"username\": \"driver_name\",\n    \"phone\": \"9876543210\",\n    \"role\": \"Drivers\",\n    \"tenant_schema\": \"nagpur\",\n    \"vehicle_plate\": \"MH-31-AZ-1234\",\n    \"vehicle_type\": \"Mini Van\",\n    \"max_capacity_kg\": 500,\n    \"zone\": \"UUID_OF_ZONE\"\n}"
+                                    "raw": "{\n    \"username\": \"staffuser\",\n    \"password\": \"password123\",\n    \"email\": \"staff@example.com\",\n    \"phone\": \"9100000002\",\n    \"first_name\": \"Staff\",\n    \"last_name\": \"User\",\n    \"role\": \"Staff\",\n    \"is_erp_user\": true\n}"
                                 },
                                 "url": {
                                     "raw": "{{base_url}}/api/accounts/register/",
@@ -1008,7 +1169,7 @@
                                 ],
                                 "body": {
                                     "mode": "raw",
-                                    "raw": "{\n    \"username\": \"driver_name\",\n    \"phone\": \"9876543210\",\n    \"role\": \"Drivers\",\n    \"tenant_schema\": \"nagpur\",\n    \"vehicle_plate\": \"MH-31-AZ-1234\",\n    \"vehicle_type\": \"Mini Van\",\n    \"max_capacity_kg\": 500,\n    \"zone\": \"UUID_OF_ZONE\"\n}"
+                                    "raw": "{\n    \"username\": \"manageruser\",\n    \"password\": \"password123\",\n    \"email\": \"manager@example.com\",\n    \"phone\": \"9100000003\",\n    \"first_name\": \"Manager\",\n    \"last_name\": \"User\",\n    \"role\": \"Manager\",\n    \"is_erp_user\": true\n}"
                                 },
                                 "url": {
                                     "raw": "{{base_url}}/api/accounts/register/",
@@ -1081,7 +1242,7 @@
                                 ],
                                 "body": {
                                     "mode": "raw",
-                                    "raw": "{\n    \"username\": \"driver_name\",\n    \"phone\": \"9876543210\",\n    \"role\": \"Drivers\",\n    \"tenant_schema\": \"nagpur\",\n    \"vehicle_plate\": \"MH-31-AZ-1234\",\n    \"vehicle_type\": \"Mini Van\",\n    \"max_capacity_kg\": 500,\n    \"zone\": \"UUID_OF_ZONE\"\n}"
+                                    "raw": "{\n    \"username\": \"driveruser\",\n    \"password\": \"password123\",\n    \"email\": \"driver@example.com\",\n    \"phone\": \"9100000004\",\n    \"first_name\": \"Driver\",\n    \"last_name\": \"User\",\n    \"role\": \"Drivers\",\n    \"is_driver\": true,\n    \"tenant_schema\": \"nagpur\"\n}"
                                 },
                                 "url": {
                                     "raw": "{{base_url}}/api/accounts/register/",
@@ -1154,7 +1315,7 @@
                                 ],
                                 "body": {
                                     "mode": "raw",
-                                    "raw": "{\n    \"username\": \"driver_name\",\n    \"phone\": \"9876543210\",\n    \"role\": \"Drivers\",\n    \"tenant_schema\": \"nagpur\",\n    \"vehicle_plate\": \"MH-31-AZ-1234\",\n    \"vehicle_type\": \"Mini Van\",\n    \"max_capacity_kg\": 500,\n    \"zone\": \"UUID_OF_ZONE\"\n}"
+                                    "raw": "{\n    \"username\": \"customeruser\",\n    \"password\": \"password123\",\n    \"email\": \"customer@example.com\",\n    \"phone\": \"9100000005\",\n    \"role\": \"Customers\",\n    \"tenant_schema\": \"nagpur\"\n}"
                                 },
                                 "url": {
                                     "raw": "{{base_url}}/api/accounts/register/",
@@ -2974,7 +3135,7 @@
                                         {
                                             "key": "file",
                                             "type": "file",
-                                            "description": "Excel (.xlsx) with customer name/phone/email/address/lat/lon columns plus a driver/rider column. Generates one non-overlapping Voronoi zone per driver from their customers' locations, clipped to the city boundary. Existing customers (matched by phone/email) are left untouched; only new ones are created. Safe to re-run \u2014 existing zones are updated in place instead of duplicated. Requires the ERP_Admins group."
+                                            "description": "Excel (.xlsx) with customer name/phone/email/address/lat/lon columns plus a driver/rider column. Generates one non-overlapping Voronoi zone per driver from their customers' locations, clipped to the city boundary. Existing customers (matched by phone/email) are left untouched; only new ones are created. Safe to re-run — existing zones are updated in place instead of duplicated. Requires the ERP_Admins group."
                                         }
                                     ]
                                 }
@@ -3996,7 +4157,7 @@
                     "request": {
                         "method": "GET",
                         "url": {
-                            "raw": "{{city_url}}/api/erp/customers/{{last_id}}/qr/",
+                            "raw": "{{city_url}}/api/erp/customers/{{last_id}}/view-qr/",
                             "host": [
                                 "{{city_url}}"
                             ],
@@ -4005,7 +4166,8 @@
                                 "erp",
                                 "customers",
                                 "{{last_id}}",
-                                "qr"
+                                "view-qr",
+                                ""
                             ],
                             "query": []
                         }
@@ -6801,6 +6963,43 @@
                                     ]
                                 }
                             }
+                        },
+                        {
+                            "name": "POST Mark Undelivered",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "formdata",
+                                    "formdata": [
+                                        {
+                                            "key": "pod_image",
+                                            "type": "file",
+                                            "src": []
+                                        }
+                                    ]
+                                },
+                                "url": {
+                                    "raw": "{{city_url}}/api/erp/orders/{{last_id}}/mark-undelivered/",
+                                    "host": [
+                                        "{{city_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "erp",
+                                        "orders",
+                                        "{{last_id}}",
+                                        "mark-undelivered",
+                                        ""
+                                    ]
+                                }
+                            },
+                            "response": []
                         }
                     ]
                 },
@@ -11161,14 +11360,14 @@
                     "request": {
                         "method": "GET",
                         "url": {
-                            "raw": "ws://{{city_url}}/ws/tracking/?token={{access_token}}",
+                            "raw": "{{ws_url}}/ws/tracking/?token={{access_token}}",
                             "host": [
-                                "ws:"
+                                "{{ws_url}}"
                             ],
                             "path": [
-                                "{{city_url}}",
                                 "ws",
-                                "tracking"
+                                "tracking",
+                                ""
                             ],
                             "query": [
                                 {
@@ -11225,6 +11424,259 @@
                             "body": "{\n    \"detail\": \"Success\",\n    \"status\": \"Request processed successfully\"\n}"
                         }
                     ]
+                }
+            ]
+        },
+        {
+            "name": "14. Notifications",
+            "item": [
+                {
+                    "name": "GET List In-App Notifications",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{city_url}}/api/notifications/",
+                            "host": [
+                                "{{city_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "notifications",
+                                ""
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "POST Mark All Read",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{}"
+                        },
+                        "url": {
+                            "raw": "{{city_url}}/api/notifications/read-all/",
+                            "host": [
+                                "{{city_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "notifications",
+                                "read-all",
+                                ""
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "POST Mark Single Read",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{}"
+                        },
+                        "url": {
+                            "raw": "{{city_url}}/api/notifications/{{last_id}}/read/",
+                            "host": [
+                                "{{city_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "notifications",
+                                "{{last_id}}",
+                                "read",
+                                ""
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "POST Save FCM Token",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"token\": \"fcm_device_registration_token_here\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{city_url}}/api/notifications/save-token/",
+                            "host": [
+                                "{{city_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "notifications",
+                                "save-token",
+                                ""
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "GET List FCM Tokens",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{city_url}}/api/notifications/tokens/",
+                            "host": [
+                                "{{city_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "notifications",
+                                "tokens",
+                                ""
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "POST Send Single Push",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"token\": \"fcm_device_token\",\n    \"title\": \"Delivery Update\",\n    \"body\": \"Your milk has arrived!\",\n    \"data\": {\n        \"order_id\": \"{{order_id}}\"\n    }\n}"
+                        },
+                        "url": {
+                            "raw": "{{city_url}}/api/notifications/send-single/",
+                            "host": [
+                                "{{city_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "notifications",
+                                "send-single",
+                                ""
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "POST Send Multiple Push",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"tokens\": [\"fcm_token_1\", \"fcm_token_2\"],\n    \"title\": \"Daily Announcement\",\n    \"body\": \"Deliveries start at 6:00 AM tomorrow.\",\n    \"data\": {}\n}"
+                        },
+                        "url": {
+                            "raw": "{{city_url}}/api/notifications/send-multiple/",
+                            "host": [
+                                "{{city_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "notifications",
+                                "send-multiple",
+                                ""
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "POST Send Topic Push",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"topic\": \"nagpur_drivers\",\n    \"title\": \"Route Ready\",\n    \"body\": \"Today routes have been generated.\",\n    \"data\": {}\n}"
+                        },
+                        "url": {
+                            "raw": "{{city_url}}/api/notifications/send-topic/",
+                            "host": [
+                                "{{city_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "notifications",
+                                "send-topic",
+                                ""
+                            ]
+                        }
+                    },
+                    "response": []
                 }
             ]
         }

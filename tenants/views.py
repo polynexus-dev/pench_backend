@@ -100,6 +100,7 @@ class CityViewSet(viewsets.ModelViewSet):
                 and req_host != "localhost"
                 and req_host != "127.0.0.1"
                 and not is_ip
+                and not req_host.endswith("localhost")
             ):
                 domain_name_req = f"{subdomain}.{req_host}"
                 if domain_name_req not in created_domains:
@@ -119,10 +120,18 @@ class CityViewSet(viewsets.ModelViewSet):
                 defaults={"is_primary": not created_domains},
             )
 
-        # 3. Trigger asynchronous Celery task
+        # 3. Trigger schema provisioning
+        from django.conf import settings
         from .tasks import provision_city_schema_task
 
-        provision_city_schema_task.delay(str(city.id))
+        if getattr(settings, "DEBUG", False):
+            # In local development, run synchronously so tables exist immediately without needing a separate Celery worker process
+            provision_city_schema_task(str(city.id))
+        else:
+            try:
+                provision_city_schema_task.delay(str(city.id))
+            except Exception:
+                provision_city_schema_task(str(city.id))
 
         return city
 class CompanyViewSet(viewsets.ModelViewSet):

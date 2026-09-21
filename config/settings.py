@@ -132,11 +132,11 @@ TENANT_DOMAIN_MODEL = "tenants.Domain"
 DATABASES = {
     "default": {
         "ENGINE": DB_ENGINE,
-        "NAME": config("DB_NAME"),
-        "USER": config("DB_USER"),
-        "PASSWORD": config("DB_PASSWORD"),
-        "HOST": config("DB_HOST"),
-        "PORT": config("DB_PORT"),
+        "NAME": config("DB_NAME", default="pench_foods"),
+        "USER": config("DB_USER", default="postgres"),
+        "PASSWORD": config("DB_PASSWORD", default="admin"),
+        "HOST": config("DB_HOST", default="localhost"),
+        "PORT": config("DB_PORT", default="5432"),
         # Reuse connections across requests instead of opening/closing one per
         # request -- avoids exhausting Postgres max_connections under bursty
         # concurrent traffic (e.g. many logins at once).

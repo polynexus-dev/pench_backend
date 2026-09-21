@@ -421,8 +421,13 @@ class RouteStopSerializer(serializers.ModelSerializer):
         ]
 
     def get_bottles_to_take_back(self, obj):
-        from inventory.models import CustomerBottleBalance
-        balances = CustomerBottleBalance.objects.filter(customer=obj.order.customer).select_related("bottle_type")
+        if not obj.order or not obj.order.customer:
+            return []
+        cust = obj.order.customer
+        if hasattr(cust, "_prefetched_objects_cache") and "bottle_balances" in cust._prefetched_objects_cache:
+            balances = cust.bottle_balances.all()
+        else:
+            balances = cust.bottle_balances.select_related("bottle_type")
         return [
             {
                 "bottle_type_id": str(bal.bottle_type.id),
@@ -436,21 +441,27 @@ class RouteStopSerializer(serializers.ModelSerializer):
 
 
 class RouteListSerializer(serializers.ModelSerializer):
+    """Ultra-lightweight summary serializer for Route list views (used with ?summary=true)."""
     driver_name = serializers.CharField(source="driver.get_full_name", read_only=True)
-    stops_count = serializers.IntegerField(read_only=True)
+    route_id = serializers.CharField(source="id", read_only=True)
+    stops_count = serializers.IntegerField(read_only=True, default=0)
+    total_stops = serializers.IntegerField(source="stops_count", read_only=True, default=0)
     status = serializers.SerializerMethodField()
 
     class Meta:
         model = Route
         fields = [
             "id",
+            "route_id",
             "name",
             "delivery_date",
             "status",
             "is_completed",
+            "is_locked",
             "driver",
             "driver_name",
             "stops_count",
+            "total_stops",
             "created_at",
         ]
 
@@ -465,6 +476,8 @@ class RouteSerializer(serializers.ModelSerializer):
     driver_name = serializers.CharField(source="driver.get_full_name", read_only=True)
     route_id = serializers.CharField(source="id", read_only=True)
     status = serializers.SerializerMethodField()
+    stops_count = serializers.IntegerField(read_only=True, default=0)
+    total_stops = serializers.IntegerField(source="stops_count", read_only=True, default=0)
 
     # Return geometry as GeoJSON
     route_geometry = serializers.SerializerMethodField()
@@ -472,6 +485,8 @@ class RouteSerializer(serializers.ModelSerializer):
     dispatch_bottles_500ml = serializers.SerializerMethodField()
     empty_bottles_to_pick_1L = serializers.SerializerMethodField()
     empty_bottles_to_pick_500ml = serializers.SerializerMethodField()
+    returned_bottles_1L = serializers.SerializerMethodField()
+    returned_bottles_500ml = serializers.SerializerMethodField()
 
     additional_driver_names = serializers.SerializerMethodField()
 
@@ -497,146 +512,28 @@ class RouteSerializer(serializers.ModelSerializer):
             drv.get_full_name() or drv.username for drv in obj.additional_drivers.all()
         ]
 
+    def _get_admin_config(self):
+        if not hasattr(self, "_cached_admin_config"):
+            from administration.models import AdminConfiguration
+            try:
+                self._cached_admin_config = AdminConfiguration.get_solo()
+            except Exception:
+                self._cached_admin_config = None
+        return self._cached_admin_config
+
     def get_company_upi_id(self, obj):
-        from administration.models import AdminConfiguration
-        return AdminConfiguration.get_solo().company_upi_id
+        cfg = self._get_admin_config()
+        return cfg.company_upi_id if cfg else None
 
     def get_company_upi_name(self, obj):
-        from administration.models import AdminConfiguration
-        config = AdminConfiguration.get_solo()
-        return config.company_upi_name or config.company_name
+        cfg = self._get_admin_config()
+        return (cfg.company_upi_name or cfg.company_name) if cfg else None
 
     def get_is_secured(self, obj):
         if getattr(obj, "is_secured", False):
             return True
-        from administration.models import AdminConfiguration
-        try:
-            return AdminConfiguration.get_solo().is_secured
-        except Exception:
-            return False
-
-    class Meta:
-        model = Route
-        fields = [
-            "id",
-            "route_id",
-            "name",
-            "driver",
-            "driver_name",
-            "delivery_date",
-            "status",
-            "is_locked",
-            "is_completed",
-            "is_secured",
-            "route_geometry",
-            "stops",
-            "dispatch_bottles_1L",
-            "dispatch_bottles_500ml",
-            "empty_bottles_to_pick_1L",
-            "empty_bottles_to_pick_500ml",
-            "additional_drivers",
-            "additional_driver_names",
-            "company_upi_id",
-            "company_upi_name",
-            "actual_distance_km",
-            "stoppage_duration_minutes",
-            "actual_duration_minutes",
-            "stoppage_history",
-        ]
-
-    def get_route_geometry(self, obj):
-        if not obj.geometry:
-            return None
-        # Convert Point list to simple list of coords for frontend
-        return [[p[0], p[1]] for p in obj.geometry.coords]
-
-    def get_dispatch_bottles_1L(self, obj):
-        total = 0
-        try:
-            for stop in obj.stops.all():
-                for item in stop.order.items.all():
-                    product = item.product
-                    if product.bottle_type and product.bottle_type.volume_ml == 1000:
-                        total += item.quantity
-        except Exception:
-            pass
-        return total
-
-    def get_dispatch_bottles_500ml(self, obj):
-        total = 0
-        try:
-            for stop in obj.stops.all():
-                for item in stop.order.items.all():
-                    product = item.product
-                    if product.bottle_type and product.bottle_type.volume_ml == 500:
-                        total += item.quantity
-        except Exception:
-            pass
-        return total
-
-    def get_empty_bottles_to_pick_1L(self, obj):
-        total = 0
-        try:
-            from inventory.models import CustomerBottleBalance
-            for stop in obj.stops.all():
-                if stop.order and stop.order.customer:
-                    bal = CustomerBottleBalance.objects.filter(
-                        customer=stop.order.customer, bottle_type__volume_ml=1000
-                    ).first()
-                    if bal:
-                        total += bal.balance
-        except Exception:
-            pass
-        return total
-
-    def get_empty_bottles_to_pick_500ml(self, obj):
-        total = 0
-        try:
-            from inventory.models import CustomerBottleBalance
-            for stop in obj.stops.all():
-                if stop.order and stop.order.customer:
-                    bal = CustomerBottleBalance.objects.filter(
-                        customer=stop.order.customer, bottle_type__volume_ml=500
-                    ).first()
-                    if bal:
-                        total += bal.balance
-        except Exception:
-            pass
-        return total
-
-
-class RouteListSerializer(serializers.ModelSerializer):
-    """Serializer for Route list views — includes full stops array, bottle counts, and additional drivers."""
-    driver_name = serializers.CharField(source="driver.get_full_name", read_only=True)
-    route_id = serializers.CharField(source="id", read_only=True)
-    stops_count = serializers.IntegerField(read_only=True, default=0)
-    total_stops = serializers.IntegerField(source="stops_count", read_only=True, default=0)
-    stops = RouteStopSerializer(many=True, read_only=True)
-    dispatch_bottles_1L = serializers.SerializerMethodField()
-    dispatch_bottles_500ml = serializers.SerializerMethodField()
-    empty_bottles_to_pick_1L = serializers.SerializerMethodField()
-    empty_bottles_to_pick_500ml = serializers.SerializerMethodField()
-    returned_bottles_1L = serializers.SerializerMethodField()
-    returned_bottles_500ml = serializers.SerializerMethodField()
-    additional_driver_names = serializers.SerializerMethodField()
-    is_secured = serializers.SerializerMethodField()
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        from accounts.models import User
-
-        self.fields["additional_drivers"] = serializers.PrimaryKeyRelatedField(
-            many=True, queryset=User.objects.all(), required=False
-        )
-
-    def get_is_secured(self, obj):
-        if getattr(obj, "is_secured", False):
-            return True
-        from administration.models import AdminConfiguration
-        try:
-            return AdminConfiguration.get_solo().is_secured
-        except Exception:
-            return False
+        cfg = self._get_admin_config()
+        return cfg.is_secured if cfg else False
 
     class Meta:
         model = Route
@@ -653,6 +550,7 @@ class RouteListSerializer(serializers.ModelSerializer):
             "is_secured",
             "stops_count",
             "total_stops",
+            "route_geometry",
             "stops",
             "dispatch_bottles_1L",
             "dispatch_bottles_500ml",
@@ -662,95 +560,108 @@ class RouteListSerializer(serializers.ModelSerializer):
             "returned_bottles_500ml",
             "additional_drivers",
             "additional_driver_names",
+            "company_upi_id",
+            "company_upi_name",
             "actual_distance_km",
             "stoppage_duration_minutes",
             "actual_duration_minutes",
+            "stoppage_history",
         ]
+
+    def get_route_geometry(self, obj):
+        # Avoid serializing massive LineStrings with millions of points in list views unless requested
+        request = self.context.get("request")
+        view = self.context.get("view")
+        is_detail = view and getattr(view, "action", None) == "retrieve"
+        req_params = getattr(request, "query_params", getattr(request, "GET", {})) if request else {}
+        include_geom = req_params.get("include_geometry") == "true"
+        if not is_detail and not include_geom:
+            return None
+
+        geom = getattr(obj, "geometry", None)
+        if not geom:
+            return None
+        # Convert Point list to simple list of coords for frontend
+        return [[p[0], p[1]] for p in geom.coords]
+
+    def _get_bottle_stats(self, obj):
+        if hasattr(obj, "_cached_bottle_stats"):
+            return obj._cached_bottle_stats
+        d_1L, d_500ml, p_1L, p_500ml = 0, 0, 0, 0
+        try:
+            for stop in obj.stops.all():
+                if stop.order:
+                    for item in stop.order.items.all():
+                        prod = item.product
+                        if prod and prod.bottle_type:
+                            if prod.bottle_type.volume_ml == 1000:
+                                d_1L += item.quantity
+                            elif prod.bottle_type.volume_ml == 500:
+                                d_500ml += item.quantity
+                    cust = stop.order.customer
+                    if cust:
+                        if hasattr(cust, "_prefetched_objects_cache") and "bottle_balances" in cust._prefetched_objects_cache:
+                            bals = cust.bottle_balances.all()
+                        else:
+                            bals = cust.bottle_balances.all()
+                        for b in bals:
+                            if b.bottle_type:
+                                if b.bottle_type.volume_ml == 1000:
+                                    p_1L += b.balance
+                                elif b.bottle_type.volume_ml == 500:
+                                    p_500ml += b.balance
+        except Exception:
+            pass
+        stats = {
+            "dispatch_1L": d_1L,
+            "dispatch_500ml": d_500ml,
+            "pick_1L": p_1L,
+            "pick_500ml": p_500ml,
+        }
+        obj._cached_bottle_stats = stats
+        return stats
 
     def get_dispatch_bottles_1L(self, obj):
-        total = 0
-        try:
-            for stop in obj.stops.all():
-                for item in stop.order.items.all():
-                    product = item.product
-                    if product.bottle_type and product.bottle_type.volume_ml == 1000:
-                        total += item.quantity
-        except Exception:
-            pass
-        return total
+        return self._get_bottle_stats(obj)["dispatch_1L"]
 
     def get_dispatch_bottles_500ml(self, obj):
-        total = 0
-        try:
-            for stop in obj.stops.all():
-                for item in stop.order.items.all():
-                    product = item.product
-                    if product.bottle_type and product.bottle_type.volume_ml == 500:
-                        total += item.quantity
-        except Exception:
-            pass
-        return total
+        return self._get_bottle_stats(obj)["dispatch_500ml"]
 
     def get_empty_bottles_to_pick_1L(self, obj):
-        total = 0
-        try:
-            for stop in obj.stops.all():
-                cust = stop.order.customer
-                if cust:
-                    b = cust.bottle_balances.filter(bottle_type__volume_ml=1000).first()
-                    if b:
-                        total += b.balance
-        except Exception:
-            pass
-        return total
+        return self._get_bottle_stats(obj)["pick_1L"]
 
     def get_empty_bottles_to_pick_500ml(self, obj):
-        total = 0
+        return self._get_bottle_stats(obj)["pick_500ml"]
+
+    def _get_returned_bottles(self, obj):
+        if hasattr(obj, "_cached_returned_bottles"):
+            return obj._cached_returned_bottles
+        counts = {1000: 0, 500: 0}
         try:
-            for stop in obj.stops.all():
-                cust = stop.order.customer
-                if cust:
-                    b = cust.bottle_balances.filter(bottle_type__volume_ml=500).first()
-                    if b:
-                        total += b.balance
+            from inventory.models import BottleTransaction, BottleTransactionType
+            from django.db.models import Sum
+            order_ids = [stop.order.id for stop in obj.stops.all() if stop.order]
+            if order_ids:
+                txs = (
+                    BottleTransaction.objects.filter(
+                        order_id__in=order_ids,
+                        transaction_type=BottleTransactionType.RETURNED,
+                    )
+                    .values("bottle_type__volume_ml")
+                    .annotate(total=Sum("quantity"))
+                )
+                for row in txs:
+                    vol = row.get("bottle_type__volume_ml")
+                    if vol in counts:
+                        counts[vol] = row.get("total") or 0
         except Exception:
             pass
-        return total
+        obj._cached_returned_bottles = counts
+        return counts
 
     def get_returned_bottles_1L(self, obj):
-        total = 0
-        try:
-            from inventory.models import BottleTransaction, BottleTransactionType
-            order_ids = [stop.order.id for stop in obj.stops.all() if stop.order]
-            if order_ids:
-                txs = BottleTransaction.objects.filter(
-                    order_id__in=order_ids,
-                    transaction_type=BottleTransactionType.RETURNED,
-                    bottle_type__volume_ml=1000,
-                )
-                total = sum(t.quantity for t in txs)
-        except Exception:
-            pass
-        return total
+        return self._get_returned_bottles(obj).get(1000, 0)
 
     def get_returned_bottles_500ml(self, obj):
-        total = 0
-        try:
-            from inventory.models import BottleTransaction, BottleTransactionType
-            order_ids = [stop.order.id for stop in obj.stops.all() if stop.order]
-            if order_ids:
-                txs = BottleTransaction.objects.filter(
-                    order_id__in=order_ids,
-                    transaction_type=BottleTransactionType.RETURNED,
-                    bottle_type__volume_ml=500,
-                )
-                total = sum(t.quantity for t in txs)
-        except Exception:
-            pass
-        return total
-
-    def get_additional_driver_names(self, obj):
-        return [
-            drv.get_full_name() or drv.username for drv in obj.additional_drivers.all()
-        ]
+        return self._get_returned_bottles(obj).get(500, 0)
 

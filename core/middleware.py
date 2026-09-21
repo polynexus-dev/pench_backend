@@ -188,7 +188,7 @@ class LocalDomainAutoRegisterMiddleware:
 
         # 2. Base IP/Domain logic: Only auto-register the primary entry points to Public
         # Don't auto-register subdomains (which belong to cities), unless it's a raw IP address
-        is_potential_subdomain = False if is_ip else (host.count(".") > (4 if "nip.io" in host else 1))
+        is_potential_subdomain = False if is_ip else (host.count(".") > (5 if "nip.io" in host else 1))
 
         if (
             host
