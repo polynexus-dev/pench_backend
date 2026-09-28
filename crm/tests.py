@@ -966,5 +966,42 @@ class CustomerTrialTestCase(TenantTestCase):
         self.assertTrue(primary_cust.trial_approved)
         self.assertFalse(primary_cust.is_new)
 
+    def test_bulk_create_customers_with_user_creation(self):
+        """Verify bulk customer POST creates customers and users without InFailedSqlTransaction."""
+        url = "/api/erp/customers/"
+        self.manager_user.tenant_schema = self.tenant.schema_name
+        self.manager_user.save()
+
+        payload = [
+            {
+                "name": "Jane Doe",
+                "phone": "9876500001",
+                "email": "jane.doe@example.com",
+                "address": "123 Test Street",
+            },
+            {
+                "name": "John Smith",
+                "phone": "9876500002",
+                "email": "john.smith@example.com",
+                "address": "456 Test Avenue",
+            },
+        ]
+
+        response = self.client.post(
+            url,
+            payload,
+            format="json",
+            HTTP_HOST="tenant.test.com"
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["imported_count"], 2)
+
+        # Check that customers exist and have user linked
+        cust1 = Customer.objects.filter(phone="9876500001").first()
+        self.assertIsNotNone(cust1)
+        self.assertIsNotNone(cust1.user)
+        self.assertTrue(cust1.user.is_customer)
+
+
 
 

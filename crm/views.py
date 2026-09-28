@@ -211,23 +211,40 @@ class CustomerViewSet(viewsets.ModelViewSet):
                                 username = f"{base_username}{counter}"
                                 counter += 1
                                 
-                            # Create new user in public schema with Welcome@pench password
-                            new_user = User.objects.create(
-                                username=username,
-                                phone=instance.phone if instance.phone and not instance.phone.startswith("N/A-") else None,
-                                email=instance.email if instance.email else f"{username}@penchfoods.in",
-                                first_name=first_name,
-                                last_name=last_name,
-                                is_customer=True,
-                                tenant_schema=target_schema,
-                                is_active=True
-                            )
-                            new_user.set_password("Welcome@pench")
-                            new_user.save()
+                            user_phone = instance.phone if instance.phone and not instance.phone.startswith("N/A-") else None
+                            user_email = instance.email if instance.email else f"{username}@penchfoods.in"
+
+                            existing_user = None
+                            if user_phone:
+                                existing_user = User.objects.filter(phone=user_phone).first()
+                            if not existing_user and user_email:
+                                existing_user = User.objects.filter(email=user_email).first()
+
+                            if existing_user:
+                                new_user = existing_user
+                            else:
+                                # Create new user in public schema with Welcome@pench password
+                                new_user = User.objects.create(
+                                    username=username,
+                                    phone=user_phone,
+                                    email=user_email,
+                                    first_name=first_name,
+                                    last_name=last_name,
+                                    is_customer=False,
+                                    tenant_schema=target_schema,
+                                    is_active=True
+                                )
+                                new_user.set_password("Welcome@pench")
+                                new_user.save()
                             
                         # 4. Link User to Customer
                         instance.user = new_user
                         instance.save(update_fields=["user"])
+
+                        with schema_context("public"):
+                            if not new_user.is_customer:
+                                new_user.is_customer = True
+                                new_user.save(update_fields=["is_customer"])
                         
                         imported_records.append(self.get_serializer(instance).data)
             except IntegrityError as e:
