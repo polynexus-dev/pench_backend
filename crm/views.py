@@ -277,19 +277,24 @@ class CustomerViewSet(viewsets.ModelViewSet):
             # 3. Delete the Customer profile (cascades subscriptions, balances, custom prices)
             instance.delete()
 
-            # 4. Safely handle associated User account
+            # 4. Safely handle associated User account (shared app)
             if user:
-                has_other_roles = (
-                    user.is_staff
-                    or user.is_superuser
-                    or user.is_erp_user
-                    or getattr(user, "is_driver", False)
-                )
-                if has_other_roles:
-                    user.is_customer = False
-                    user.save(update_fields=["is_customer"])
-                else:
-                    user.delete()
+                try:
+                    from django_tenants.utils import schema_context
+                    with schema_context("public"):
+                        has_other_roles = (
+                            user.is_staff
+                            or user.is_superuser
+                            or user.is_erp_user
+                            or getattr(user, "is_driver", False)
+                        )
+                        if has_other_roles:
+                            user.is_customer = False
+                            user.save(update_fields=["is_customer"])
+                        else:
+                            user.delete()
+                except Exception:
+                    pass
 
     @action(detail=False, methods=["patch", "put"])
     def bulk_update(self, request):
@@ -406,28 +411,31 @@ class CustomerViewSet(viewsets.ModelViewSet):
                 # 3. Delete Customer profiles (cascades: Subscription, CustomerBottleBalance, CustomerProductPrice)
                 cust_del_count, _ = customers_qs.delete()
 
-                # 4. Safely handle associated User accounts (shared app)
+                # 4. Safely handle associated User accounts (shared app in public schema)
                 user_del_count = 0
                 if user_ids:
-                    # Users to delete (no other role flags)
-                    users_to_delete = User.objects.filter(id__in=user_ids).exclude(
-                        models.Q(is_staff=True)
-                        | models.Q(is_superuser=True)
-                        | models.Q(is_erp_user=True)
-                        | models.Q(is_driver=True)
-                    )
-                    user_del_count, _ = users_to_delete.delete()
+                    try:
+                        from django_tenants.utils import schema_context
+                        with schema_context("public"):
+                            users_to_delete = User.objects.filter(id__in=user_ids).exclude(
+                                models.Q(is_staff=True)
+                                | models.Q(is_superuser=True)
+                                | models.Q(is_erp_user=True)
+                                | models.Q(is_driver=True)
+                            )
+                            user_del_count, _ = users_to_delete.delete()
 
-                    # Users to keep (have other roles) -> clear is_customer flag
-                    users_to_keep = User.objects.filter(id__in=user_ids).filter(
-                        models.Q(is_staff=True)
-                        | models.Q(is_superuser=True)
-                        | models.Q(is_erp_user=True)
-                        | models.Q(is_driver=True)
-                    )
-                    for user in users_to_keep:
-                        user.is_customer = False
-                        user.save(update_fields=["is_customer"])
+                            users_to_keep = User.objects.filter(id__in=user_ids).filter(
+                                models.Q(is_staff=True)
+                                | models.Q(is_superuser=True)
+                                | models.Q(is_erp_user=True)
+                                | models.Q(is_driver=True)
+                            )
+                            for user in users_to_keep:
+                                user.is_customer = False
+                                user.save(update_fields=["is_customer"])
+                    except Exception:
+                        pass
 
             return Response(
                 {
