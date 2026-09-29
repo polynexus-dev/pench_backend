@@ -836,3 +836,23 @@ class GroupViewSet(viewsets.ModelViewSet):
                 ],
             }
         )
+
+
+class AdminSetAllCustomerPasswordsView(APIView):
+    """
+    Endpoint for admins to set all customer passwords to Pass@123.
+    """
+    permission_classes = [permissions.IsAuthenticated, permissions.IsAdminUser]
+
+    def post(self, request):
+        customers = User.objects.filter(is_customer=True)
+        count = 0
+        for customer in customers:
+            customer.set_password('Pass@123')
+            customer.save()
+            count += 1
+        
+        return Response(
+            {"message": f"Successfully updated passwords for {count} customers to Pass@123."},
+            status=status.HTTP_200_OK
+        )
