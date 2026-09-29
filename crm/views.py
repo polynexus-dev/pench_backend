@@ -262,20 +262,34 @@ class CustomerViewSet(viewsets.ModelViewSet):
         }, status=status.HTTP_201_CREATED if imported_records else status.HTTP_200_OK)
 
     def perform_destroy(self, instance):
+        from django.db import transaction
+        from orders.models import Order
+        from finance.models import MonthlyBill
+
         user = instance.user
-        instance.delete()
-        if user:
-            has_other_roles = (
-                user.is_staff
-                or user.is_superuser
-                or user.is_erp_user
-                or getattr(user, "is_driver", False)
-            )
-            if has_other_roles:
-                user.is_customer = False
-                user.save(update_fields=["is_customer"])
-            else:
-                user.delete()
+        with transaction.atomic():
+            # 1. Delete protected Orders for this customer
+            Order.objects.filter(customer=instance).delete()
+
+            # 2. Delete protected MonthlyBills for this customer
+            MonthlyBill.objects.filter(customer=instance).delete()
+
+            # 3. Delete the Customer profile (cascades subscriptions, balances, custom prices)
+            instance.delete()
+
+            # 4. Safely handle associated User account
+            if user:
+                has_other_roles = (
+                    user.is_staff
+                    or user.is_superuser
+                    or user.is_erp_user
+                    or getattr(user, "is_driver", False)
+                )
+                if has_other_roles:
+                    user.is_customer = False
+                    user.save(update_fields=["is_customer"])
+                else:
+                    user.delete()
 
     @action(detail=False, methods=["patch", "put"])
     def bulk_update(self, request):
