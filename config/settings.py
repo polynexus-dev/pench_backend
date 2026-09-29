@@ -331,11 +331,32 @@ CORS_ALLOWED_ORIGINS = [
     for o in config("CORS_ALLOWED_ORIGINS", default="").replace(" ", ",").split(",")
     if o.strip()
 ]
+# Default production fallback for CORS allowed origins
+DEFAULT_CORS_ORIGINS = [
+    "https://shop.penchfoods.com",
+    "http://shop.penchfoods.com",
+    "https://pench.polynexus.in",
+    "http://localhost:5173",
+    "http://localhost:3000",
+]
+for origin in DEFAULT_CORS_ORIGINS:
+    if origin not in CORS_ALLOWED_ORIGINS:
+        CORS_ALLOWED_ORIGINS.append(origin)
+
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https://[\w-]+\.pench\.polynexus\.in$",
     r"^https://pench\.polynexus\.in$",
     r"^https?://([a-zA-Z0-9-]+\.)*penchfoods\.com$",
 ]
+
+from corsheaders.defaults import default_headers
+
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    "sec-ch-ua",
+    "sec-ch-ua-mobile",
+    "sec-ch-ua-platform",
+]
+
 CSRF_TRUSTED_ORIGINS = [
     o.strip()
     for o in config("CSRF_TRUSTED_ORIGINS", default="").replace(" ", ",").split(",")

@@ -650,6 +650,36 @@ class CustomerBulkDeleteTestCase(TenantTestCase):
         self.assertFalse(user.is_customer)
         self.assertTrue(user.is_driver)
 
+    def test_single_delete_customer_with_orders_and_bills(self):
+        connection.set_tenant(self.tenant)
+        User = get_user_model()
+        from subscriptions.models import Subscription
+        from orders.models import Order
+        from finance.models import MonthlyBill
+        import datetime
+
+        user = User.objects.create_user(
+            username="dep_del_user", email="dep_u@example.com", phone="9000000037", is_customer=True, tenant_schema="test"
+        )
+        cust = Customer.objects.get(user=user)
+
+        sub = Subscription.objects.create(customer=cust, start_date=datetime.date.today())
+        ord_obj = Order.objects.create(customer=cust, subscription=sub, delivery_address="Test Address")
+        bill = MonthlyBill.objects.create(
+            customer=cust, billing_month=datetime.date.today().replace(day=1),
+            due_date=datetime.date.today(), invoice_number="INV-DEP-1"
+        )
+
+        url = f"/api/erp/customers/{cust.id}/"
+        response = self.client.delete(url, HTTP_HOST="tenant.test.com")
+        self.assertEqual(response.status_code, 204)
+
+        self.assertFalse(Customer.objects.filter(id=cust.id).exists())
+        self.assertFalse(Order.objects.filter(id=ord_obj.id).exists())
+        self.assertFalse(MonthlyBill.objects.filter(id=bill.id).exists())
+        self.assertFalse(Subscription.objects.filter(id=sub.id).exists())
+        self.assertFalse(User.objects.filter(id=user.id).exists())
+
 
 class CustomerTrialTestCase(TenantTestCase):
     @classmethod
