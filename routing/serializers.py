@@ -217,6 +217,20 @@ class ZoneSerializer(serializers.ModelSerializer):
         validated_data.pop("city", None)
         return super().create(validated_data)
 
+    def update(self, instance, validated_data):
+        old_driver_user = instance.assigned_driver
+        zone = super().update(instance, validated_data)
+        new_driver_user = zone.assigned_driver
+
+        if "assigned_driver" in validated_data:
+            from routing.models import Driver
+            if old_driver_user and old_driver_user != new_driver_user:
+                Driver.objects.filter(user=old_driver_user, zone=instance).update(zone=None)
+            if new_driver_user:
+                Driver.objects.filter(user=new_driver_user).update(zone=zone)
+
+        return zone
+
 
 class DriverSerializer(serializers.ModelSerializer):
     full_name = serializers.SerializerMethodField()
@@ -316,8 +330,20 @@ class DriverSerializer(serializers.ModelSerializer):
                         employee.save()
                 except Exception:
                     pass
+        old_zone = instance.zone
+        updated_instance = super().update(instance, validated_data)
+        new_zone = updated_instance.zone
 
-        return super().update(instance, validated_data)
+        if "zone" in validated_data and instance.user:
+            user = instance.user
+            if old_zone and old_zone != new_zone and old_zone.assigned_driver == user:
+                old_zone.assigned_driver = None
+                old_zone.save(update_fields=["assigned_driver"])
+            if new_zone:
+                new_zone.assigned_driver = user
+                new_zone.save(update_fields=["assigned_driver"])
+
+        return updated_instance
 
 
     def get_full_name(self, obj):
