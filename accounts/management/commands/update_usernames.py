@@ -9,6 +9,52 @@ User = get_user_model()
 
 TITLES = {"mr", "mrs", "ms", "dr", "prof", "shri", "smt"}
 
+DEFAULT_PLACEHOLDERS = {
+    # Literal placeholder indicators
+    "placeholder",
+    "unknown",
+    "na",
+    "none",
+    "null",
+    "nil",
+    "notavailable",
+    "not_available",
+    "noname",
+    "no_name",
+    "unassigned",
+    "undefined",
+    "empty",
+    "blank",
+    # Generic role/type words often used when last name is missing
+    "user",
+    "customer",
+    "cust",
+    "driver",
+    "rider",
+    "admin",
+    "superadmin",
+    "staff",
+    "manager",
+    "employee",
+    "member",
+    "delivery",
+    # Test/dummy words
+    "test",
+    "testing",
+    "dummy",
+    "demo",
+    "sample",
+    "temp",
+    "temporary",
+    "fake",
+    "doe",
+    # Generic naming words
+    "surname",
+    "lastname",
+    "firstname",
+    "name",
+}
+
 
 def clean_alpha_string(text: str) -> str:
     """Removes all digits and non-alphabetic characters, preserving spaces."""
@@ -18,18 +64,36 @@ def clean_alpha_string(text: str) -> str:
     return re.sub(r"[^a-zA-Z\s]", "", str(text)).strip()
 
 
-def parse_names(first_name: str, last_name: str):
+def filter_tokens(tokens: list[str], placeholders: set[str]) -> list[str]:
+    """Filters out titles and placeholder words from name tokens."""
+    filtered = []
+    for t in tokens:
+        tl = t.lower()
+        if tl in TITLES:
+            continue
+        if tl in placeholders:
+            continue
+        filtered.append(tl)
+    return filtered
+
+
+def parse_names(
+    first_name: str,
+    last_name: str,
+    placeholders: set[str] = DEFAULT_PLACEHOLDERS,
+):
     """
     Parses first_name and last_name:
     - Strips all numbers/digits (strictly no numbers)
     - Strips salutations/titles
+    - Filters out placeholders (e.g. 'placeholder', 'user', 'customer', 'na', etc.)
     - Returns (clean_first, clean_last) where each is either a lowercase alpha string or None
     """
     f_cleaned = clean_alpha_string(first_name)
     l_cleaned = clean_alpha_string(last_name)
 
-    f_words = [w.lower() for w in f_cleaned.split() if w.lower() not in TITLES]
-    l_words = [w.lower() for w in l_cleaned.split() if w.lower() not in TITLES]
+    f_words = filter_tokens(f_cleaned.split(), placeholders)
+    l_words = filter_tokens(l_cleaned.split(), placeholders)
 
     all_words = f_words + l_words
     if not all_words:
@@ -40,17 +104,21 @@ def parse_names(first_name: str, last_name: str):
     return all_words[0], "_".join(all_words[1:])
 
 
-def build_pench_username(first_name: str, last_name: str) -> str | None:
+def build_pench_username(
+    first_name: str,
+    last_name: str,
+    placeholders: set[str] = DEFAULT_PLACEHOLDERS,
+) -> str | None:
     """
     Builds username following:
     - Prefix: pench_
-    - firstname_lastname if both available
-    - firstname if only first available
-    - lastname if only last available
+    - firstname_lastname if both available and non-placeholder
+    - firstname if only first available (last name missing or placeholder)
+    - lastname if only last available (first name missing or placeholder)
     - None if neither available (skip)
     - STRICTLY NO NUMBERS
     """
-    first, last = parse_names(first_name, last_name)
+    first, last = parse_names(first_name, last_name, placeholders)
     if not first and not last:
         return None
 
@@ -70,7 +138,7 @@ def get_alpha_suffix(index: int) -> str:
     """
     chars = []
     while True:
-        chars.append(chr(ord('a') + (index % 26)))
+        chars.append(chr(ord("a") + (index % 26)))
         index = index // 26 - 1
         if index < 0:
             break
@@ -80,7 +148,9 @@ def get_alpha_suffix(index: int) -> str:
 class Command(BaseCommand):
     help = (
         "Updates usernames on VM to 'pench_firstname_lastname' format. "
-        "Adds first and last name if available else skips. Strictly no numbers."
+        "Adds first and last name if available else skips. "
+        "Automatically skips placeholder last names (e.g. 'placeholder', 'user', 'na', 'none'). "
+        "Strictly no numbers."
     )
 
     def add_arguments(self, parser):
@@ -116,6 +186,17 @@ class Command(BaseCommand):
             type=int,
             help="Update a specific user by primary key ID.",
         )
+        parser.add_argument(
+            "--add-placeholders",
+            type=str,
+            default="",
+            help="Comma-separated additional placeholder words to ignore (e.g. 'testname,dummyname').",
+        )
+        parser.add_argument(
+            "--no-placeholder-filter",
+            action="store_true",
+            help="Disable filtering out placeholder last names.",
+        )
 
     def handle(self, *args, **options):
         apply_changes = options["apply"] and not options["dry_run"]
@@ -124,12 +205,26 @@ class Command(BaseCommand):
         role_filter = options["role"]
         target_user_id = options.get("user_id")
 
+        # Configure placeholders
+        if options["no_placeholder_filter"]:
+            active_placeholders = set()
+        else:
+            active_placeholders = set(DEFAULT_PLACEHOLDERS)
+            if options["add_placeholders"]:
+                custom_words = [
+                    w.strip().lower()
+                    for w in options["add_placeholders"].split(",")
+                    if w.strip()
+                ]
+                active_placeholders.update(custom_words)
+
         mode_str = "APPLY (WRITING TO DATABASE)" if apply_changes else "DRY-RUN (NO CHANGES SAVED)"
         self.stdout.write(self.style.MIGRATE_HEADING(f"\n=== USERNAME UPDATE SCRIPT ==="))
         self.stdout.write(self.style.WARNING(f"Mode: {mode_str}"))
         self.stdout.write(f"Collision strategy: {on_collision} (strictly no numbers)")
         self.stdout.write(f"Role filter: {role_filter}")
-        self.stdout.write(f"Include superusers: {include_superusers}\n")
+        self.stdout.write(f"Include superusers: {include_superusers}")
+        self.stdout.write(f"Placeholder filtering: {'Active (' + str(len(active_placeholders)) + ' words)' if active_placeholders else 'Disabled'}\n")
 
         # Fetch tenant schemas to find names if user.first_name and user.last_name are empty
         schemas = []
@@ -188,14 +283,16 @@ class Command(BaseCommand):
             if not first_name.strip() and not last_name.strip():
                 first_name, last_name = self.find_name_from_profiles(user, schemas)
 
-            # Generate target username
-            new_username = build_pench_username(first_name, last_name)
+            # Generate target username with placeholder filtering
+            new_username = build_pench_username(
+                first_name, last_name, placeholders=active_placeholders
+            )
 
             if not new_username:
                 stats["skipped_no_name"] += 1
                 self.stdout.write(
                     self.style.NOTICE(
-                        f"[-] User #{user.id} ({user.username}): Skipped — No valid first or last name (no numbers allowed)."
+                        f"[-] User #{user.id} ({user.username}): Skipped — No valid name found (empty or placeholder)."
                     )
                 )
                 continue
@@ -259,7 +356,7 @@ class Command(BaseCommand):
 
             self.stdout.write(
                 self.style.MIGRATE_LABEL(
-                    f"[+] User #{user.id} ({user.username}) -> '{candidate_username}' [Name: {first_name or '-'} {last_name or '-'}]"
+                    f"[+] User #{user.id} ({user.username}) -> '{candidate_username}' [Raw Name: {first_name or '-'} {last_name or '-'}]"
                 )
             )
 
@@ -268,16 +365,29 @@ class Command(BaseCommand):
             self.stdout.write(self.style.NOTICE("\nApplying changes within transaction..."))
             with transaction.atomic():
                 for user, target_username, f_name, l_name in changes_to_save:
-                    old_username = user.username
                     user.username = target_username
-                    # If first_name / last_name were blank on user, populate cleaned names if available
-                    cleaned_f, cleaned_l = parse_names(f_name, l_name)
+                    # If first_name / last_name were blank or placeholder on user, populate cleaned names if available
+                    cleaned_f, cleaned_l = parse_names(
+                        f_name, l_name, placeholders=active_placeholders
+                    )
                     if not user.first_name and cleaned_f:
                         user.first_name = cleaned_f.capitalize()
-                    if not user.last_name and cleaned_l:
-                        user.last_name = " ".join(part.capitalize() for part in cleaned_l.split("_"))
+                    if cleaned_l:
+                        user.last_name = " ".join(
+                            part.capitalize() for part in cleaned_l.split("_")
+                        )
+                    elif (
+                        user.last_name
+                        and user.last_name.lower().strip() in active_placeholders
+                    ):
+                        # Clear placeholder last name from DB as well
+                        user.last_name = ""
                     user.save(update_fields=["username", "first_name", "last_name"])
-            self.stdout.write(self.style.SUCCESS(f"Successfully updated {len(changes_to_save)} users in database!"))
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"Successfully updated {len(changes_to_save)} users in database!"
+                )
+            )
         elif not apply_changes and changes_to_save:
             self.stdout.write(
                 self.style.WARNING(
@@ -302,7 +412,7 @@ class Command(BaseCommand):
         # 1. Check HR Employee profile
         try:
             if hasattr(user, "employee_profile") and user.employee_profile:
-                # user is already on employee
+                emp = user.employee_profile
                 pass
         except Exception:
             pass
