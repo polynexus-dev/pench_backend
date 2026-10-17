@@ -1188,3 +1188,29 @@ class CustomerDedicatedDriverTestCase(TenantTestCase):
         calls = {c.args[1]: set(c.args[3]) for c in mocked.call_args_list}
         self.assertEqual(calls[self.new_driver], {str(dedicated_order.id)})
         self.assertEqual(calls[self.zone_driver], {str(zone_order.id)})
+
+    def test_rider_filter(self):
+        connection.set_tenant(self.tenant)
+        driverless_zone = Zone.objects.create(name="No Driver Zone", is_active=True)
+        no_zone = Customer.objects.create(
+            name="No Zone Cust", email="nozone@example.com", phone="9876500003", is_active=True,
+        )
+        zone_without_driver = Customer.objects.create(
+            name="Driverless Zone Cust", email="dlz@example.com", phone="9876500004",
+            zone=driverless_zone, is_active=True,
+        )
+        rescued = Customer.objects.create(
+            name="Rescued Cust", email="rescued@example.com", phone="9876500005",
+            zone=driverless_zone, assigned_driver=self.new_driver, is_active=True,
+        )
+        self.cust.assigned_driver = self.new_driver
+        self.cust.save()
+
+        def names(params):
+            resp = self.client.get("/api/erp/customers/", {"paginate": "false", **params})
+            self.assertEqual(resp.status_code, 200, resp.data)
+            return {c["name"] for c in resp.data}
+
+        self.assertEqual(names({"rider": "none"}), {no_zone.name, zone_without_driver.name})
+        self.assertEqual(names({"rider": self.new_driver.id}), {self.cust.name, rescued.name})
+        self.assertEqual(names({"rider": self.zone_driver.id}), {self.other_cust.name})

@@ -127,6 +127,18 @@ class CustomerViewSet(viewsets.ModelViewSet):
             if zone:
                 qs = qs.filter(zone_id=zone)
 
+            # Rider filter: "none" = nobody delivers (no dedicated driver and no zone driver),
+            # otherwise a driver User id (dedicated customers + their zone customers)
+            rider = self.request.query_params.get("rider")
+            if rider == "none":
+                qs = qs.filter(assigned_driver__isnull=True).filter(
+                    models.Q(zone__isnull=True) | models.Q(zone__assigned_driver__isnull=True)
+                )
+            elif rider:
+                from crm.models import driver_customer_q
+
+                qs = qs.filter(driver_customer_q(rider))
+
             # Status filter
             status_param = self.request.query_params.get("status")
             if status_param == "active":
