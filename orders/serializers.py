@@ -110,15 +110,11 @@ class OrderSerializer(serializers.ModelSerializer):
             # Catch django.core.exceptions.ObjectDoesNotExist for unassigned reverse OneToOne
             pass
 
-        # 2. If no driver from route, try fallback to customer zone driver
+        # 2. If no driver from route, fall back to the customer's dedicated or zone driver
         if not driver:
             try:
-                if (
-                    obj.customer
-                    and obj.customer.zone
-                    and obj.customer.zone.assigned_driver
-                ):
-                    driver = obj.customer.zone.assigned_driver
+                if obj.customer:
+                    driver = obj.customer.effective_driver
             except Exception:
                 pass
 

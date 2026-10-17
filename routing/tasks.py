@@ -99,23 +99,26 @@ def generate_city_routes(target_date):
             skipped_count += 1
             continue
 
-        order_ids = list(orders.values_list("id", flat=True))
+        # Split by driver: a customer's dedicated driver overrides the zone's driver
+        driver_orders = {}
+        for order in orders.select_related("customer__assigned_driver"):
+            driver = order.customer.assigned_driver or zone.assigned_driver
+            driver_orders.setdefault(driver, []).append(order.id)
 
-        # Get assigned driver
-        driver = zone.assigned_driver
-
-        # Create optimized route
-        name = f"{zone.name} - {target_date.strftime('%Y-%m-%d')}"
-        try:
-            route = create_optimized_route(
-                name=name, driver=driver, date=target_date, order_ids=order_ids
-            )
-            created_count += 1
-        except Exception as e:
-            logger.error(
-                f"Failed to generate route for Zone {zone.name} on {target_date}: {str(e)}"
-            )
-            errors[zone.name] = str(e)
+        for driver, order_ids in driver_orders.items():
+            name = f"{zone.name} - {target_date.strftime('%Y-%m-%d')}"
+            if driver and driver != zone.assigned_driver:
+                name = f"{zone.name} - {driver.get_full_name() or driver.username} - {target_date.strftime('%Y-%m-%d')}"
+            try:
+                create_optimized_route(
+                    name=name, driver=driver, date=target_date, order_ids=order_ids
+                )
+                created_count += 1
+            except Exception as e:
+                logger.error(
+                    f"Failed to generate route for Zone {zone.name} on {target_date}: {str(e)}"
+                )
+                errors[name] = str(e)
 
     return {
         "status": "success",

@@ -151,7 +151,7 @@ def generate_daily_routes_for_date(target_date):
     ).exclude(
         customer__is_new=True,
         customer__trial_approved=False
-    ).select_related("customer__zone", "customer__zone__assigned_driver")
+    ).select_related("customer__zone__assigned_driver", "customer__assigned_driver")
 
     from routing.models import Driver
 
@@ -170,7 +170,7 @@ def generate_daily_routes_for_date(target_date):
         if not zone:
             continue
 
-        driver_user = zone.assigned_driver
+        driver_user = order.customer.effective_driver
         if not driver_user:
             msg = f"Zone {zone.name}: No primary driver assigned. Skipping automatic route optimization."
             if msg not in route_errors:
@@ -295,7 +295,7 @@ def regenerate_daily_routes_for_date(target_date):
 
 def add_order_to_active_route_if_pending(order):
     """
-    If a pending route exists for the order's customer's zone driver on the order's
+    If a pending route exists for the order's customer's driver (dedicated, else zone) on the order's
     delivery date, and the route has not started yet, automatically add the order
     to the route and re-optimize the stops and geometry.
     """
@@ -314,7 +314,7 @@ def add_order_to_active_route_if_pending(order):
     if customer.is_new and not customer.trial_approved:
         return
 
-    driver_user = customer.zone.assigned_driver
+    driver_user = customer.effective_driver
     if not driver_user:
         return
 

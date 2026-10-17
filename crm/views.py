@@ -33,7 +33,7 @@ class CustomerPagination(PageNumberPagination):
 
 
 class CustomerViewSet(viewsets.ModelViewSet):
-    queryset = Customer.objects.filter(is_active=True).select_related("zone", "user").prefetch_related(
+    queryset = Customer.objects.filter(is_active=True).select_related("zone__assigned_driver", "assigned_driver", "user").prefetch_related(
         "custom_prices", "subscriptions", "monthly_bills", "orders"
     )
     serializer_class = CustomerSerializer
@@ -42,7 +42,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
     required_groups = ["CRM_Managers", "ERP_Admins"]
     search_fields = ["name", "company", "email", "phone"]
     ordering_fields = ["name", "created_at"]
-    filterset_fields = ["is_active", "is_new", "trial_approved", "zone"]
+    filterset_fields = ["is_active", "is_new", "trial_approved", "zone", "assigned_driver"]
 
     def get_queryset(self):
         if self.action == "list":
@@ -74,7 +74,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
 
             qs = (
                 Customer.objects.filter(is_active=True)
-                .select_related("zone", "user")
+                .select_related("zone__assigned_driver", "assigned_driver", "user")
                 .prefetch_related("bottle_balances__bottle_type")
                 .annotate(
                     annotated_active_subs=Coalesce(Subquery(active_subs_sub, output_field=IntegerField()), 0),

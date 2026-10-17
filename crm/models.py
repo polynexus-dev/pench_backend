@@ -57,6 +57,14 @@ class Customer(BaseModel):
         blank=True,
         related_name="customers",
     )
+    assigned_driver = models.ForeignKey(
+        "accounts.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="dedicated_customers",
+        help_text="Dedicated driver for this customer. Overrides the zone's driver; the zone stays unchanged.",
+    )
     qr_code_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
 
     def save(self, *args, **kwargs):
@@ -78,6 +86,29 @@ class Customer(BaseModel):
 
     def __str__(self):
         return f"{self.name} ({self.company or self.email})"
+
+    @property
+    def effective_driver(self):
+        """Dedicated driver if set, otherwise the zone's driver."""
+        if self.assigned_driver_id:
+            return self.assigned_driver
+        return self.zone.assigned_driver if self.zone else None
+
+
+def driver_customer_q(user, prefix=""):
+    """
+    Q filter matching customers served by `user`: either dedicated to them,
+    or in their zone with no dedicated driver. `prefix` is the lookup path to
+    Customer, e.g. "customer__" for Order or "order__customer__" for RouteStop.
+    """
+    from django.db.models import Q
+
+    return Q(**{f"{prefix}assigned_driver": user}) | Q(
+        **{
+            f"{prefix}assigned_driver__isnull": True,
+            f"{prefix}zone__assigned_driver": user,
+        }
+    )
 
 
 class Lead(BaseModel):
