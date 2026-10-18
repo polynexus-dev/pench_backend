@@ -77,10 +77,17 @@ def get_osrm_route_geometry(locations):
 def optimize_route_ortools(order_ids, start_point=None):
     orders = list(Order.objects.filter(id__in=order_ids).select_related("customer"))
     valid_orders = [o for o in orders if o.customer.location]
+    # Orders without coordinates can't be optimized, but must not be dropped
+    # from the route; they are appended after the optimized stops.
+    unlocated_orders = [o for o in orders if not o.customer.location]
 
-    print(
-        f"[DEBUG] Found {len(orders)} orders. {len(valid_orders)} have customer locations."
-    )
+    if unlocated_orders:
+        logger.warning(
+            "%d of %d orders have no customer location; appending them unoptimized: %s",
+            len(unlocated_orders),
+            len(orders),
+            ", ".join(o.customer.name for o in unlocated_orders),
+        )
 
     if not valid_orders:
         return orders, None
@@ -145,7 +152,7 @@ def optimize_route_ortools(order_ids, start_point=None):
     assignment = routing.SolveWithParameters(search_parameters)
     if not assignment:
         logger.warning("OR-Tools failed to find a solution.")
-        return valid_orders, None
+        return valid_orders + unlocated_orders, None
 
     index = routing.Start(0)
     sequence_indices = []
@@ -165,7 +172,7 @@ def optimize_route_ortools(order_ids, start_point=None):
 
     road_geometry = get_osrm_route_geometry(final_locations)
 
-    return optimized_orders, road_geometry
+    return optimized_orders + unlocated_orders, road_geometry
 
 
 def create_optimized_route(

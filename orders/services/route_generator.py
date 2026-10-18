@@ -1,7 +1,7 @@
 import datetime
 import logging
 from django.db import transaction
-from django.db.models import Sum
+from django.db.models import Q, Sum
 
 from crm.models import Customer
 from subscriptions.models import Subscription, SubscriptionStatus, SubscriptionItem
@@ -144,13 +144,18 @@ def generate_daily_routes_for_date(target_date):
             orders_created += 1
 
     # 2. Group all pending orders (including newly created ones) for this date by Zone's driver's Warehouse (Logistical Hub Affinity)
+    # A customer with a dedicated driver is routable even without a zone.
+    # Unapproved trial customers are excluded only for non-subscription orders:
+    # a subscription order means the customer has subscribed, even if is_new
+    # was never cleared (e.g. bulk-imported subscriptions skip the signal).
     pending_orders = Order.objects.filter(
+        Q(customer__zone__isnull=False) | Q(customer__assigned_driver__isnull=False),
         scheduled_delivery_date=target_date,
         status__in=[OrderStatus.PENDING, OrderStatus.CONFIRMED],
-        customer__zone__isnull=False,
     ).exclude(
         customer__is_new=True,
-        customer__trial_approved=False
+        customer__trial_approved=False,
+        subscription__isnull=True,
     ).select_related("customer__zone__assigned_driver", "customer__assigned_driver")
 
     from routing.models import Driver
@@ -167,12 +172,11 @@ def generate_daily_routes_for_date(target_date):
 
     for order in pending_orders:
         zone = order.customer.zone
-        if not zone:
-            continue
+        zone_name = zone.name if zone else "(no zone)"
 
         driver_user = order.customer.effective_driver
         if not driver_user:
-            msg = f"Zone {zone.name}: No primary driver assigned. Skipping automatic route optimization."
+            msg = f"Zone {zone_name}: No primary driver assigned. Skipping automatic route optimization."
             if msg not in route_errors:
                 route_errors.append(msg)
                 logger.warning(msg)
@@ -180,7 +184,7 @@ def generate_daily_routes_for_date(target_date):
 
         driver_profile = driver_profiles.get(driver_user.id)
         if not driver_profile:
-            msg = f"Zone {zone.name}: Primary driver '{driver_user.username}' has no Driver profile. Skipping automatic route optimization."
+            msg = f"Zone {zone_name}: Primary driver '{driver_user.username}' has no Driver profile. Skipping automatic route optimization."
             if msg not in route_errors:
                 route_errors.append(msg)
                 logger.warning(msg)
@@ -188,7 +192,7 @@ def generate_daily_routes_for_date(target_date):
 
         warehouse = driver_profile.warehouse
         if not warehouse:
-            msg = f"Driver '{driver_user.username}' (Zone: {zone.name}) is not associated with any warehouse. Enforcing logistical hub affinity: Skipping route generation."
+            msg = f"Driver '{driver_user.username}' (Zone: {zone_name}) is not associated with any warehouse. Enforcing logistical hub affinity: Skipping route generation."
             if msg not in route_errors:
                 route_errors.append(msg)
                 logger.warning(msg)
@@ -308,10 +312,10 @@ def add_order_to_active_route_if_pending(order):
         return
 
     customer = getattr(order, "customer", None)
-    if not customer or not customer.zone:
+    if not customer:
         return
 
-    if customer.is_new and not customer.trial_approved:
+    if customer.is_new and not customer.trial_approved and not order.subscription_id:
         return
 
     driver_user = customer.effective_driver
