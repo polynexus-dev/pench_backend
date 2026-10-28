@@ -9,10 +9,18 @@ except ImportError:
     Point = None
 
 
+def _driver_display_name(user):
+    if not user:
+        return None
+    return user.get_full_name().strip() or user.username
+
+
 class CustomerSerializer(serializers.ModelSerializer):
     latitude = serializers.FloatField(required=False, allow_null=True)
     longitude = serializers.FloatField(required=False, allow_null=True)
     zone_name = serializers.CharField(source="zone.name", read_only=True, default=None)
+    assigned_driver_name = serializers.SerializerMethodField()
+    effective_driver = serializers.SerializerMethodField()
     username = serializers.CharField(source="user.username", read_only=True, default=None)
     dashboard = serializers.SerializerMethodField()
     product_rates = serializers.SerializerMethodField()
@@ -39,10 +47,31 @@ class CustomerSerializer(serializers.ModelSerializer):
             "product_rates",
             "zone",
             "zone_name",
+            "assigned_driver",
+            "assigned_driver_name",
+            "effective_driver",
             "username",
             "bottle_balances",
         ]
         read_only_fields = ["id", "qr_code_id", "created_at"]
+
+    def validate_assigned_driver(self, value):
+        if value is not None and not value.is_driver:
+            raise serializers.ValidationError("Selected user is not a driver.")
+        return value
+
+    def get_assigned_driver_name(self, obj):
+        return _driver_display_name(obj.assigned_driver)
+
+    def get_effective_driver(self, obj):
+        driver = obj.effective_driver
+        if not driver:
+            return None
+        return {
+            "id": str(driver.id),
+            "name": _driver_display_name(driver),
+            "is_dedicated": bool(obj.assigned_driver_id),
+        }
 
     def get_bottle_balances(self, obj):
         if hasattr(obj, "_prefetched_objects_cache") and "bottle_balances" in obj._prefetched_objects_cache:
@@ -341,6 +370,7 @@ class CustomerListSerializer(serializers.ModelSerializer):
     latitude = serializers.FloatField(required=False, allow_null=True)
     longitude = serializers.FloatField(required=False, allow_null=True)
     zone_name = serializers.CharField(source="zone.name", read_only=True)
+    assigned_driver_name = serializers.SerializerMethodField()
     username = serializers.CharField(source="user.username", read_only=True, default=None)
     dashboard = serializers.SerializerMethodField()
     bottle_balances = serializers.SerializerMethodField()
@@ -363,11 +393,16 @@ class CustomerListSerializer(serializers.ModelSerializer):
             "created_at",
             "zone",
             "zone_name",
+            "assigned_driver",
+            "assigned_driver_name",
             "dashboard",
             "username",
             "bottle_balances",
         ]
         read_only_fields = ["id", "qr_code_id", "created_at"]
+
+    def get_assigned_driver_name(self, obj):
+        return _driver_display_name(obj.assigned_driver)
 
     def get_dashboard(self, obj):
         return {

@@ -1035,3 +1035,182 @@ class CustomerTrialTestCase(TenantTestCase):
 
 
 
+
+
+class CustomerDedicatedDriverTestCase(TenantTestCase):
+    @classmethod
+    def setup_tenant(cls, tenant):
+        tenant.name = "Test City"
+        tenant.state = "Test State"
+        tenant.code = "TST"
+        tenant.create_schema(sync_schema=True)
+
+    def setUp(self):
+        super().setUp()
+        pre_save.disconnect(auto_assign_customer_zone, sender=Customer)
+        post_save.disconnect(auto_assign_customers_on_zone_change, sender=Zone)
+
+        connection.set_tenant(self.tenant)
+        User = get_user_model()
+
+        self.manager_user = User.objects.create_user(
+            username="crm_manager_dd",
+            email="manager_dd@example.com",
+            password="testpassword",
+            phone="9000000060",
+            tenant_schema="test",
+        )
+        crm_group, _ = Group.objects.get_or_create(name="CRM_Managers")
+        self.manager_user.groups.add(crm_group)
+
+        self.zone_driver = User.objects.create_user(
+            username="zone_driver_dd", email="zone_dd@example.com", password="pwd",
+            phone="9000000061", is_driver=True, tenant_schema="test",
+        )
+        self.new_driver = User.objects.create_user(
+            username="new_driver_dd", email="new_dd@example.com", password="pwd",
+            phone="9000000062", is_driver=True, tenant_schema="test",
+        )
+        connection.set_tenant(self.tenant)
+
+        self.zone = Zone.objects.create(name="DD Zone", is_active=True, assigned_driver=self.zone_driver)
+        self.cust = Customer.objects.create(
+            name="Dedicated Cust", email="dd_cust@example.com", phone="9876500001",
+            zone=self.zone, is_active=True,
+        )
+        self.other_cust = Customer.objects.create(
+            name="Zone Cust", email="zone_cust@example.com", phone="9876500002",
+            zone=self.zone, is_active=True,
+        )
+
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.manager_user)
+
+    def tearDown(self):
+        pre_save.connect(auto_assign_customer_zone, sender=Customer)
+        post_save.connect(auto_assign_customers_on_zone_change, sender=Zone)
+        super().tearDown()
+
+    def test_effective_driver_falls_back_to_zone(self):
+        self.assertEqual(self.cust.effective_driver, self.zone_driver)
+
+    def test_effective_driver_prefers_dedicated_driver(self):
+        self.cust.assigned_driver = self.new_driver
+        self.cust.save()
+        self.cust.refresh_from_db()
+        self.assertEqual(self.cust.effective_driver, self.new_driver)
+        self.assertEqual(self.cust.zone, self.zone)
+        # Other customers in the zone keep the zone driver
+        self.assertEqual(self.other_cust.effective_driver, self.zone_driver)
+
+    def test_driver_customer_q(self):
+        from crm.models import driver_customer_q
+
+        self.cust.assigned_driver = self.new_driver
+        self.cust.save()
+
+        zone_driver_customers = set(Customer.objects.filter(driver_customer_q(self.zone_driver)))
+        new_driver_customers = set(Customer.objects.filter(driver_customer_q(self.new_driver)))
+        self.assertEqual(zone_driver_customers, {self.other_cust})
+        self.assertEqual(new_driver_customers, {self.cust})
+
+    def test_api_change_driver_keeps_zone(self):
+        connection.set_tenant(self.tenant)
+        resp = self.client.patch(
+            f"/api/erp/customers/{self.cust.id}/",
+            {"assigned_driver": str(self.new_driver.id)},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 200, resp.data)
+        self.assertEqual(resp.data["zone"], self.zone.id)
+        self.assertEqual(resp.data["effective_driver"]["id"], str(self.new_driver.id))
+        self.assertTrue(resp.data["effective_driver"]["is_dedicated"])
+
+        self.cust.refresh_from_db()
+        self.assertEqual(self.cust.assigned_driver, self.new_driver)
+        self.assertEqual(self.cust.zone, self.zone)
+
+    def test_api_clear_driver_reverts_to_zone_driver(self):
+        self.cust.assigned_driver = self.new_driver
+        self.cust.save()
+        connection.set_tenant(self.tenant)
+        resp = self.client.patch(
+            f"/api/erp/customers/{self.cust.id}/", {"assigned_driver": None}, format="json"
+        )
+        self.assertEqual(resp.status_code, 200, resp.data)
+        self.assertEqual(resp.data["effective_driver"]["id"], str(self.zone_driver.id))
+        self.assertFalse(resp.data["effective_driver"]["is_dedicated"])
+
+    def test_api_rejects_non_driver(self):
+        connection.set_tenant(self.tenant)
+        resp = self.client.patch(
+            f"/api/erp/customers/{self.cust.id}/",
+            {"assigned_driver": str(self.manager_user.id)},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("assigned_driver", resp.data)
+
+    def test_daily_generation_routes_dedicated_customer_to_new_driver(self):
+        from unittest import mock
+        import datetime
+        from inventory.models import Warehouse
+        from routing.models import Driver
+        from orders.models import Order, OrderStatus
+        from orders.services.route_generator import generate_daily_routes_for_date
+
+        warehouse = Warehouse.objects.create(name="DD WH", latitude=21.15, longitude=79.08)
+        for user in (self.zone_driver, self.new_driver):
+            Driver.objects.update_or_create(user=user, defaults={"warehouse": warehouse})
+
+        self.cust.assigned_driver = self.new_driver
+        self.cust.save()
+        self.cust.is_new = False
+        self.other_cust.is_new = False
+        self.cust.save()
+        self.other_cust.save()
+
+        today = datetime.date.today()
+        dedicated_order = Order.objects.create(
+            customer=self.cust, scheduled_delivery_date=today,
+            status=OrderStatus.PENDING, delivery_address="A",
+        )
+        zone_order = Order.objects.create(
+            customer=self.other_cust, scheduled_delivery_date=today,
+            status=OrderStatus.PENDING, delivery_address="B",
+        )
+
+        with mock.patch(
+            "orders.services.route_generator.create_optimized_route"
+        ) as mocked:
+            generate_daily_routes_for_date(today)
+
+        calls = {c.args[1]: set(c.args[3]) for c in mocked.call_args_list}
+        self.assertEqual(calls[self.new_driver], {str(dedicated_order.id)})
+        self.assertEqual(calls[self.zone_driver], {str(zone_order.id)})
+
+    def test_rider_filter(self):
+        connection.set_tenant(self.tenant)
+        driverless_zone = Zone.objects.create(name="No Driver Zone", is_active=True)
+        no_zone = Customer.objects.create(
+            name="No Zone Cust", email="nozone@example.com", phone="9876500003", is_active=True,
+        )
+        zone_without_driver = Customer.objects.create(
+            name="Driverless Zone Cust", email="dlz@example.com", phone="9876500004",
+            zone=driverless_zone, is_active=True,
+        )
+        rescued = Customer.objects.create(
+            name="Rescued Cust", email="rescued@example.com", phone="9876500005",
+            zone=driverless_zone, assigned_driver=self.new_driver, is_active=True,
+        )
+        self.cust.assigned_driver = self.new_driver
+        self.cust.save()
+
+        def names(params):
+            resp = self.client.get("/api/erp/customers/", {"paginate": "false", **params})
+            self.assertEqual(resp.status_code, 200, resp.data)
+            return {c["name"] for c in resp.data}
+
+        self.assertEqual(names({"rider": "none"}), {no_zone.name, zone_without_driver.name})
+        self.assertEqual(names({"rider": self.new_driver.id}), {self.cust.name, rescued.name})
+        self.assertEqual(names({"rider": self.zone_driver.id}), {self.other_cust.name})

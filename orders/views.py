@@ -10,6 +10,7 @@ from core.permissions import IsERPUser, HasGroupPermission
 from .models import Order, OrderStatus, Route
 from .serializers import OrderSerializer, OrderListSerializer, RouteSerializer, RouteListSerializer
 from .services import create_optimized_route
+from crm.models import driver_customer_q
 from orders.services.route_generator import (
     generate_daily_routes_for_date,
     regenerate_daily_routes_for_date,
@@ -25,7 +26,7 @@ import datetime
 
 class OrderViewSet(viewsets.ModelViewSet):
     queryset = Order.objects.select_related(
-        "customer__zone__assigned_driver", "route_stop__route__driver"
+        "customer__zone__assigned_driver", "customer__assigned_driver", "route_stop__route__driver"
     ).prefetch_related("items__product")
     serializer_class = OrderSerializer
     permission_classes = [IsAuthenticated]  # Base permission is just authenticated
@@ -58,7 +59,7 @@ class OrderViewSet(viewsets.ModelViewSet):
         else:
             qs = (
                 Order.objects.select_related(
-                    "customer__zone__assigned_driver", "route_stop__route__driver"
+                    "customer__zone__assigned_driver", "customer__assigned_driver", "route_stop__route__driver"
                 ).prefetch_related("items__product")
             )
         user = self.request.user
@@ -303,21 +304,22 @@ class OrderViewSet(viewsets.ModelViewSet):
         ).exclude(
             customer__is_new=True,
             customer__trial_approved=False
-        ).select_related("customer__zone", "customer__zone__assigned_driver")
+        ).select_related("customer__zone__assigned_driver", "customer__assigned_driver")
 
-        # Group orders by zone
+        # Group orders by zone and driver (a dedicated customer driver overrides the zone's)
         zone_orders = {}
         for order in pending_orders:
             zone = order.customer.zone
             if zone:
-                zone_orders.setdefault(zone, []).append(order)
+                zone_orders.setdefault(
+                    (zone, order.customer.effective_driver), []
+                ).append(order)
 
         routes_created = 0
         route_errors = []
         from routing.models import Driver
 
-        for zone, z_orders in zone_orders.items():
-            driver_user = zone.assigned_driver
+        for (zone, driver_user), z_orders in zone_orders.items():
             if not driver_user:
                 route_errors.append(
                     {"zone": zone.name, "error": "No primary driver assigned."}
@@ -352,7 +354,7 @@ class OrderViewSet(viewsets.ModelViewSet):
                 }
 
             order_ids = [str(o.id) for o in z_orders]
-            route_name = f"{zone.name} - {date_str}"
+            route_name = f"{zone.name} - {driver_user.get_full_name() or driver_user.username} - {date_str}"
 
             try:
                 create_optimized_route(
@@ -1033,22 +1035,23 @@ class RouteViewSet(viewsets.ModelViewSet):
             scheduled_delivery_date=date,
             status__in=[OrderStatus.PENDING, OrderStatus.CONFIRMED],
             customer__zone__isnull=False,
-        ).select_related("customer__zone", "customer__zone__assigned_driver")
+        ).select_related("customer__zone__assigned_driver", "customer__assigned_driver")
 
-        # Group by zone
+        # Group by zone and driver (a dedicated customer driver overrides the zone's)
         zone_orders = {}
         for order in orders:
             zone = order.customer.zone
             if zone:
-                zone_orders.setdefault(zone, []).append(order)
+                zone_orders.setdefault(
+                    (zone, order.customer.effective_driver), []
+                ).append(order)
 
         created_routes = []
         errors = []
 
         from routing.models import Driver
 
-        for zone, z_orders in zone_orders.items():
-            driver_user = zone.assigned_driver
+        for (zone, driver_user), z_orders in zone_orders.items():
             if not driver_user:
                 errors.append(
                     {
@@ -1109,7 +1112,7 @@ class RouteViewSet(viewsets.ModelViewSet):
         return Response(
             {
                 "date": date,
-                "total_zones_processed": len(zone_orders),
+                "total_zones_processed": len({zone for zone, _ in zone_orders}),
                 "created_routes": created_routes,
                 "errors": errors,
             },
@@ -1424,7 +1427,7 @@ class RouteViewSet(viewsets.ModelViewSet):
                 scheduled_delivery_date=target_date,
                 status__in=[OrderStatus.PENDING, OrderStatus.CONFIRMED],
                 route_stop__isnull=True,
-            ).select_related("customer__zone", "customer__zone__assigned_driver")
+            ).select_related("customer__zone__assigned_driver", "customer__assigned_driver")
 
             # Resolve all driver profiles to match warehouses
             driver_profiles = {
@@ -1434,7 +1437,7 @@ class RouteViewSet(viewsets.ModelViewSet):
             for order in unassigned_orders:
                 customer = order.customer
                 zone = customer.zone if customer else None
-                assigned_driver = zone.assigned_driver if zone else None
+                assigned_driver = customer.effective_driver if customer else None
 
                 target_route = None
 
@@ -1660,10 +1663,10 @@ class DriverViewSet(viewsets.ViewSet):
             if not route:
                 today = datetime.date.today()
                 driver_today_orders = Order.objects.filter(
+                    driver_customer_q(user, prefix="customer__"),
                     scheduled_delivery_date=today,
                     status__in=[OrderStatus.PENDING, OrderStatus.CONFIRMED],
                     route_stop__isnull=True,
-                    customer__zone__assigned_driver=user,
                 )
                 if driver_today_orders.exists():
                     from routing.models import Driver
@@ -1697,17 +1700,17 @@ class DriverViewSet(viewsets.ViewSet):
                 )
 
             # If the route is not locked and not started yet, automatically refresh it:
-            # 1. Prune stops for customers who are no longer assigned to this driver's zones
-            # 2. Add any new unassigned orders for customers in this driver's zones
+            # 1. Prune stops for customers no longer served by this driver (dedicated or via zone)
+            # 2. Add any new unassigned orders for customers served by this driver
             if not route.is_locked and route.started_at is None:
                 stale_stops = route.stops.exclude(
-                    order__customer__zone__assigned_driver=user
+                    driver_customer_q(user, prefix="order__customer__")
                 )
                 unassigned_orders = Order.objects.filter(
+                    driver_customer_q(user, prefix="customer__"),
                     scheduled_delivery_date=route.delivery_date,
                     status__in=[OrderStatus.PENDING, OrderStatus.CONFIRMED],
                     route_stop__isnull=True,
-                    customer__zone__assigned_driver=user,
                 )
 
                 if stale_stops.exists() or unassigned_orders.exists():
@@ -1723,7 +1726,7 @@ class DriverViewSet(viewsets.ViewSet):
 
                     valid_existing_order_ids = list(
                         route.stops.filter(
-                            order__customer__zone__assigned_driver=user
+                            driver_customer_q(user, prefix="order__customer__")
                         ).values_list("order_id", flat=True)
                     )
                     new_order_ids = list(unassigned_orders.values_list("id", flat=True))

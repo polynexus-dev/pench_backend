@@ -33,7 +33,7 @@ class CustomerPagination(PageNumberPagination):
 
 
 class CustomerViewSet(viewsets.ModelViewSet):
-    queryset = Customer.objects.filter(is_active=True).select_related("zone", "user").prefetch_related(
+    queryset = Customer.objects.filter(is_active=True).select_related("zone__assigned_driver", "assigned_driver", "user").prefetch_related(
         "custom_prices", "subscriptions", "monthly_bills", "orders"
     )
     serializer_class = CustomerSerializer
@@ -42,7 +42,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
     required_groups = ["CRM_Managers", "ERP_Admins"]
     search_fields = ["name", "company", "email", "phone"]
     ordering_fields = ["name", "created_at"]
-    filterset_fields = ["is_active", "is_new", "trial_approved", "zone"]
+    filterset_fields = ["is_active", "is_new", "trial_approved", "zone", "assigned_driver"]
 
     def get_queryset(self):
         if self.action == "list":
@@ -74,7 +74,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
 
             qs = (
                 Customer.objects.filter(is_active=True)
-                .select_related("zone", "user")
+                .select_related("zone__assigned_driver", "assigned_driver", "user")
                 .prefetch_related("bottle_balances__bottle_type")
                 .annotate(
                     annotated_active_subs=Coalesce(Subquery(active_subs_sub, output_field=IntegerField()), 0),
@@ -126,6 +126,18 @@ class CustomerViewSet(viewsets.ModelViewSet):
             zone = self.request.query_params.get("zone")
             if zone:
                 qs = qs.filter(zone_id=zone)
+
+            # Rider filter: "none" = nobody delivers (no dedicated driver and no zone driver),
+            # otherwise a driver User id (dedicated customers + their zone customers)
+            rider = self.request.query_params.get("rider")
+            if rider == "none":
+                qs = qs.filter(assigned_driver__isnull=True).filter(
+                    models.Q(zone__isnull=True) | models.Q(zone__assigned_driver__isnull=True)
+                )
+            elif rider:
+                from crm.models import driver_customer_q
+
+                qs = qs.filter(driver_customer_q(rider))
 
             # Status filter
             status_param = self.request.query_params.get("status")
