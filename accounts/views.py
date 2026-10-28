@@ -270,10 +270,12 @@ class LoginOTPView(APIView):
         # Generate JWT
         refresh = RefreshToken.for_user(user)
 
+        user_data = UserSerializer(user).data
         response_data = {
             "refresh": str(refresh),
             "access": str(refresh.access_token),
-            "user": UserSerializer(user).data,
+            "user": user_data,
+            "customer_location": user_data.get("customer_location"),
         }
 
         # Add tenant info if available

@@ -1,11 +1,17 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
 from django.db.models import Sum, Count, Q
 from django.utils import timezone
 from core.permissions import IsERPUser, HasGroupPermission
-from .models import MonthlyBill, Transaction, BillStatus
-from .serializers import MonthlyBillSerializer, MonthlyBillListSerializer, TransactionSerializer
+from .models import MonthlyBill, Transaction, BillStatus, OnlinePayment, OnlinePaymentStatus
+from .serializers import (
+    MonthlyBillSerializer,
+    MonthlyBillListSerializer,
+    TransactionSerializer,
+    OnlinePaymentSerializer,
+)
 from .services import bulk_generate_monthly_bills
 
 
@@ -492,3 +498,137 @@ class TransactionViewSet(viewsets.ModelViewSet):
         if customer_id:
             qs = qs.filter(bill__customer_id=customer_id)
         return qs
+
+
+class OnlinePaymentViewSet(viewsets.ModelViewSet):
+    """
+    Online payments submitted by customers with a screenshot.
+    Customers submit and view their own payments; admins verify or reject them.
+    """
+
+    serializer_class = OnlinePaymentSerializer
+    required_groups = ["Accountants", "ERP_Admins"]
+    filterset_fields = ["status", "purpose", "customer", "subscription", "order", "bill"]
+    http_method_names = ["get", "post", "delete", "head", "options"]
+
+    def get_permissions(self):
+        if self.action in ["list", "retrieve", "create"]:
+            return [IsAuthenticated()]
+        return [IsERPUser(), HasGroupPermission()]
+
+    def _customer_profile(self):
+        user = self.request.user
+        if hasattr(user, "customer_profile") and user.customer_profile is not None:
+            return user.customer_profile
+        return None
+
+    def _is_admin(self):
+        return IsERPUser().has_permission(self.request, self)
+
+    def get_queryset(self):
+        qs = OnlinePayment.objects.select_related(
+            "customer", "bill", "verified_by"
+        )
+        if self._is_admin():
+            return qs
+        customer = self._customer_profile()
+        if customer:
+            return qs.filter(customer=customer)
+        return qs.none()
+
+    def create(self, request, *args, **kwargs):
+        if not self._is_admin():
+            customer = self._customer_profile()
+            if not customer:
+                from rest_framework.exceptions import PermissionDenied
+
+                raise PermissionDenied("Only customers or admins can submit payments.")
+            # Customers can only submit payments for themselves.
+            data = request.data.copy()
+            data["customer"] = str(customer.id)
+            serializer = self.get_serializer(data=data)
+            serializer.is_valid(raise_exception=True)
+            self.perform_create(serializer)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return super().create(request, *args, **kwargs)
+
+    def perform_create(self, serializer):
+        serializer.save(submitted_by=self.request.user)
+
+    @action(detail=True, methods=["post"], url_path="verify")
+    def verify(self, request, pk=None):
+        payment = self.get_object()
+        if payment.status != OnlinePaymentStatus.PENDING:
+            return Response(
+                {"detail": f"Payment is already {payment.status}."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        payment.verify(request.user)
+        return Response(self.get_serializer(payment).data)
+
+    @action(detail=True, methods=["post"], url_path="reject")
+    def reject(self, request, pk=None):
+        payment = self.get_object()
+        if payment.status != OnlinePaymentStatus.PENDING:
+            return Response(
+                {"detail": f"Payment is already {payment.status}."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        reason = request.data.get("reason", "")
+        if not reason:
+            return Response(
+                {"reason": "A rejection reason is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        payment.reject(request.user, reason)
+        return Response(self.get_serializer(payment).data)
+
+    @action(detail=False, methods=["get"], url_path="summary")
+    def summary(self, request):
+        """
+        Dashboard counts for online payments.
+        Optional query params: year, month (filters by submission date).
+        """
+        qs = OnlinePayment.objects.all()
+        year = request.query_params.get("year")
+        month = request.query_params.get("month")
+        try:
+            if year:
+                qs = qs.filter(created_at__year=int(year))
+            if month:
+                qs = qs.filter(created_at__month=int(month))
+        except ValueError:
+            return Response(
+                {"detail": "Invalid year or month."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        def bucket(status_value):
+            sub = qs.filter(status=status_value)
+            agg = sub.aggregate(
+                count=Count("id"),
+                customers=Count("customer", distinct=True),
+                amount=Sum("amount"),
+            )
+            return {
+                "count": agg["count"],
+                "customers": agg["customers"],
+                "amount": float(agg["amount"] or 0),
+            }
+
+        by_purpose = {
+            row["purpose"]: row["count"]
+            for row in qs.filter(status=OnlinePaymentStatus.PENDING)
+            .values("purpose")
+            .annotate(count=Count("id"))
+        }
+
+        return Response(
+            {
+                "total_customers_paid_online": qs.values("customer").distinct().count(),
+                "pending": bucket(OnlinePaymentStatus.PENDING),
+                "verified": bucket(OnlinePaymentStatus.VERIFIED),
+                "rejected": bucket(OnlinePaymentStatus.REJECTED),
+                "pending_by_purpose": by_purpose,
+            }
+        )

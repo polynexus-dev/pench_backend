@@ -12,6 +12,7 @@ from .utils import get_client_ip
 class UserSerializer(serializers.ModelSerializer):
     customer_dashboard = serializers.SerializerMethodField()
     customer_id = serializers.SerializerMethodField()
+    customer_location = serializers.SerializerMethodField()
     groups = serializers.SerializerMethodField()
     role = serializers.SerializerMethodField()
     user_permissions = serializers.SerializerMethodField()
@@ -35,6 +36,7 @@ class UserSerializer(serializers.ModelSerializer):
             "role",
             "customer_dashboard",
             "customer_id",
+            "customer_location",
             "user_permissions",
             "is_superuser",
             "is_staff",
@@ -106,9 +108,10 @@ class UserSerializer(serializers.ModelSerializer):
             # Silently fail if schema or models are not accessible to prevent crashing the User API
             return {"error": "Dashboard data temporarily unavailable"}
 
-    def get_customer_id(self, obj):
+    def _get_customer_profile(self, obj):
         """
-        Retrieves the customer profile ID for a customer user by switching to their tenant schema.
+        Fetches (and caches per user) the tenant Customer profile for a customer user.
+        Shared by get_customer_id and get_customer_location so the schema switch happens once.
         """
         if not obj.is_customer or not obj.tenant_schema:
             return None
@@ -121,17 +124,49 @@ class UserSerializer(serializers.ModelSerializer):
             if action == "list" and obj != request.user:
                 return None
 
+        cache = self.context.setdefault("customer_profile_cache", {})
+        if obj.pk in cache:
+            return cache[obj.pk]
+
         from django_tenants.utils import schema_context
         from crm.models import Customer
 
+        customer = None
         try:
             with schema_context(obj.tenant_schema):
                 customer = Customer.objects.filter(user=obj).first()
-                if customer:
-                    return str(customer.id)
         except Exception:
             pass
-        return None
+        cache[obj.pk] = customer
+        return customer
+
+    def get_customer_id(self, obj):
+        """
+        Retrieves the customer profile ID for a customer user by switching to their tenant schema.
+        """
+        customer = self._get_customer_profile(obj)
+        return str(customer.id) if customer else None
+
+    def get_customer_location(self, obj):
+        """
+        Returns the customer's saved geolocation, or None if there is no customer
+        profile or no location has been set.
+        """
+        customer = self._get_customer_profile(obj)
+        if not customer:
+            return None
+
+        from crm.models import _parse_coordinates
+
+        coords = _parse_coordinates(customer.location)
+        if not coords:
+            return None
+        lng, lat = coords
+        return {
+            "latitude": lat,
+            "longitude": lng,
+            "address": customer.address or None,
+        }
 
     def get_groups(self, obj):
         return [group.name for group in obj.groups.all()]
@@ -491,6 +526,7 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
             raise AuthenticationFailed({"detail": err_msg, "message": err_msg})
 
         data["user"] = UserSerializer(self.user).data
+        data["customer_location"] = data["user"].get("customer_location")
 
         # Route Admin/ERP users to the Public Domain
         if (

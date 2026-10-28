@@ -66,6 +66,12 @@ class OrderSerializer(serializers.ModelSerializer):
     driver_name = serializers.SerializerMethodField()
     zone_name = serializers.SerializerMethodField()
     is_new_customer = serializers.BooleanField(source="customer.is_new", read_only=True)
+    # Online payment proof for manual orders - stored as a finance.OnlinePayment
+    payment_screenshot = serializers.ImageField(write_only=True, required=False)
+    payment_amount = serializers.DecimalField(
+        max_digits=12, decimal_places=2, write_only=True, required=False
+    )
+    latest_payment = serializers.SerializerMethodField()
 
     class Meta:
         model = Order
@@ -93,9 +99,48 @@ class OrderSerializer(serializers.ModelSerializer):
             "amount_collected",
             "payment_transaction_id",
             "payment_status",
+            "payment_screenshot",
+            "payment_amount",
+            "latest_payment",
             "is_new_customer",
             "arriving_notification_sent",
         ]
+
+    def get_latest_payment(self, obj):
+        payment = obj.online_payments.order_by("-created_at").first()
+        if not payment:
+            return None
+        request = self.context.get("request")
+        screenshot = payment.screenshot.url if payment.screenshot else None
+        if screenshot and request:
+            screenshot = request.build_absolute_uri(screenshot)
+        return {
+            "id": str(payment.id),
+            "amount": float(payment.amount),
+            "status": payment.status,
+            "screenshot": screenshot,
+            "created_at": payment.created_at,
+        }
+
+    def validate(self, attrs):
+        # Customers placing a manual (non-subscription) order must attach a payment screenshot.
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        is_customer = (
+            user is not None
+            and hasattr(user, "customer_profile")
+            and user.customer_profile is not None
+        )
+        if (
+            self.instance is None
+            and is_customer
+            and not attrs.get("subscription")
+            and not attrs.get("payment_screenshot")
+        ):
+            raise serializers.ValidationError(
+                {"payment_screenshot": "A payment screenshot is required to place an order."}
+            )
+        return attrs
 
     def get_driver_name(self, obj):
         driver = None
@@ -164,6 +209,8 @@ class OrderSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         items_data = validated_data.pop("items")
+        payment_screenshot = validated_data.pop("payment_screenshot", None)
+        payment_amount = validated_data.pop("payment_amount", None)
 
         # Auto-fill delivery address from customer if not provided
         if not validated_data.get("delivery_address"):
@@ -199,6 +246,20 @@ class OrderSerializer(serializers.ModelSerializer):
         # Update order total based on items
         order.total = total_amount
         order.save(update_fields=["total"])
+
+        if payment_screenshot:
+            from finance.models import OnlinePayment, OnlinePaymentPurpose
+
+            request = self.context.get("request")
+            OnlinePayment.objects.create(
+                customer=order.customer,
+                order=order,
+                purpose=OnlinePaymentPurpose.ORDER,
+                amount=payment_amount or order.total,
+                screenshot=payment_screenshot,
+                transaction_id=order.payment_transaction_id,
+                submitted_by=request.user if request and request.user.is_authenticated else None,
+            )
 
         return order
 

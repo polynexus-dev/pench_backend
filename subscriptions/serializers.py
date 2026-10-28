@@ -24,6 +24,15 @@ class SubscriptionSerializer(serializers.ModelSerializer):
         source="get_frequency_display", read_only=True
     )
     pause_updated_by_name = serializers.SerializerMethodField()
+    # Optional online payment submitted with the subscription - stored as an OnlinePayment
+    payment_amount = serializers.DecimalField(
+        max_digits=12, decimal_places=2, write_only=True, required=False
+    )
+    payment_screenshot = serializers.ImageField(write_only=True, required=False)
+    payment_transaction_id = serializers.CharField(
+        write_only=True, required=False, allow_blank=True, max_length=100
+    )
+    latest_payment = serializers.SerializerMethodField()
 
     class Meta:
         model = Subscription
@@ -45,6 +54,10 @@ class SubscriptionSerializer(serializers.ModelSerializer):
             "pause_updated_by_name",
             "delivery_address",
             "special_instructions",
+            "payment_amount",
+            "payment_screenshot",
+            "payment_transaction_id",
+            "latest_payment",
             "items",
         ]
         read_only_fields = ["id", "pause_updated_by"]
@@ -54,8 +67,65 @@ class SubscriptionSerializer(serializers.ModelSerializer):
             return obj.pause_updated_by.get_full_name() or obj.pause_updated_by.username
         return None
 
+    def get_latest_payment(self, obj):
+        payment = obj.online_payments.order_by("-created_at").first()
+        if not payment:
+            return None
+        request = self.context.get("request")
+        screenshot = payment.screenshot.url if payment.screenshot else None
+        if screenshot and request:
+            screenshot = request.build_absolute_uri(screenshot)
+        return {
+            "id": str(payment.id),
+            "amount": float(payment.amount),
+            "status": payment.status,
+            "screenshot": screenshot,
+            "created_at": payment.created_at,
+        }
+
+    def validate(self, attrs):
+        has_amount = attrs.get("payment_amount") is not None
+        has_screenshot = attrs.get("payment_screenshot") is not None
+        if has_screenshot and not has_amount:
+            raise serializers.ValidationError(
+                {"payment_amount": "Payment amount is required with a payment screenshot."}
+            )
+        if has_amount and not has_screenshot:
+            raise serializers.ValidationError(
+                {"payment_screenshot": "A payment screenshot is required with a payment amount."}
+            )
+        if has_amount and attrs["payment_amount"] <= 0:
+            raise serializers.ValidationError(
+                {"payment_amount": "Payment amount must be greater than zero."}
+            )
+        return attrs
+
+    def _record_payment(self, subscription, payment_data):
+        if not payment_data.get("payment_screenshot"):
+            return
+        from finance.models import OnlinePayment, OnlinePaymentPurpose
+
+        request = self.context.get("request")
+        OnlinePayment.objects.create(
+            customer=subscription.customer,
+            subscription=subscription,
+            purpose=OnlinePaymentPurpose.SUBSCRIPTION,
+            amount=payment_data["payment_amount"],
+            screenshot=payment_data["payment_screenshot"],
+            transaction_id=payment_data.get("payment_transaction_id", ""),
+            submitted_by=request.user if request and request.user.is_authenticated else None,
+        )
+
+    @staticmethod
+    def _pop_payment_data(validated_data):
+        return {
+            key: validated_data.pop(key, None)
+            for key in ("payment_amount", "payment_screenshot", "payment_transaction_id")
+        }
+
     def create(self, validated_data):
         items_data = validated_data.pop("items")
+        payment_data = self._pop_payment_data(validated_data)
 
         # Check if pause/vacation is set at creation
         request = self.context.get("request")
@@ -70,10 +140,12 @@ class SubscriptionSerializer(serializers.ModelSerializer):
         subscription = Subscription.objects.create(**validated_data)
         for item_data in items_data:
             SubscriptionItem.objects.create(subscription=subscription, **item_data)
+        self._record_payment(subscription, payment_data)
         return subscription
 
     def update(self, instance, validated_data):
         items_data = validated_data.pop("items", None)
+        payment_data = self._pop_payment_data(validated_data)
 
         # Check if pause/vacation fields are being modified
         request = self.context.get("request")
@@ -101,6 +173,7 @@ class SubscriptionSerializer(serializers.ModelSerializer):
             for item_data in items_data:
                 SubscriptionItem.objects.create(subscription=instance, **item_data)
 
+        self._record_payment(instance, payment_data)
         return instance
 
 

@@ -1,3 +1,7 @@
+import json
+
+from django.db import transaction
+from django.http import QueryDict
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -25,7 +29,7 @@ class OrderViewSet(viewsets.ModelViewSet):
     ).prefetch_related("items__product")
     serializer_class = OrderSerializer
     permission_classes = [IsAuthenticated]  # Base permission is just authenticated
-    filterset_fields = ["status", "customer", "scheduled_delivery_date"]
+    filterset_fields = ["status", "customer", "scheduled_delivery_date", "is_special"]
 
     def get_permissions(self):
         """
@@ -33,6 +37,8 @@ class OrderViewSet(viewsets.ModelViewSet):
         """
         if self.action in ["list", "retrieve", "create", "partial_update", "update", "destroy", "special_orders"]:
             return [IsAuthenticated()]
+        if self.action == "special_summary":
+            return [IsERPUser()]
         # Management actions require ERP permissions
         return [IsERPUser(), HasGroupPermission()]
 
@@ -91,12 +97,27 @@ class OrderViewSet(viewsets.ModelViewSet):
         user = request.user
         is_customer = hasattr(user, "customer_profile") and user.customer_profile is not None
 
+        data = request.data
+
+        # Multipart payloads (used when uploading payment_screenshot) arrive as an
+        # immutable QueryDict with nested items as a JSON string - normalise them.
+        if isinstance(data, QueryDict):
+            data = {key: data.get(key) for key in data.keys()}
+            if isinstance(data.get("items"), str):
+                try:
+                    data["items"] = json.loads(data["items"])
+                except ValueError:
+                    return Response(
+                        {"items": "Must be a valid JSON list."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
         if is_customer:
             import datetime
             from rest_framework.exceptions import ValidationError
             from routing.models import Route, RouteStatus
             
-            data_list = request.data if isinstance(request.data, list) else [request.data]
+            data_list = data if isinstance(data, list) else [data]
             for item in data_list:
                 date_str = item.get("scheduled_delivery_date")
                 if date_str:
@@ -116,19 +137,19 @@ class OrderViewSet(viewsets.ModelViewSet):
                                 "Cannot place order for today: Your delivery route for today has already departed (in transit/completed)."
                             )
 
-            if isinstance(request.data, list):
-                for item in request.data:
-                    item["customer"] = user.customer_profile.id
-            else:
-                if hasattr(request.data, "_mutable"):
-                    request.data._mutable = True
-                request.data["customer"] = user.customer_profile.id
+            for item in data_list:
+                item["customer"] = user.customer_profile.id
 
-        is_many = isinstance(request.data, list)
+        is_many = isinstance(data, list)
         if not is_many:
-            return super().create(request, *args, **kwargs)
+            serializer = self.get_serializer(data=data)
+            serializer.is_valid(raise_exception=True)
+            with transaction.atomic():
+                self.perform_create(serializer)
+            headers = self.get_success_headers(serializer.data)
+            return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
-        serializer = self.get_serializer(data=request.data, many=True)
+        serializer = self.get_serializer(data=data, many=True)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -401,6 +422,45 @@ class OrderViewSet(viewsets.ModelViewSet):
             qs = qs.filter(scheduled_delivery_date=date)
         serializer = self.get_serializer(qs, many=True)
         return Response(serializer.data)
+
+    @action(detail=False, methods=["get"], url_path="special-summary")
+    def special_summary(self, request):
+        """
+        Dashboard counts for additional (non-subscription) orders so admins can
+        spot new orders placed apart from the regular subscription deliveries.
+        """
+        import datetime
+        from django.db.models import Count, Q
+        from django.utils import timezone
+        from finance.models import OnlinePaymentStatus
+
+        today = datetime.date.today()
+        since = timezone.now() - datetime.timedelta(hours=24)
+        qs = Order.objects.filter(is_special=True).exclude(status=OrderStatus.CANCELLED)
+
+        counts = qs.aggregate(
+            new_pending=Count("id", filter=Q(status=OrderStatus.PENDING)),
+            placed_last_24h=Count("id", filter=Q(created_at__gte=since)),
+            for_today=Count("id", filter=Q(scheduled_delivery_date=today)),
+            upcoming=Count("id", filter=Q(scheduled_delivery_date__gt=today)),
+            payment_pending_verification=Count(
+                "id",
+                filter=Q(online_payments__status=OnlinePaymentStatus.PENDING),
+                distinct=True,
+            ),
+        )
+
+        recent = (
+            qs.filter(status=OrderStatus.PENDING)
+            .select_related("customer__zone")
+            .annotate(item_count=Count("items"))
+            .prefetch_related("items__product")
+            .order_by("-created_at")[:20]
+        )
+        counts["recent_new_orders"] = OrderListSerializer(
+            recent, many=True, context={"request": request}
+        ).data
+        return Response(counts)
 
     @action(detail=True, methods=["post"], url_path="mark-delivered")
     def mark_delivered(self, request, pk=None):

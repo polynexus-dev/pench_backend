@@ -1,3 +1,7 @@
+import json
+
+from django.db import transaction
+from django.http import QueryDict
 from rest_framework import permissions, viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -106,6 +110,21 @@ class SubscriptionViewSet(viewsets.ModelViewSet):
             return item
 
         data = request.data
+
+        # Multipart payloads (used when uploading payment_screenshot) arrive as an
+        # immutable QueryDict with nested fields as JSON strings - normalise them.
+        if isinstance(data, QueryDict):
+            data = {key: data.get(key) for key in data.keys()}
+            for key in ("items", "custom_days"):
+                if isinstance(data.get(key), str):
+                    try:
+                        data[key] = json.loads(data[key])
+                    except ValueError:
+                        return Response(
+                            {key: "Must be a valid JSON list."},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+
         is_many = False
 
         if isinstance(data, list):
@@ -122,7 +141,8 @@ class SubscriptionViewSet(viewsets.ModelViewSet):
         if not is_many:
             serializer = self.get_serializer(data=data)
             serializer.is_valid(raise_exception=True)
-            self.perform_create(serializer)
+            with transaction.atomic():
+                self.perform_create(serializer)
             headers = self.get_success_headers(serializer.data)
             return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
