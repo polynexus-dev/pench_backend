@@ -1,12 +1,22 @@
 from rest_framework import serializers
+from core.quantities import QUANTITY_MAX_DIGITS, QUANTITY_DECIMAL_PLACES, MIN_QUANTITY
 from .models import Order, OrderItem, Route, RouteStop
 
 
 class OrderItemSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source="product.name", read_only=True)
+    quantity = serializers.DecimalField(
+        max_digits=QUANTITY_MAX_DIGITS,
+        decimal_places=QUANTITY_DECIMAL_PLACES,
+        min_value=MIN_QUANTITY,
+        coerce_to_string=False,
+        required=False,
+    )
 
+    # Always priced on the server from inventory (customer rate or Product.unit_price);
+    # clients cannot set their own price.
     unit_price = serializers.DecimalField(
-        max_digits=10, decimal_places=2, required=False
+        max_digits=10, decimal_places=2, read_only=True
     )
 
     class Meta:
@@ -221,7 +231,7 @@ class OrderSerializer(serializers.ModelSerializer):
 
         total_amount = 0
         for item_data in items_data:
-            # Auto-fill unit price from product/custom overrides if not provided
+            # Price from the admin's inventory: customer-specific rate, else product price
             if not item_data.get("unit_price"):
                 product = item_data.get("product")
                 customer = validated_data.get("customer")
@@ -463,7 +473,7 @@ class RouteStopSerializer(serializers.ModelSerializer):
             product = item.product
             if product.is_returnable and product.bottle_type:
                 bt = product.bottle_type
-                bottle_counts[bt.id] += item.quantity
+                bottle_counts[bt.id] += item.bottle_count
                 bottle_names[bt.id] = bt.name
                 bottle_volumes[bt.id] = bt.volume_ml
         
@@ -652,9 +662,9 @@ class RouteSerializer(serializers.ModelSerializer):
                         prod = item.product
                         if prod and prod.bottle_type:
                             if prod.bottle_type.volume_ml == 1000:
-                                d_1L += item.quantity
+                                d_1L += item.bottle_count
                             elif prod.bottle_type.volume_ml == 500:
-                                d_500ml += item.quantity
+                                d_500ml += item.bottle_count
                     cust = stop.order.customer
                     if cust:
                         if hasattr(cust, "_prefetched_objects_cache") and "bottle_balances" in cust._prefetched_objects_cache:

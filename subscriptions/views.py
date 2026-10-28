@@ -1,8 +1,11 @@
 import json
+from decimal import Decimal
 
 from django.db import transaction
 from django.http import QueryDict
 from rest_framework import permissions, viewsets, status
+from core.permissions import IsERPUser
+from core.quantities import format_quantity
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from .models import Subscription, SubscriptionSkipDate
@@ -26,14 +29,23 @@ class SubscriptionViewSet(viewsets.ModelViewSet):
             return SubscriptionListSerializer
         return SubscriptionSerializer
 
+    def _scope_to_user(self, qs):
+        """ERP users see every subscription; customers only their own; anyone else none."""
+        user = self.request.user
+        if IsERPUser().has_permission(self.request, self):
+            return qs
+        if hasattr(user, "customer_profile") and user.customer_profile is not None:
+            return qs.filter(customer=user.customer_profile)
+        return qs.none()
+
     def get_queryset(self):
         from django.db.models import Count
         if self.action == "list":
-            return (
+            return self._scope_to_user(
                 Subscription.objects.select_related("customer")
                 .annotate(item_count=Count("items"))
             )
-        return (
+        return self._scope_to_user(
             Subscription.objects.all()
             .select_related("customer", "pause_updated_by")
             .prefetch_related("items__product")
@@ -51,8 +63,10 @@ class SubscriptionViewSet(viewsets.ModelViewSet):
             subscription__status=SubscriptionStatus.ACTIVE
         ).values(
             "subscription__frequency",
+            "product",
             "product__name",
             "product__unit",
+            "product__unit_price",
             "quantity"
         ).annotate(
             count=Count("id")
@@ -70,11 +84,13 @@ class SubscriptionViewSet(viewsets.ModelViewSet):
             unit = item["product__unit"]
             count = item["count"]
             
-            label = f"{freq_display} - {qty}x {prod_name}"
+            label = f"{freq_display} - {format_quantity(qty)}x {prod_name}"
             
             row = {
                 "frequency": freq,
                 "frequency_display": freq_display,
+                "product_id": str(item["product"]),
+                "unit_price": float(item["product__unit_price"] or 0),
                 "product_name": prod_name,
                 "quantity": qty,
                 "unit": unit,
@@ -137,6 +153,14 @@ class SubscriptionViewSet(viewsets.ModelViewSet):
             else:
                 data = preprocess_subscription(data)
                 is_many = False
+
+        # Customers can only create subscriptions for themselves.
+        user = request.user
+        customer_profile = user.customer_profile if hasattr(user, "customer_profile") else None
+        if customer_profile is not None and not IsERPUser().has_permission(request, self):
+            for item in data if is_many else [data]:
+                if isinstance(item, dict):
+                    item["customer"] = str(customer_profile.id)
 
         if not is_many:
             serializer = self.get_serializer(data=data)
@@ -269,7 +293,13 @@ class SubscriptionViewSet(viewsets.ModelViewSet):
                 {"detail": "Product not found in this subscription."}, status=404
             )
 
-        item.quantity = int(new_quantity)
+        try:
+            quantity = Decimal(str(new_quantity)).quantize(Decimal("0.01"))
+        except ArithmeticError:
+            return Response({"detail": "quantity must be a number."}, status=400)
+        if quantity <= 0:
+            return Response({"detail": "quantity must be greater than zero."}, status=400)
+        item.quantity = quantity
         item.save()
 
         return Response(SubscriptionSerializer(subscription).data)

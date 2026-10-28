@@ -1,5 +1,11 @@
 from django.db import models
 from core.models import BaseModel
+from core.quantities import (
+    QUANTITY_MAX_DIGITS,
+    QUANTITY_DECIMAL_PLACES,
+    quantity_validators,
+    bottles_for,
+)
 
 from django.conf import settings
 
@@ -115,12 +121,22 @@ class OrderItem(BaseModel):
     product = models.ForeignKey(
         "inventory.Product", on_delete=models.PROTECT, related_name="order_items"
     )
-    quantity = models.PositiveIntegerField(default=1)
+    quantity = models.DecimalField(
+        max_digits=QUANTITY_MAX_DIGITS,
+        decimal_places=QUANTITY_DECIMAL_PLACES,
+        default=1,
+        validators=quantity_validators,
+    )
     unit_price = models.DecimalField(max_digits=10, decimal_places=2)
 
     @property
     def line_total(self):
         return self.quantity * self.unit_price
+
+    @property
+    def bottle_count(self):
+        """Bottles needed for this item (fractional quantities round up)."""
+        return bottles_for(self.quantity)
 
 
 class Package(BaseModel):

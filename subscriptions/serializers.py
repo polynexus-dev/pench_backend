@@ -1,9 +1,17 @@
 from rest_framework import serializers
+from core.quantities import QUANTITY_MAX_DIGITS, QUANTITY_DECIMAL_PLACES, MIN_QUANTITY
 from .models import Subscription, SubscriptionItem, SubscriptionSkipDate
 
 
 class SubscriptionItemSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source="product.name", read_only=True)
+    quantity = serializers.DecimalField(
+        max_digits=QUANTITY_MAX_DIGITS,
+        decimal_places=QUANTITY_DECIMAL_PLACES,
+        min_value=MIN_QUANTITY,
+        coerce_to_string=False,
+        required=False,
+    )
 
     class Meta:
         model = SubscriptionItem
@@ -112,7 +120,7 @@ class SubscriptionSerializer(serializers.ModelSerializer):
             purpose=OnlinePaymentPurpose.SUBSCRIPTION,
             amount=payment_data["payment_amount"],
             screenshot=payment_data["payment_screenshot"],
-            transaction_id=payment_data.get("payment_transaction_id", ""),
+            transaction_id=payment_data.get("payment_transaction_id") or "",
             submitted_by=request.user if request and request.user.is_authenticated else None,
         )
 

@@ -500,7 +500,7 @@ class RouteSerializer(serializers.ModelSerializer):
                 for item in order.items.all():
                     product = item.product
                     if product.bottle_type and product.bottle_type.volume_ml == 1000:
-                        total += item.quantity
+                        total += item.bottle_count
         except Exception:
             pass
         return total
@@ -512,7 +512,7 @@ class RouteSerializer(serializers.ModelSerializer):
                 for item in order.items.all():
                     product = item.product
                     if product.bottle_type and product.bottle_type.volume_ml == 500:
-                        total += item.quantity
+                        total += item.bottle_count
         except Exception:
             pass
         return total

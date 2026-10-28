@@ -3,6 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from core.permissions import IsERPUser, HasGroupPermission, IsDriverUser
+from django.db.models.functions import Ceil
 from .models import (
     Product,
     RawMaterial,
@@ -604,7 +605,7 @@ class BottleTransactionViewSet(viewsets.ModelViewSet):
             )
             if warehouse_id:
                 dispatched_qs = dispatched_qs.filter(order__route_stop__route__warehouse_id=warehouse_id)
-            dispatched_totals = dispatched_qs.values('product__bottle_type_id').annotate(total=Sum('quantity'))
+            dispatched_totals = dispatched_qs.values('product__bottle_type_id').annotate(total=Sum(Ceil('quantity')))
             dispatched_map = {str(item['product__bottle_type_id']): item['total'] for item in dispatched_totals}
 
             returned_qs = BottleTransaction.objects.filter(
@@ -621,7 +622,7 @@ class BottleTransactionViewSet(viewsets.ModelViewSet):
             )
             if warehouse_id:
                 dispatched_qs = dispatched_qs.filter(order__route_stop__route__warehouse_id=warehouse_id)
-            dispatched_totals = dispatched_qs.values('product__bottle_type_id').annotate(total=Sum('quantity'))
+            dispatched_totals = dispatched_qs.values('product__bottle_type_id').annotate(total=Sum(Ceil('quantity')))
             dispatched_map = {str(item['product__bottle_type_id']): item['total'] for item in dispatched_totals}
 
             returned_qs = BottleTransaction.objects.filter(
@@ -641,7 +642,7 @@ class BottleTransactionViewSet(viewsets.ModelViewSet):
             dispatched_qs = OrderItem.objects.filter(
                 order_id__in=order_ids_today,
                 product__is_returnable=True,
-            ).values('product__bottle_type_id').annotate(total=Sum('quantity'))
+            ).values('product__bottle_type_id').annotate(total=Sum(Ceil('quantity')))
             dispatched_map = {str(item['product__bottle_type_id']): item['total'] for item in dispatched_qs}
 
             returned_qs = BottleTransaction.objects.filter(
@@ -685,7 +686,7 @@ class BottleTransactionViewSet(viewsets.ModelViewSet):
             ).values(
                 'order__route_stop__route_id', 'product__bottle_type_id'
             ).annotate(
-                total=Sum('quantity')
+                total=Sum(Ceil('quantity'))
             )
 
             tx_data = BottleTransaction.objects.filter(
@@ -768,7 +769,7 @@ class BottleTransactionViewSet(viewsets.ModelViewSet):
             ).values(
                 'order__route_stop__route_id', 'product__bottle_type_id'
             ).annotate(
-                total=Sum('quantity')
+                total=Sum(Ceil('quantity'))
             )
 
             tx_data = BottleTransaction.objects.filter(
@@ -868,7 +869,7 @@ class BottleTransactionViewSet(viewsets.ModelViewSet):
             dispatched_by_month = (
                 dispatched_by_month.annotate(month=TruncMonth("order__route_stop__route__delivery_date"))
                 .values("month")
-                .annotate(total=Sum("quantity"))
+                .annotate(total=Sum(Ceil("quantity")))
                 .order_by("month")
             )
 

@@ -56,13 +56,13 @@ def issue_bottles(order):
         if item.product.is_returnable and item.product.bottle_type:
             record_bottle_transaction(
                 bottle_type=item.product.bottle_type,
-                quantity=item.quantity,
+                quantity=item.bottle_count,
                 transaction_type=BottleTransactionType.ISSUED,
                 customer=order.customer,
                 order=order,
             )
             logger.info(
-                f"Issued {item.quantity} {item.product.bottle_type.name} for Order #{order.id}"
+                f"Issued {item.bottle_count} {item.product.bottle_type.name} for Order #{order.id}"
             )
 
 

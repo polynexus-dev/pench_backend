@@ -599,7 +599,7 @@ class OrderViewSet(viewsets.ModelViewSet):
                         qty = (
                             bottles_issued
                             if bottles_issued is not None
-                            else item.quantity
+                            else item.bottle_count
                         )
                         record_bottle_transaction(
                             bottle_type=item.product.bottle_type,
@@ -2126,7 +2126,7 @@ class DriverViewSet(viewsets.ViewSet):
                         bt = product.bottle_type
                         bottles_to_carry[str(bt.id)]["name"] = bt.name
                         bottles_to_carry[str(bt.id)]["volume_ml"] = bt.volume_ml
-                        bottles_to_carry[str(bt.id)]["quantity"] += item.quantity
+                        bottles_to_carry[str(bt.id)]["quantity"] += item.bottle_count
 
             bottles_carry_list = [
                 {

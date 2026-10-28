@@ -260,3 +260,144 @@ class TestOnlinePayments(TenantTestCase):
         # Customers cannot see the admin summary
         res = self.customer_client.get("/api/erp/orders/special-summary/", HTTP_HOST=HOST)
         self.assertEqual(res.status_code, 403)
+
+    # ── Customer subscribing with an online payment ────────────────
+
+    def test_customer_subscription_with_payment_is_scoped_to_self(self):
+        other = Customer.objects.create(name="Other", phone="7777777777")
+        res = self.customer_client.post(
+            "/api/erp/subscriptions/",
+            {
+                "customer": str(other.id),  # must be ignored for customers
+                "frequency": "custom",
+                "custom_days": "[0, 2, 4]",
+                "start_date": str(datetime.date.today() + datetime.timedelta(days=1)),
+                "items": json.dumps([{"product": str(self.product.id), "quantity": 1}]),
+                "payment_amount": "650.00",
+                "payment_screenshot": make_screenshot(),
+            },
+            format="multipart",
+            HTTP_HOST=HOST,
+        )
+        self.assertEqual(res.status_code, 201, res.data)
+        self.assertEqual(str(res.data["customer"]), str(self.customer.id))
+        self.assertEqual(res.data["custom_days"], [0, 2, 4])
+        payment = OnlinePayment.objects.get()
+        self.assertEqual(payment.purpose, OnlinePaymentPurpose.SUBSCRIPTION)
+        self.assertEqual(payment.customer, self.customer)
+        self.assertEqual(res.data["latest_payment"]["status"], "pending")
+
+    def test_grouped_summary_includes_product_id(self):
+        from subscriptions.models import Subscription, SubscriptionItem
+
+        sub = Subscription.objects.create(
+            customer=self.customer, start_date=datetime.date.today()
+        )
+        SubscriptionItem.objects.create(subscription=sub, product=self.product, quantity=1)
+        res = self.customer_client.get(
+            "/api/erp/subscriptions/grouped-summary/", HTTP_HOST=HOST
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data[0]["product_id"], str(self.product.id))
+        self.assertEqual(res.data[0]["unit_price"], 50.0)
+
+    def test_order_price_always_comes_from_inventory(self):
+        res = self.customer_client.post(
+            "/api/erp/orders/",
+            self._order_payload(
+                items=json.dumps([
+                    {"product": str(self.product.id), "quantity": 2, "unit_price": "1.00"}
+                ]),
+                payment_screenshot=make_screenshot(),
+            ),
+            format="multipart",
+            HTTP_HOST=HOST,
+        )
+        self.assertEqual(res.status_code, 201, res.data)
+        order = Order.objects.get()
+        # Product.unit_price is 50 -> 2 x 50, the client-sent 1.00 is ignored
+        self.assertEqual(order.total, 100)
+        self.assertEqual(OnlinePayment.objects.get().amount, 100)
+
+    # ── Fractional quantities ──────────────────────────────────────
+
+    def test_fractional_subscription_quantity(self):
+        res = self.customer_client.post(
+            "/api/erp/subscriptions/",
+            {
+                "frequency": "daily",
+                "start_date": str(datetime.date.today() + datetime.timedelta(days=1)),
+                "items": json.dumps([{"product": str(self.product.id), "quantity": 1.5}]),
+            },
+            format="multipart",
+            HTTP_HOST=HOST,
+        )
+        self.assertEqual(res.status_code, 201, res.data)
+        # Returned as a JSON number, not a string
+        self.assertEqual(res.data["items"][0]["quantity"], 1.5)
+
+    def test_fractional_order_total_and_bottles(self):
+        from decimal import Decimal
+        from inventory.models import BottleType
+
+        bottle = BottleType.objects.create(name="1L Glass", volume_ml=1000)
+        self.product.bottle_type = bottle
+        self.product.is_returnable = True
+        self.product.save()
+
+        res = self.customer_client.post(
+            "/api/erp/orders/",
+            self._order_payload(
+                items=json.dumps([{"product": str(self.product.id), "quantity": 1.5}]),
+                payment_screenshot=make_screenshot(),
+            ),
+            format="multipart",
+            HTTP_HOST=HOST,
+        )
+        self.assertEqual(res.status_code, 201, res.data)
+        order = Order.objects.get()
+        item = order.items.get()
+        self.assertEqual(item.quantity, Decimal("1.50"))
+        self.assertEqual(order.total, Decimal("75.00"))  # 1.5 x 50
+        self.assertEqual(item.bottle_count, 2)  # a part-filled bottle still needs a bottle
+
+    def test_zero_quantity_rejected(self):
+        res = self.customer_client.post(
+            "/api/erp/subscriptions/",
+            {
+                "frequency": "daily",
+                "start_date": str(datetime.date.today()),
+                "items": json.dumps([{"product": str(self.product.id), "quantity": 0}]),
+            },
+            format="multipart",
+            HTTP_HOST=HOST,
+        )
+        self.assertEqual(res.status_code, 400)
+
+    # ── Subscription visibility ────────────────────────────────────
+
+    def test_customer_only_sees_own_subscriptions(self):
+        from subscriptions.models import Subscription
+
+        other = Customer.objects.create(name="Other", phone="6666666666")
+        mine = Subscription.objects.create(customer=self.customer, start_date=datetime.date.today())
+        theirs = Subscription.objects.create(customer=other, start_date=datetime.date.today())
+
+        res = self.customer_client.get("/api/erp/subscriptions/", HTTP_HOST=HOST)
+        results = res.data["results"] if isinstance(res.data, dict) else res.data
+        self.assertEqual([r["id"] for r in results], [str(mine.id)])
+
+        # Cannot open or pause someone else's subscription
+        res = self.customer_client.get(f"/api/erp/subscriptions/{theirs.id}/", HTTP_HOST=HOST)
+        self.assertEqual(res.status_code, 404)
+        res = self.customer_client.post(
+            f"/api/erp/subscriptions/{theirs.id}/pause/",
+            {"pause_start": str(datetime.date.today()), "pause_end": str(datetime.date.today())},
+            HTTP_HOST=HOST,
+        )
+        self.assertEqual(res.status_code, 404)
+
+        # Admins still see everything
+        res = self.admin_client.get("/api/erp/subscriptions/", HTTP_HOST=HOST)
+        results = res.data["results"] if isinstance(res.data, dict) else res.data
+        self.assertEqual(len(results), 2)

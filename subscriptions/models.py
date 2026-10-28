@@ -1,5 +1,11 @@
 from django.db import models
 from core.models import BaseModel
+from core.quantities import (
+    QUANTITY_MAX_DIGITS,
+    QUANTITY_DECIMAL_PLACES,
+    quantity_validators,
+    format_quantity,
+)
 
 
 class SubscriptionStatus(models.TextChoices):
@@ -99,10 +105,15 @@ class SubscriptionItem(BaseModel):
         Subscription, on_delete=models.CASCADE, related_name="items"
     )
     product = models.ForeignKey("inventory.Product", on_delete=models.CASCADE)
-    quantity = models.PositiveIntegerField(default=1)
+    quantity = models.DecimalField(
+        max_digits=QUANTITY_MAX_DIGITS,
+        decimal_places=QUANTITY_DECIMAL_PLACES,
+        default=1,
+        validators=quantity_validators,
+    )
 
     def __str__(self):
-        return f"{self.quantity}x {self.product.name}"
+        return f"{format_quantity(self.quantity)}x {self.product.name}"
 
 
 class SubscriptionSkipDate(BaseModel):

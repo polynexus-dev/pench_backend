@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -1979,12 +1981,12 @@ class CustomerViewSet(viewsets.ModelViewSet):
             )
 
         try:
-            quantity = int(quantity)
+            quantity = Decimal(str(quantity)).quantize(Decimal("0.01"))
             if quantity <= 0:
                 raise ValueError()
-        except (ValueError, TypeError):
+        except (ValueError, TypeError, ArithmeticError):
             return Response(
-                {"detail": "Quantity must be a positive integer."},
+                {"detail": "Quantity must be a positive number."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -2121,12 +2123,12 @@ class CustomerViewSet(viewsets.ModelViewSet):
             )
 
         try:
-            quantity = int(quantity)
+            quantity = Decimal(str(quantity)).quantize(Decimal("0.01"))
             if quantity <= 0:
                 raise ValueError()
-        except (ValueError, TypeError):
+        except (ValueError, TypeError, ArithmeticError):
             return Response(
-                {"detail": "Quantity must be a positive integer."},
+                {"detail": "Quantity must be a positive number."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 

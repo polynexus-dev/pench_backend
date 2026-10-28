@@ -1,4 +1,5 @@
 import logging
+from decimal import Decimal
 from django.db import transaction
 from inventory.models import Stock, Warehouse
 
@@ -43,8 +44,8 @@ def deduct_stock_on_delivery(order):
             else 1000
         )
         # If measured in Litres, convert ml to L. Otherwise, treat as raw pieces/kg
-        factor = float(volume_ml) / 1000.0 if raw_mat.unit.lower() == "litre" else 1.0
-        deduct_qty = int(round(item.quantity * factor))
+        factor = Decimal(volume_ml) / Decimal(1000) if raw_mat.unit.lower() == "litre" else Decimal(1)
+        deduct_qty = int(round(Decimal(item.quantity) * factor))
 
         # Lock the stock record for update to prevent race conditions
         stock_qs = Stock.objects.select_for_update().filter(
