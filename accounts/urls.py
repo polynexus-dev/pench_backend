@@ -15,9 +15,11 @@ from .views import (
     GroupViewSet,
     PermissionViewSet,
     AdminSetAllCustomerPasswordsView,
+    UserLocationViewSet,
 )
 
 router = DefaultRouter()
+router.register("locations", UserLocationViewSet, basename="user-location")
 router.register("users", UserViewSet, basename="user")
 router.register("groups", GroupViewSet, basename="group")
 router.register("permissions", PermissionViewSet, basename="permission")

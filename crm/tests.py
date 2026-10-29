@@ -3,6 +3,7 @@ from rest_framework.test import APIClient
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.conf import settings
+from django.test import override_settings
 from django.db import connection
 from django.db.models.signals import pre_save, post_save
 from routing.models import Zone
@@ -630,6 +631,38 @@ class CustomerBulkDeleteTestCase(TenantTestCase):
 
         self.assertFalse(Customer.objects.filter(id=cust.id).exists())
         self.assertFalse(User.objects.filter(id=user.id).exists())
+
+    def test_single_delete_customer_who_has_logged_in(self):
+        """
+        Regression: users with login history (LoginAuditLog rows) used to survive
+        dashboard deletion because the raw-SQL delete hit FK constraints and the
+        error was swallowed, leaving the account able to log in.
+        """
+        connection.set_tenant(self.tenant)
+        User = get_user_model()
+        from accounts.models import LoginAuditLog
+
+        user = User.objects.create_user(
+            username="logged_in_del_user", password="secret-pass-123", phone="9000000037",
+            is_customer=True, tenant_schema="test",
+        )
+        LoginAuditLog.objects.create(username_or_phone=user.username, user=user, status="SUCCESS")
+        cust = Customer.objects.get(user=user)
+
+        response = self.client.delete(f"/api/erp/customers/{cust.id}/", HTTP_HOST="tenant.test.com")
+        self.assertEqual(response.status_code, 204)
+        self.assertFalse(User.objects.filter(id=user.id).exists())
+
+        with override_settings(
+            CACHES={"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}
+        ):
+            login = APIClient().post(
+                "/api/accounts/login/",
+                {"username": "logged_in_del_user", "password": "secret-pass-123"},
+                format="json",
+                HTTP_HOST="tenant.test.com",
+            )
+        self.assertEqual(login.status_code, 401)
 
     def test_single_delete_customer_multi_role(self):
         connection.set_tenant(self.tenant)

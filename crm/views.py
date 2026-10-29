@@ -417,29 +417,12 @@ class CustomerViewSet(viewsets.ModelViewSet):
             # 3. Delete the Customer profile (cascades subscriptions, balances, custom prices)
             instance.delete()
 
-        # 4. Safely handle associated User account (shared app in public schema)
+        # 4. Revoke the linked login. Runs in the current tenant context so the
+        # ORM can resolve both tenant and public relations to the user.
         if user:
-            try:
-                from django_tenants.utils import schema_context
-                from django.db import connection
-                with schema_context("public"):
-                    has_other_roles = (
-                        user.is_staff
-                        or user.is_superuser
-                        or user.is_erp_user
-                        or getattr(user, "is_driver", False)
-                    )
-                    if has_other_roles:
-                        user.is_customer = False
-                        user.save(update_fields=["is_customer"])
-                    else:
-                        user_id = user.id
-                        with connection.cursor() as cursor:
-                            cursor.execute("DELETE FROM accounts_user_groups WHERE user_id = %s", [user_id])
-                            cursor.execute("DELETE FROM accounts_user_user_permissions WHERE user_id = %s", [user_id])
-                            cursor.execute("DELETE FROM accounts_user WHERE id = %s", [user_id])
-            except Exception:
-                pass
+            from accounts.services import revoke_customer_account
+
+            revoke_customer_account(user)
 
     @action(detail=False, methods=["patch", "put"])
     def bulk_update(self, request):
@@ -480,7 +463,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
           - A dict wrapper: `{"ids": ["uuid1", "uuid2"]}` or `{"customer_ids": ["uuid1", "uuid2"]}`
         """
         import uuid
-        from django.db import transaction, models
+        from django.db import transaction
         from accounts.models import User
         from orders.models import Order
         from finance.models import MonthlyBill
@@ -556,42 +539,17 @@ class CustomerViewSet(viewsets.ModelViewSet):
                 # 3. Delete Customer profiles (cascades: Subscription, CustomerBottleBalance, CustomerProductPrice)
                 cust_del_count, _ = customers_qs.delete()
 
-            # 4. Safely handle associated User accounts (shared app in public schema)
-            user_del_count = 0
-            if user_ids:
-                try:
-                    from django_tenants.utils import schema_context
-                    from django.db import connection
-                    with schema_context("public"):
-                        users_to_keep = User.objects.filter(id__in=user_ids).filter(
-                            models.Q(is_staff=True)
-                            | models.Q(is_superuser=True)
-                            | models.Q(is_erp_user=True)
-                            | models.Q(is_driver=True)
-                        )
-                        for user in users_to_keep:
-                            user.is_customer = False
-                            user.save(update_fields=["is_customer"])
+            # 4. Revoke the linked logins (see revoke_customer_account)
+            from accounts.services import revoke_customer_account
 
-                        keep_ids = set(users_to_keep.values_list("id", flat=True))
-                        delete_ids = [int(uid) for uid in user_ids if uid not in keep_ids]
-                        if delete_ids:
-                            with connection.cursor() as cursor:
-                                cursor.execute(
-                                    "DELETE FROM accounts_user_groups WHERE user_id = ANY(%s::bigint[])",
-                                    [delete_ids],
-                                )
-                                cursor.execute(
-                                    "DELETE FROM accounts_user_user_permissions WHERE user_id = ANY(%s::bigint[])",
-                                    [delete_ids],
-                                )
-                                cursor.execute(
-                                    "DELETE FROM accounts_user WHERE id = ANY(%s::bigint[])",
-                                    [delete_ids],
-                                )
-                                user_del_count = cursor.rowcount
-                except Exception:
-                    pass
+            user_del_count = 0
+            user_deactivated_count = 0
+            for user in User.objects.filter(id__in=user_ids):
+                outcome = revoke_customer_account(user)
+                if outcome == "deleted":
+                    user_del_count += 1
+                elif outcome == "deactivated":
+                    user_deactivated_count += 1
 
             return Response(
                 {
@@ -602,6 +560,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
                         "monthly_bills_deleted": bill_del_count,
                         "customer_profiles_deleted": cust_del_count,
                         "user_accounts_deleted": user_del_count,
+                        "user_accounts_deactivated": user_deactivated_count,
                     },
                 },
                 status=status.HTTP_200_OK,

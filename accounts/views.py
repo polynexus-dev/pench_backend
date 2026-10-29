@@ -23,6 +23,7 @@ from .models import (
     PasswordChangeLog,
     LoginAuditLog,
     AccountDeletionLog,
+    UserLocation,
 )
 from .serializers import (
     UserSerializer,
@@ -30,14 +31,17 @@ from .serializers import (
     RequestOTPSerializer,
     LoginOTPSerializer,
     MyTokenObtainPairSerializer,
+    MyTokenRefreshSerializer,
     SetPasswordSerializer,
     ForgotPasswordSerializer,
     ResetPasswordSerializer,
     DeleteAccountSerializer,
     PermissionSerializer,
     GroupSerializer,
+    UserLocationSerializer,
 )
 from .utils import generate_otp, get_client_ip
+from .services import sync_default_location_to_customer
 from core.permissions import IsERPUser
 
 logger = logging.getLogger(__name__)
@@ -49,6 +53,8 @@ class MyTokenObtainPairView(TokenObtainPairView):
 
 
 class MyTokenRefreshView(TokenRefreshView):
+    serializer_class = MyTokenRefreshSerializer
+
     def post(self, request, *args, **kwargs):
         response = super().post(request, *args, **kwargs)
         try:
@@ -202,6 +208,12 @@ class RequestOTPView(APIView):
                     status=status.HTTP_404_NOT_FOUND,
                 )
 
+        if not user.is_active:
+            return Response(
+                {"error": "Account is inactive. Please contact support."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         # 3. Generate and "send" OTP
         try:
             # Generate OTP using the actual phone number string stored/provided
@@ -249,6 +261,14 @@ class LoginOTPView(APIView):
             return Response(
                 {"error": "User with this phone number does not exist."},
                 status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Password login rejects inactive users via the auth backend; OTP login
+        # issues tokens directly, so it has to check explicitly.
+        if not user.is_active:
+            return Response(
+                {"error": "Account is inactive. Please contact support."},
+                status=status.HTTP_403_FORBIDDEN,
             )
 
         # Fallback: If user has no schema (created before the update), try to find it now
@@ -858,3 +878,67 @@ class AdminSetAllCustomerPasswordsView(APIView):
             {"message": f"Successfully updated passwords for {count} customers to Pass@123."},
             status=status.HTTP_200_OK
         )
+
+
+class UserLocationViewSet(viewsets.ModelViewSet):
+    """
+    CRUD for the authenticated user's saved locations (home / work / other).
+
+    The first location saved becomes the default automatically. Marking a
+    location as default clears the flag on the user's other locations, and
+    deleting the default promotes the most recently updated remaining one.
+
+    For customers, the default location is mirrored onto the CRM Customer
+    profile (location + address), so deliveries go to it.
+    """
+
+    serializer_class = UserLocationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filterset_fields = ["tag", "is_default"]
+    pagination_class = None
+
+    def get_queryset(self):
+        return UserLocation.objects.filter(user=self.request.user)
+
+    def _clear_other_defaults(self, keep_pk=None):
+        UserLocation.objects.filter(user=self.request.user, is_default=True).exclude(
+            pk=keep_pk
+        ).update(is_default=False)
+
+    @transaction.atomic
+    def perform_create(self, serializer):
+        user = self.request.user
+        is_first = not UserLocation.objects.filter(user=user).exists()
+        make_default = is_first or serializer.validated_data.get("is_default", False)
+        if make_default:
+            self._clear_other_defaults()
+        location = serializer.save(user=user, is_default=make_default)
+        sync_default_location_to_customer(location)
+
+    @transaction.atomic
+    def perform_update(self, serializer):
+        if serializer.validated_data.get("is_default"):
+            self._clear_other_defaults(keep_pk=serializer.instance.pk)
+        location = serializer.save()
+        sync_default_location_to_customer(location)
+
+    @transaction.atomic
+    def perform_destroy(self, instance):
+        was_default = instance.is_default
+        instance.delete()
+        if was_default:
+            replacement = self.get_queryset().order_by("-updated_at").first()
+            if replacement:
+                replacement.is_default = True
+                replacement.save(update_fields=["is_default", "updated_at"])
+                sync_default_location_to_customer(replacement)
+
+    @action(detail=True, methods=["post"], url_path="set-default")
+    @transaction.atomic
+    def set_default(self, request, pk=None):
+        location = self.get_object()
+        self._clear_other_defaults(keep_pk=location.pk)
+        location.is_default = True
+        location.save(update_fields=["is_default", "updated_at"])
+        sync_default_location_to_customer(location)
+        return Response(self.get_serializer(location).data)

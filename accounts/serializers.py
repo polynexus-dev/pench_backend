@@ -1,11 +1,14 @@
 from rest_framework import serializers
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.validators import UniqueValidator
-from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework_simplejwt.serializers import (
+    TokenObtainPairSerializer,
+    TokenRefreshSerializer,
+)
 from django.contrib.auth.models import Group, Permission
 from django.contrib.auth.password_validation import validate_password as django_validate_password
 from django.contrib.contenttypes.models import ContentType
-from .models import User
+from .models import User, UserLocation, LocationTag
 from .utils import get_client_ip
 
 
@@ -474,6 +477,18 @@ class LoginOTPSerializer(serializers.Serializer):
     code = serializers.CharField(max_length=6)
 
 
+class MyTokenRefreshSerializer(TokenRefreshSerializer):
+    def validate(self, attrs):
+        # simplejwt looks the user up with .get(), so a refresh token belonging to
+        # a deleted account raises DoesNotExist (a 500) instead of a 401.
+        try:
+            return super().validate(attrs)
+        except User.DoesNotExist:
+            raise AuthenticationFailed(
+                self.error_messages["no_active_account"], "no_active_account"
+            )
+
+
 class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         from .models import LoginAuditLog, User
@@ -771,3 +786,44 @@ class GroupSerializer(serializers.ModelSerializer):
             {"id": p.id, "name": p.name, "codename": p.codename}
             for p in obj.permissions.all()
         ]
+
+
+class UserLocationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserLocation
+        fields = [
+            "id",
+            "tag",
+            "label",
+            "address",
+            "landmark",
+            "latitude",
+            "longitude",
+            "is_default",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+    def validate_latitude(self, value):
+        if not -90 <= value <= 90:
+            raise serializers.ValidationError("Latitude must be between -90 and 90.")
+        return value
+
+    def validate_longitude(self, value):
+        if not -180 <= value <= 180:
+            raise serializers.ValidationError("Longitude must be between -180 and 180.")
+        return value
+
+    def validate(self, attrs):
+        tag = attrs.get("tag", getattr(self.instance, "tag", LocationTag.OTHER))
+        if tag in (LocationTag.HOME, LocationTag.WORK):
+            user = self.context["request"].user
+            clash = UserLocation.objects.filter(user=user, tag=tag)
+            if self.instance:
+                clash = clash.exclude(pk=self.instance.pk)
+            if clash.exists():
+                raise serializers.ValidationError(
+                    {"tag": f"You already have a {tag} location. Update it instead."}
+                )
+        return attrs

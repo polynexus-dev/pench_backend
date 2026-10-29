@@ -204,3 +204,55 @@ class AccountDeletionLog(models.Model):
 
     def __str__(self):
         return f"Account {self.deleted_user_id} deleted at {self.deleted_at}"
+
+
+class LocationTag(models.TextChoices):
+    HOME = "home", "Home"
+    WORK = "work", "Work"
+    OTHER = "other", "Other"
+
+
+class UserLocation(models.Model):
+    """
+    A saved address for a user. A user may have one Home, one Work and any
+    number of Other locations; exactly one location may be marked default.
+    """
+
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="saved_locations"
+    )
+    tag = models.CharField(
+        max_length=10, choices=LocationTag.choices, default=LocationTag.OTHER
+    )
+    label = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Optional display name, e.g. 'Mom's place' for an Other location.",
+    )
+    address = models.TextField()
+    landmark = models.CharField(max_length=255, blank=True)
+    latitude = models.DecimalField(max_digits=9, decimal_places=6)
+    longitude = models.DecimalField(max_digits=9, decimal_places=6)
+    is_default = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "User Location"
+        verbose_name_plural = "User Locations"
+        ordering = ["-is_default", "tag", "-updated_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "tag"],
+                condition=models.Q(tag__in=["home", "work"]),
+                name="unique_home_work_location_per_user",
+            ),
+            models.UniqueConstraint(
+                fields=["user"],
+                condition=models.Q(is_default=True),
+                name="unique_default_location_per_user",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.get_tag_display()} - {self.user}"

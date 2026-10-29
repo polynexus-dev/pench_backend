@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .models import User, PasswordChangeLog, LoginAuditLog, AccountDeletionLog
+from .models import User, PasswordChangeLog, LoginAuditLog, AccountDeletionLog, UserLocation
 
 
 @admin.register(User)
@@ -84,3 +84,11 @@ class AccountDeletionLogAdmin(admin.ModelAdmin):
 
     def has_change_permission(self, request, obj=None):
         return False
+
+
+@admin.register(UserLocation)
+class UserLocationAdmin(admin.ModelAdmin):
+    list_display = ["user", "tag", "label", "is_default", "updated_at"]
+    list_filter = ["tag", "is_default"]
+    search_fields = ["user__username", "user__phone", "address", "label"]
+    raw_id_fields = ["user"]
