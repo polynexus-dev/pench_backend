@@ -3,10 +3,13 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from orders.views import DriverViewSet
+from core.views import AppVersionCheckView
 
 urlpatterns = [
     # City Admin
     path("admin/", admin.site.urls),
+    # Mobile app force/soft update check
+    path("api/app-version/", AppVersionCheckView.as_view(), name="app-version-check"),
     # Dedicated Driver URL paths
     path(
         "api/drivers/my-route/",

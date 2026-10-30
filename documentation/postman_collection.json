@@ -108,6 +108,10 @@
             "key": "bill_id",
             "value": "",
             "type": "string"
+        },
+        {
+            "key": "location_id",
+            "value": ""
         }
     ],
     "item": [
@@ -806,7 +810,7 @@
                             ],
                             "query": []
                         },
-                        "description": "Returns `customer_location` in the response.\n\n`customer_location` is `{latitude, longitude, address}` for customers with a saved location, otherwise `null`."
+                        "description": "Returns `customer_location` in the response.\n\n`customer_location` is `{latitude, longitude, address}` for customers with a saved location, otherwise `null`.\n\nFor customers, `customer_location` reflects their default saved location (see Saved Locations)."
                     },
                     "response": [
                         {
@@ -875,7 +879,8 @@
                                 "request-otp"
                             ],
                             "query": []
-                        }
+                        },
+                        "description": "Returns **403** if the account is inactive (e.g. the customer was removed from the dashboard)."
                     },
                     "response": [
                         {
@@ -920,6 +925,49 @@
                             ],
                             "cookie": [],
                             "body": "{\n    \"detail\": \"Success\",\n    \"status\": \"Request processed successfully\"\n}"
+                        },
+                        {
+                            "name": "Inactive Account",
+                            "originalRequest": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    },
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/accounts/request-otp/",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "accounts",
+                                        "request-otp"
+                                    ],
+                                    "query": []
+                                },
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"phone\": \"918000000101\"\n}"
+                                }
+                            },
+                            "status": "Forbidden",
+                            "code": 403,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "cookie": [],
+                            "body": "{\n    \"error\": \"Account is inactive. Please contact support.\"\n}"
                         }
                     ]
                 },
@@ -949,7 +997,7 @@
                             ],
                             "query": []
                         },
-                        "description": "Returns `customer_location` at the top level and inside `user`.\n\n`customer_location` is `{latitude, longitude, address}` for customers with a saved location, otherwise `null`."
+                        "description": "Returns `customer_location` at the top level and inside `user`.\n\n`customer_location` is `{latitude, longitude, address}` for customers with a saved location, otherwise `null`.\n\nReturns **403** if the account is inactive."
                     },
                     "response": [
                         {
@@ -994,6 +1042,49 @@
                             ],
                             "cookie": [],
                             "body": "{\n    \"detail\": \"Success\",\n    \"status\": \"Request processed successfully\"\n}"
+                        },
+                        {
+                            "name": "Inactive Account",
+                            "originalRequest": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    },
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/accounts/login-otp/",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "accounts",
+                                        "login-otp"
+                                    ],
+                                    "query": []
+                                },
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"phone\": \"918000000101\",\n    \"code\": \"123456\"\n}"
+                                }
+                            },
+                            "status": "Forbidden",
+                            "code": 403,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "cookie": [],
+                            "body": "{\n    \"error\": \"Account is inactive. Please contact support.\"\n}"
                         }
                     ],
                     "event": [
@@ -1777,7 +1868,8 @@
                                 "refresh"
                             ],
                             "query": []
-                        }
+                        },
+                        "description": "Returns **401** `no_active_account` if the user was deleted or deactivated - the app should log the user out."
                     },
                     "response": [
                         {
@@ -1823,6 +1915,50 @@
                             ],
                             "cookie": [],
                             "body": "{\n    \"detail\": \"Success\",\n    \"status\": \"Request processed successfully\"\n}"
+                        },
+                        {
+                            "name": "Deleted / Inactive Account",
+                            "originalRequest": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    },
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/accounts/login/refresh/",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "accounts",
+                                        "login",
+                                        "refresh"
+                                    ],
+                                    "query": []
+                                },
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"refresh\": \"REFRESH_TOKEN_HERE\"\n}"
+                                }
+                            },
+                            "status": "Unauthorized",
+                            "code": 401,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "cookie": [],
+                            "body": "{\n    \"detail\": \"No active account found for the given token.\",\n    \"code\": \"no_active_account\"\n}"
                         }
                     ]
                 },
@@ -2427,6 +2563,853 @@
                         },
                         "description": "Returns `customer_location` in the response.\n\n`customer_location` is `{latitude, longitude, address}` for customers with a saved location, otherwise `null`."
                     }
+                },
+                {
+                    "name": "Saved Locations (UserLocation)",
+                    "description": "Authenticated user's saved addresses. `tag` is `home`, `work` or `other`: one Home and one Work per user, any number of Other. The first location saved becomes the default; only one default per user. Only the caller's own locations are visible.\n\nFor customers, the **default** location is copied to their CRM customer profile (`location` + `address`, landmark appended), which re-runs zone assignment and is used for deliveries.",
+                    "item": [
+                        {
+                            "name": "GET List My Locations",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/accounts/locations/",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "accounts",
+                                        "locations",
+                                        ""
+                                    ],
+                                    "query": []
+                                },
+                                "description": "Not paginated - returns a plain array, default location first."
+                            },
+                            "response": [
+                                {
+                                    "name": "Default Success",
+                                    "originalRequest": {
+                                        "method": "GET",
+                                        "header": [
+                                            {
+                                                "key": "Content-Type",
+                                                "value": "application/json"
+                                            },
+                                            {
+                                                "key": "Authorization",
+                                                "value": "Bearer {{access_token}}"
+                                            }
+                                        ],
+                                        "url": {
+                                            "raw": "{{base_url}}/api/accounts/locations/",
+                                            "host": [
+                                                "{{base_url}}"
+                                            ],
+                                            "path": [
+                                                "api",
+                                                "accounts",
+                                                "locations",
+                                                ""
+                                            ],
+                                            "query": []
+                                        }
+                                    },
+                                    "status": "OK",
+                                    "code": 200,
+                                    "_postman_previewlanguage": "json",
+                                    "header": [
+                                        {
+                                            "key": "Content-Type",
+                                            "value": "application/json"
+                                        }
+                                    ],
+                                    "cookie": [],
+                                    "body": "[\n    {\n        \"id\": 1,\n        \"tag\": \"home\",\n        \"label\": \"\",\n        \"address\": \"Flat 302, Shanti Apartments, Dharampeth, Nagpur\",\n        \"landmark\": \"Near Trikoni Park\",\n        \"latitude\": \"21.145800\",\n        \"longitude\": \"79.088200\",\n        \"is_default\": true,\n        \"created_at\": \"2026-10-29T10:15:00Z\",\n        \"updated_at\": \"2026-10-29T10:15:00Z\"\n    },\n    {\n        \"id\": 2,\n        \"tag\": \"work\",\n        \"label\": \"\",\n        \"address\": \"Office 5, IT Park, Parsodi, Nagpur\",\n        \"landmark\": \"\",\n        \"latitude\": \"21.124500\",\n        \"longitude\": \"79.051300\",\n        \"is_default\": false,\n        \"created_at\": \"2026-10-29T10:15:00Z\",\n        \"updated_at\": \"2026-10-29T10:15:00Z\"\n    },\n    {\n        \"id\": 3,\n        \"tag\": \"other\",\n        \"label\": \"Mom's place\",\n        \"address\": \"12 Ravi Nagar, Nagpur\",\n        \"landmark\": \"\",\n        \"latitude\": \"21.150100\",\n        \"longitude\": \"79.062000\",\n        \"is_default\": false,\n        \"created_at\": \"2026-10-29T10:15:00Z\",\n        \"updated_at\": \"2026-10-29T10:15:00Z\"\n    }\n]"
+                                }
+                            ]
+                        },
+                        {
+                            "name": "GET List Locations by Tag",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/accounts/locations/?tag=home",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "accounts",
+                                        "locations",
+                                        ""
+                                    ],
+                                    "query": [
+                                        {
+                                            "key": "tag",
+                                            "value": "home"
+                                        }
+                                    ]
+                                },
+                                "description": "Filter by `tag` (`home` / `work` / `other`) and/or `is_default` (`true` / `false`)."
+                            },
+                            "response": [
+                                {
+                                    "name": "Default Success",
+                                    "originalRequest": {
+                                        "method": "GET",
+                                        "header": [
+                                            {
+                                                "key": "Content-Type",
+                                                "value": "application/json"
+                                            },
+                                            {
+                                                "key": "Authorization",
+                                                "value": "Bearer {{access_token}}"
+                                            }
+                                        ],
+                                        "url": {
+                                            "raw": "{{base_url}}/api/accounts/locations/?tag=home",
+                                            "host": [
+                                                "{{base_url}}"
+                                            ],
+                                            "path": [
+                                                "api",
+                                                "accounts",
+                                                "locations",
+                                                ""
+                                            ],
+                                            "query": [
+                                                {
+                                                    "key": "tag",
+                                                    "value": "home"
+                                                }
+                                            ]
+                                        }
+                                    },
+                                    "status": "OK",
+                                    "code": 200,
+                                    "_postman_previewlanguage": "json",
+                                    "header": [
+                                        {
+                                            "key": "Content-Type",
+                                            "value": "application/json"
+                                        }
+                                    ],
+                                    "cookie": [],
+                                    "body": "[\n    {\n        \"id\": 1,\n        \"tag\": \"home\",\n        \"label\": \"\",\n        \"address\": \"Flat 302, Shanti Apartments, Dharampeth, Nagpur\",\n        \"landmark\": \"Near Trikoni Park\",\n        \"latitude\": \"21.145800\",\n        \"longitude\": \"79.088200\",\n        \"is_default\": true,\n        \"created_at\": \"2026-10-29T10:15:00Z\",\n        \"updated_at\": \"2026-10-29T10:15:00Z\"\n    }\n]"
+                                }
+                            ]
+                        },
+                        {
+                            "name": "POST Create Location",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    },
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/accounts/locations/",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "accounts",
+                                        "locations",
+                                        ""
+                                    ],
+                                    "query": []
+                                },
+                                "description": "Required: `address`, `latitude` (-90..90), `longitude` (-180..180), max 6 decimal places. Optional: `tag` (default `other`), `label`, `landmark`, `is_default`. Saves the new id to `{{location_id}}`.\n\nFor customers, the **default** location is copied to their CRM customer profile (`location` + `address`, landmark appended), which re-runs zone assignment and is used for deliveries.",
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"tag\": \"home\",\n    \"label\": \"\",\n    \"address\": \"Flat 302, Shanti Apartments, Dharampeth, Nagpur\",\n    \"landmark\": \"Near Trikoni Park\",\n    \"latitude\": \"21.145800\",\n    \"longitude\": \"79.088200\",\n    \"is_default\": true\n}"
+                                }
+                            },
+                            "response": [
+                                {
+                                    "name": "Created",
+                                    "originalRequest": {
+                                        "method": "POST",
+                                        "header": [
+                                            {
+                                                "key": "Content-Type",
+                                                "value": "application/json"
+                                            },
+                                            {
+                                                "key": "Authorization",
+                                                "value": "Bearer {{access_token}}"
+                                            }
+                                        ],
+                                        "url": {
+                                            "raw": "{{base_url}}/api/accounts/locations/",
+                                            "host": [
+                                                "{{base_url}}"
+                                            ],
+                                            "path": [
+                                                "api",
+                                                "accounts",
+                                                "locations",
+                                                ""
+                                            ],
+                                            "query": []
+                                        },
+                                        "body": {
+                                            "mode": "raw",
+                                            "raw": "{\n    \"tag\": \"home\",\n    \"label\": \"\",\n    \"address\": \"Flat 302, Shanti Apartments, Dharampeth, Nagpur\",\n    \"landmark\": \"Near Trikoni Park\",\n    \"latitude\": \"21.145800\",\n    \"longitude\": \"79.088200\",\n    \"is_default\": true\n}"
+                                        }
+                                    },
+                                    "status": "Created",
+                                    "code": 201,
+                                    "_postman_previewlanguage": "json",
+                                    "header": [
+                                        {
+                                            "key": "Content-Type",
+                                            "value": "application/json"
+                                        }
+                                    ],
+                                    "cookie": [],
+                                    "body": "{\n    \"id\": 1,\n    \"tag\": \"home\",\n    \"label\": \"\",\n    \"address\": \"Flat 302, Shanti Apartments, Dharampeth, Nagpur\",\n    \"landmark\": \"Near Trikoni Park\",\n    \"latitude\": \"21.145800\",\n    \"longitude\": \"79.088200\",\n    \"is_default\": true,\n    \"created_at\": \"2026-10-29T10:15:00Z\",\n    \"updated_at\": \"2026-10-29T10:15:00Z\"\n}"
+                                },
+                                {
+                                    "name": "Duplicate Home/Work",
+                                    "originalRequest": {
+                                        "method": "POST",
+                                        "header": [
+                                            {
+                                                "key": "Content-Type",
+                                                "value": "application/json"
+                                            },
+                                            {
+                                                "key": "Authorization",
+                                                "value": "Bearer {{access_token}}"
+                                            }
+                                        ],
+                                        "url": {
+                                            "raw": "{{base_url}}/api/accounts/locations/",
+                                            "host": [
+                                                "{{base_url}}"
+                                            ],
+                                            "path": [
+                                                "api",
+                                                "accounts",
+                                                "locations",
+                                                ""
+                                            ],
+                                            "query": []
+                                        },
+                                        "body": {
+                                            "mode": "raw",
+                                            "raw": "{\n    \"tag\": \"home\",\n    \"label\": \"\",\n    \"address\": \"Flat 302, Shanti Apartments, Dharampeth, Nagpur\",\n    \"landmark\": \"Near Trikoni Park\",\n    \"latitude\": \"21.145800\",\n    \"longitude\": \"79.088200\",\n    \"is_default\": true\n}"
+                                        }
+                                    },
+                                    "status": "Bad Request",
+                                    "code": 400,
+                                    "_postman_previewlanguage": "json",
+                                    "header": [
+                                        {
+                                            "key": "Content-Type",
+                                            "value": "application/json"
+                                        }
+                                    ],
+                                    "cookie": [],
+                                    "body": "{\n    \"tag\": [\n        \"You already have a home location. Update it instead.\"\n    ]\n}"
+                                },
+                                {
+                                    "name": "Invalid Coordinates",
+                                    "originalRequest": {
+                                        "method": "POST",
+                                        "header": [
+                                            {
+                                                "key": "Content-Type",
+                                                "value": "application/json"
+                                            },
+                                            {
+                                                "key": "Authorization",
+                                                "value": "Bearer {{access_token}}"
+                                            }
+                                        ],
+                                        "url": {
+                                            "raw": "{{base_url}}/api/accounts/locations/",
+                                            "host": [
+                                                "{{base_url}}"
+                                            ],
+                                            "path": [
+                                                "api",
+                                                "accounts",
+                                                "locations",
+                                                ""
+                                            ],
+                                            "query": []
+                                        },
+                                        "body": {
+                                            "mode": "raw",
+                                            "raw": "{\n    \"tag\": \"home\",\n    \"label\": \"\",\n    \"address\": \"Flat 302, Shanti Apartments, Dharampeth, Nagpur\",\n    \"landmark\": \"Near Trikoni Park\",\n    \"latitude\": \"21.145800\",\n    \"longitude\": \"79.088200\",\n    \"is_default\": true\n}"
+                                        }
+                                    },
+                                    "status": "Bad Request",
+                                    "code": 400,
+                                    "_postman_previewlanguage": "json",
+                                    "header": [
+                                        {
+                                            "key": "Content-Type",
+                                            "value": "application/json"
+                                        }
+                                    ],
+                                    "cookie": [],
+                                    "body": "{\n    \"latitude\": [\n        \"Latitude must be between -90 and 90.\"\n    ]\n}"
+                                }
+                            ],
+                            "event": [
+                                {
+                                    "listen": "test",
+                                    "script": {
+                                        "type": "text/javascript",
+                                        "exec": [
+                                            "if (pm.response.code === 201) {",
+                                            "    var jsonData = pm.response.json();",
+                                            "    pm.environment.set(\"location_id\", jsonData.id);",
+                                            "    pm.collectionVariables.set(\"location_id\", jsonData.id);",
+                                            "}"
+                                        ]
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "name": "POST Create Other Location",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    },
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/accounts/locations/",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "accounts",
+                                        "locations",
+                                        ""
+                                    ],
+                                    "query": []
+                                },
+                                "description": "`other` locations are unlimited; use `label` to name them.",
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"tag\": \"other\",\n    \"label\": \"Mom's place\",\n    \"address\": \"12 Ravi Nagar, Nagpur\",\n    \"landmark\": \"\",\n    \"latitude\": \"21.150100\",\n    \"longitude\": \"79.062000\"\n}"
+                                }
+                            },
+                            "response": [
+                                {
+                                    "name": "Created",
+                                    "originalRequest": {
+                                        "method": "POST",
+                                        "header": [
+                                            {
+                                                "key": "Content-Type",
+                                                "value": "application/json"
+                                            },
+                                            {
+                                                "key": "Authorization",
+                                                "value": "Bearer {{access_token}}"
+                                            }
+                                        ],
+                                        "url": {
+                                            "raw": "{{base_url}}/api/accounts/locations/",
+                                            "host": [
+                                                "{{base_url}}"
+                                            ],
+                                            "path": [
+                                                "api",
+                                                "accounts",
+                                                "locations",
+                                                ""
+                                            ],
+                                            "query": []
+                                        },
+                                        "body": {
+                                            "mode": "raw",
+                                            "raw": "{\n    \"tag\": \"other\",\n    \"label\": \"Mom's place\",\n    \"address\": \"12 Ravi Nagar, Nagpur\",\n    \"landmark\": \"\",\n    \"latitude\": \"21.150100\",\n    \"longitude\": \"79.062000\"\n}"
+                                        }
+                                    },
+                                    "status": "Created",
+                                    "code": 201,
+                                    "_postman_previewlanguage": "json",
+                                    "header": [
+                                        {
+                                            "key": "Content-Type",
+                                            "value": "application/json"
+                                        }
+                                    ],
+                                    "cookie": [],
+                                    "body": "{\n    \"id\": 3,\n    \"tag\": \"other\",\n    \"label\": \"Mom's place\",\n    \"address\": \"12 Ravi Nagar, Nagpur\",\n    \"landmark\": \"\",\n    \"latitude\": \"21.150100\",\n    \"longitude\": \"79.062000\",\n    \"is_default\": false,\n    \"created_at\": \"2026-10-29T10:15:00Z\",\n    \"updated_at\": \"2026-10-29T10:15:00Z\"\n}"
+                                }
+                            ],
+                            "event": [
+                                {
+                                    "listen": "test",
+                                    "script": {
+                                        "type": "text/javascript",
+                                        "exec": [
+                                            "if (pm.response.code === 201) {",
+                                            "    var jsonData = pm.response.json();",
+                                            "    pm.environment.set(\"location_id\", jsonData.id);",
+                                            "    pm.collectionVariables.set(\"location_id\", jsonData.id);",
+                                            "}"
+                                        ]
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "name": "GET Single Location",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/accounts/locations/{{location_id}}/",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "accounts",
+                                        "locations",
+                                        "{{location_id}}",
+                                        ""
+                                    ],
+                                    "query": []
+                                },
+                                "description": ""
+                            },
+                            "response": [
+                                {
+                                    "name": "Default Success",
+                                    "originalRequest": {
+                                        "method": "GET",
+                                        "header": [
+                                            {
+                                                "key": "Content-Type",
+                                                "value": "application/json"
+                                            },
+                                            {
+                                                "key": "Authorization",
+                                                "value": "Bearer {{access_token}}"
+                                            }
+                                        ],
+                                        "url": {
+                                            "raw": "{{base_url}}/api/accounts/locations/{{location_id}}/",
+                                            "host": [
+                                                "{{base_url}}"
+                                            ],
+                                            "path": [
+                                                "api",
+                                                "accounts",
+                                                "locations",
+                                                "{{location_id}}",
+                                                ""
+                                            ],
+                                            "query": []
+                                        }
+                                    },
+                                    "status": "OK",
+                                    "code": 200,
+                                    "_postman_previewlanguage": "json",
+                                    "header": [
+                                        {
+                                            "key": "Content-Type",
+                                            "value": "application/json"
+                                        }
+                                    ],
+                                    "cookie": [],
+                                    "body": "{\n    \"id\": 1,\n    \"tag\": \"home\",\n    \"label\": \"\",\n    \"address\": \"Flat 302, Shanti Apartments, Dharampeth, Nagpur\",\n    \"landmark\": \"Near Trikoni Park\",\n    \"latitude\": \"21.145800\",\n    \"longitude\": \"79.088200\",\n    \"is_default\": true,\n    \"created_at\": \"2026-10-29T10:15:00Z\",\n    \"updated_at\": \"2026-10-29T10:15:00Z\"\n}"
+                                },
+                                {
+                                    "name": "Not Found / Not Yours",
+                                    "originalRequest": {
+                                        "method": "GET",
+                                        "header": [
+                                            {
+                                                "key": "Content-Type",
+                                                "value": "application/json"
+                                            },
+                                            {
+                                                "key": "Authorization",
+                                                "value": "Bearer {{access_token}}"
+                                            }
+                                        ],
+                                        "url": {
+                                            "raw": "{{base_url}}/api/accounts/locations/{{location_id}}/",
+                                            "host": [
+                                                "{{base_url}}"
+                                            ],
+                                            "path": [
+                                                "api",
+                                                "accounts",
+                                                "locations",
+                                                "{{location_id}}",
+                                                ""
+                                            ],
+                                            "query": []
+                                        }
+                                    },
+                                    "status": "Not Found",
+                                    "code": 404,
+                                    "_postman_previewlanguage": "json",
+                                    "header": [
+                                        {
+                                            "key": "Content-Type",
+                                            "value": "application/json"
+                                        }
+                                    ],
+                                    "cookie": [],
+                                    "body": "{\n    \"detail\": \"No UserLocation matches the given query.\"\n}"
+                                }
+                            ]
+                        },
+                        {
+                            "name": "PATCH Update Location",
+                            "request": {
+                                "method": "PATCH",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    },
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/accounts/locations/{{location_id}}/",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "accounts",
+                                        "locations",
+                                        "{{location_id}}",
+                                        ""
+                                    ],
+                                    "query": []
+                                },
+                                "description": "Partial update. Sending `is_default: true` clears the default flag on the user's other locations.\n\nFor customers, the **default** location is copied to their CRM customer profile (`location` + `address`, landmark appended), which re-runs zone assignment and is used for deliveries.",
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"landmark\": \"Opposite Trikoni Park gate\"\n}"
+                                }
+                            },
+                            "response": [
+                                {
+                                    "name": "Default Success",
+                                    "originalRequest": {
+                                        "method": "PATCH",
+                                        "header": [
+                                            {
+                                                "key": "Content-Type",
+                                                "value": "application/json"
+                                            },
+                                            {
+                                                "key": "Authorization",
+                                                "value": "Bearer {{access_token}}"
+                                            }
+                                        ],
+                                        "url": {
+                                            "raw": "{{base_url}}/api/accounts/locations/{{location_id}}/",
+                                            "host": [
+                                                "{{base_url}}"
+                                            ],
+                                            "path": [
+                                                "api",
+                                                "accounts",
+                                                "locations",
+                                                "{{location_id}}",
+                                                ""
+                                            ],
+                                            "query": []
+                                        },
+                                        "body": {
+                                            "mode": "raw",
+                                            "raw": "{\n    \"landmark\": \"Opposite Trikoni Park gate\"\n}"
+                                        }
+                                    },
+                                    "status": "OK",
+                                    "code": 200,
+                                    "_postman_previewlanguage": "json",
+                                    "header": [
+                                        {
+                                            "key": "Content-Type",
+                                            "value": "application/json"
+                                        }
+                                    ],
+                                    "cookie": [],
+                                    "body": "{\n    \"id\": 1,\n    \"tag\": \"home\",\n    \"label\": \"\",\n    \"address\": \"Flat 302, Shanti Apartments, Dharampeth, Nagpur\",\n    \"landmark\": \"Opposite Trikoni Park gate\",\n    \"latitude\": \"21.145800\",\n    \"longitude\": \"79.088200\",\n    \"is_default\": true,\n    \"created_at\": \"2026-10-29T10:15:00Z\",\n    \"updated_at\": \"2026-10-29T10:15:00Z\"\n}"
+                                }
+                            ]
+                        },
+                        {
+                            "name": "PUT Replace Location",
+                            "request": {
+                                "method": "PUT",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    },
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/accounts/locations/{{location_id}}/",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "accounts",
+                                        "locations",
+                                        "{{location_id}}",
+                                        ""
+                                    ],
+                                    "query": []
+                                },
+                                "description": "Full update - `address`, `latitude` and `longitude` required.\n\nFor customers, the **default** location is copied to their CRM customer profile (`location` + `address`, landmark appended), which re-runs zone assignment and is used for deliveries.",
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"tag\": \"home\",\n    \"label\": \"\",\n    \"address\": \"Flat 302, Shanti Apartments, Dharampeth, Nagpur\",\n    \"landmark\": \"Near Trikoni Park\",\n    \"latitude\": \"21.145800\",\n    \"longitude\": \"79.088200\"\n}"
+                                }
+                            },
+                            "response": [
+                                {
+                                    "name": "Default Success",
+                                    "originalRequest": {
+                                        "method": "PUT",
+                                        "header": [
+                                            {
+                                                "key": "Content-Type",
+                                                "value": "application/json"
+                                            },
+                                            {
+                                                "key": "Authorization",
+                                                "value": "Bearer {{access_token}}"
+                                            }
+                                        ],
+                                        "url": {
+                                            "raw": "{{base_url}}/api/accounts/locations/{{location_id}}/",
+                                            "host": [
+                                                "{{base_url}}"
+                                            ],
+                                            "path": [
+                                                "api",
+                                                "accounts",
+                                                "locations",
+                                                "{{location_id}}",
+                                                ""
+                                            ],
+                                            "query": []
+                                        },
+                                        "body": {
+                                            "mode": "raw",
+                                            "raw": "{\n    \"tag\": \"home\",\n    \"label\": \"\",\n    \"address\": \"Flat 302, Shanti Apartments, Dharampeth, Nagpur\",\n    \"landmark\": \"Near Trikoni Park\",\n    \"latitude\": \"21.145800\",\n    \"longitude\": \"79.088200\"\n}"
+                                        }
+                                    },
+                                    "status": "OK",
+                                    "code": 200,
+                                    "_postman_previewlanguage": "json",
+                                    "header": [
+                                        {
+                                            "key": "Content-Type",
+                                            "value": "application/json"
+                                        }
+                                    ],
+                                    "cookie": [],
+                                    "body": "{\n    \"id\": 1,\n    \"tag\": \"home\",\n    \"label\": \"\",\n    \"address\": \"Flat 302, Shanti Apartments, Dharampeth, Nagpur\",\n    \"landmark\": \"Near Trikoni Park\",\n    \"latitude\": \"21.145800\",\n    \"longitude\": \"79.088200\",\n    \"is_default\": true,\n    \"created_at\": \"2026-10-29T10:15:00Z\",\n    \"updated_at\": \"2026-10-29T10:15:00Z\"\n}"
+                                }
+                            ]
+                        },
+                        {
+                            "name": "POST Set Default Location",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/accounts/locations/{{location_id}}/set-default/",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "accounts",
+                                        "locations",
+                                        "{{location_id}}",
+                                        "set-default",
+                                        ""
+                                    ],
+                                    "query": []
+                                },
+                                "description": "Makes this the user's default location and clears the flag on the others.\n\nFor customers, the **default** location is copied to their CRM customer profile (`location` + `address`, landmark appended), which re-runs zone assignment and is used for deliveries."
+                            },
+                            "response": [
+                                {
+                                    "name": "Default Success",
+                                    "originalRequest": {
+                                        "method": "POST",
+                                        "header": [
+                                            {
+                                                "key": "Content-Type",
+                                                "value": "application/json"
+                                            },
+                                            {
+                                                "key": "Authorization",
+                                                "value": "Bearer {{access_token}}"
+                                            }
+                                        ],
+                                        "url": {
+                                            "raw": "{{base_url}}/api/accounts/locations/{{location_id}}/set-default/",
+                                            "host": [
+                                                "{{base_url}}"
+                                            ],
+                                            "path": [
+                                                "api",
+                                                "accounts",
+                                                "locations",
+                                                "{{location_id}}",
+                                                "set-default",
+                                                ""
+                                            ],
+                                            "query": []
+                                        }
+                                    },
+                                    "status": "OK",
+                                    "code": 200,
+                                    "_postman_previewlanguage": "json",
+                                    "header": [
+                                        {
+                                            "key": "Content-Type",
+                                            "value": "application/json"
+                                        }
+                                    ],
+                                    "cookie": [],
+                                    "body": "{\n    \"id\": 2,\n    \"tag\": \"work\",\n    \"label\": \"\",\n    \"address\": \"Office 5, IT Park, Parsodi, Nagpur\",\n    \"landmark\": \"\",\n    \"latitude\": \"21.124500\",\n    \"longitude\": \"79.051300\",\n    \"is_default\": true,\n    \"created_at\": \"2026-10-29T10:15:00Z\",\n    \"updated_at\": \"2026-10-29T10:15:00Z\"\n}"
+                                }
+                            ]
+                        },
+                        {
+                            "name": "DELETE Location",
+                            "request": {
+                                "method": "DELETE",
+                                "header": [
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{access_token}}"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/accounts/locations/{{location_id}}/",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "accounts",
+                                        "locations",
+                                        "{{location_id}}",
+                                        ""
+                                    ],
+                                    "query": []
+                                },
+                                "description": "If the deleted location was the default, the most recently updated remaining location becomes the default (and is synced to the customer profile)."
+                            },
+                            "response": [
+                                {
+                                    "name": "No Content",
+                                    "originalRequest": {
+                                        "method": "DELETE",
+                                        "header": [
+                                            {
+                                                "key": "Content-Type",
+                                                "value": "application/json"
+                                            },
+                                            {
+                                                "key": "Authorization",
+                                                "value": "Bearer {{access_token}}"
+                                            }
+                                        ],
+                                        "url": {
+                                            "raw": "{{base_url}}/api/accounts/locations/{{location_id}}/",
+                                            "host": [
+                                                "{{base_url}}"
+                                            ],
+                                            "path": [
+                                                "api",
+                                                "accounts",
+                                                "locations",
+                                                "{{location_id}}",
+                                                ""
+                                            ],
+                                            "query": []
+                                        }
+                                    },
+                                    "status": "No Content",
+                                    "code": 204,
+                                    "_postman_previewlanguage": "json",
+                                    "header": [
+                                        {
+                                            "key": "Content-Type",
+                                            "value": "application/json"
+                                        }
+                                    ],
+                                    "cookie": [],
+                                    "body": ""
+                                }
+                            ]
+                        }
+                    ]
                 }
             ],
             "auth": {
@@ -3883,7 +4866,8 @@
                                         "{{last_id}}"
                                     ],
                                     "query": []
-                                }
+                                },
+                                "description": "The linked login is locked and then deleted, so the customer can no longer log in. Users who are also staff/ERP/drivers keep their account and only lose the customer role."
                             },
                             "response": [
                                 {
@@ -4161,8 +5145,55 @@
                                         "bulk-delete",
                                         ""
                                     ]
+                                },
+                                "description": "The linked login is locked and then deleted, so the customer can no longer log in. Users who are also staff/ERP/drivers keep their account and only lose the customer role. `user_accounts_deactivated` counts logins that were locked but could not be hard-deleted."
+                            },
+                            "response": [
+                                {
+                                    "name": "Default Success",
+                                    "originalRequest": {
+                                        "method": "POST",
+                                        "header": [
+                                            {
+                                                "key": "Content-Type",
+                                                "value": "application/json"
+                                            },
+                                            {
+                                                "key": "Authorization",
+                                                "value": "Bearer {{access_token}}"
+                                            }
+                                        ],
+                                        "url": {
+                                            "raw": "{{city_url}}/api/erp/customers/bulk-delete/",
+                                            "host": [
+                                                "{{city_url}}"
+                                            ],
+                                            "path": [
+                                                "api",
+                                                "erp",
+                                                "customers",
+                                                "bulk-delete",
+                                                ""
+                                            ]
+                                        },
+                                        "body": {
+                                            "mode": "raw",
+                                            "raw": "{\n    \"ids\": [\n        \"CUSTOMER_UUID_1\",\n        \"CUSTOMER_UUID_2\"\n    ]\n}"
+                                        }
+                                    },
+                                    "status": "OK",
+                                    "code": 200,
+                                    "_postman_previewlanguage": "json",
+                                    "header": [
+                                        {
+                                            "key": "Content-Type",
+                                            "value": "application/json"
+                                        }
+                                    ],
+                                    "cookie": [],
+                                    "body": "{\n    \"message\": \"Successfully deleted 2 customers and their dependencies.\",\n    \"deleted_customers\": [\n        {\n            \"id\": \"CUSTOMER_UUID_1\",\n            \"name\": \"Ramesh Patil\",\n            \"email\": \"ramesh@example.com\"\n        },\n        {\n            \"id\": \"CUSTOMER_UUID_2\",\n            \"name\": \"Sunita Deshmukh\",\n            \"email\": null\n        }\n    ],\n    \"summary\": {\n        \"orders_deleted\": 14,\n        \"monthly_bills_deleted\": 2,\n        \"customer_profiles_deleted\": 2,\n        \"user_accounts_deleted\": 2,\n        \"user_accounts_deactivated\": 0\n    }\n}"
                                 }
-                            }
+                            ]
                         }
                     ]
                 },

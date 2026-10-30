@@ -243,3 +243,47 @@ class TokenExpiryMiddleware(MiddlewareMixin):
                 pass
 
         return response
+
+
+from django.http import JsonResponse
+
+
+class AppVersionEnforcementMiddleware:
+    """
+    Safety net for force updates: if a mobile client sends X-App-Name,
+    X-App-Platform and X-App-Version headers and its version is below the
+    configured minimum, reject with HTTP 426 Upgrade Required (503 during
+    maintenance). Requests without these headers (web ERP, admin) are untouched.
+    """
+
+    EXEMPT_PREFIXES = ("/api/app-version/", "/admin/", "/static/", "/media/")
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        from core import app_version
+
+        app = request.headers.get("X-App-Name")
+        platform = request.headers.get("X-App-Platform")
+        version = request.headers.get("X-App-Version")
+
+        if app and platform and version and not request.path.startswith(
+            self.EXEMPT_PREFIXES
+        ):
+            try:
+                cfg = app_version.get_config(app, platform)
+            except Exception:
+                cfg = None  # fail open on cache/DB errors
+            if cfg is not None:
+                status = app_version.evaluate(cfg, version)
+                if status == app_version.FORCE_UPDATE:
+                    payload = app_version.build_payload(cfg, status)
+                    payload["detail"] = "App update required."
+                    return JsonResponse(payload, status=426)
+                if status == app_version.MAINTENANCE:
+                    payload = app_version.build_payload(cfg, status)
+                    payload["detail"] = "App is under maintenance."
+                    return JsonResponse(payload, status=503)
+
+        return self.get_response(request)

@@ -160,6 +160,7 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "core.middleware.TokenExpiryMiddleware",
+    "core.middleware.AppVersionEnforcementMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls_tenants"
