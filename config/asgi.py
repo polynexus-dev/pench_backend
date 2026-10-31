@@ -6,14 +6,16 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 django.setup()
 
 from channels.routing import ProtocolTypeRouter, URLRouter
-from core.middleware import TenantMiddleware, JWTAuthMiddleware
+from core.middleware import TenantMiddleware, JWTAuthMiddleware, AppVersionWSMiddleware
 import tracking.routing
 
 application = ProtocolTypeRouter(
     {
         "http": get_asgi_application(),
-        "websocket": TenantMiddleware(
-            JWTAuthMiddleware(URLRouter(tracking.routing.websocket_urlpatterns))
+        "websocket": AppVersionWSMiddleware(
+            TenantMiddleware(
+                JWTAuthMiddleware(URLRouter(tracking.routing.websocket_urlpatterns))
+            )
         ),
     }
 )

@@ -337,3 +337,62 @@ class AppVersionEnforcementMiddleware:
                     return JsonResponse(payload, status=503)
 
         return self.get_response(request)
+
+
+class AppVersionWSMiddleware:
+    """
+    WebSocket counterpart of AppVersionEnforcementMiddleware (Channels bypasses
+    Django middleware). Rejects the handshake for mobile builds below the minimum
+    version, and for legacy native builds that send no version at all.
+    Version is read from the query string (app, platform, version) or X-App-* headers.
+    """
+
+    def __init__(self, inner):
+        self.inner = inner
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") == "websocket" and await self._should_block(scope):
+            # Consume the connect event, then refuse the handshake
+            await receive()
+            await send({"type": "websocket.close", "code": 4426})
+            return
+        return await self.inner(scope, receive, send)
+
+    @database_sync_to_async
+    def _should_block(self, scope):
+        from urllib.parse import parse_qs
+        from django.conf import settings
+        from core import app_version
+
+        headers = {
+            k.decode().lower(): v.decode() for k, v in scope.get("headers", [])
+        }
+        query = {
+            k: v[0] for k, v in parse_qs(scope.get("query_string", b"").decode()).items()
+        }
+        app = query.get("app") or headers.get("x-app-name")
+        platform = query.get("platform") or headers.get("x-app-platform")
+        version = query.get("version") or headers.get("x-app-version")
+
+        try:
+            if not version:
+                if not getattr(settings, "BLOCK_LEGACY_MOBILE_BUILDS", False):
+                    return False
+                ua = headers.get("user-agent", "").lower()
+                if "mozilla/" in ua:
+                    return False
+                return any(
+                    m in ua for m in AppVersionEnforcementMiddleware.NATIVE_UA_MARKERS
+                )
+
+            if not app or not platform:
+                return False
+            cfg = app_version.get_config(app, platform)
+            if cfg is None:
+                return False
+            return app_version.evaluate(cfg, version) in (
+                app_version.FORCE_UPDATE,
+                app_version.MAINTENANCE,
+            )
+        except Exception:
+            return False  # fail open
