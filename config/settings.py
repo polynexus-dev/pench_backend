@@ -312,6 +312,20 @@ CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = "Asia/Kolkata"
 
+# Mobile force update
+# Store listings polled by core.tasks.sync_store_versions; the latest published
+# version automatically becomes the minimum supported version.
+MOBILE_APP_STORE_IDS = {
+    "pench": {
+        "android": config("PLAY_STORE_PACKAGE", default="in.polynexus.penchfoods"),
+        "ios": config("APP_STORE_APP_ID", default="6803119085"),
+    },
+}
+APP_STORE_COUNTRY = config("APP_STORE_COUNTRY", default="in")
+# Reject requests from old mobile builds that predate the version check
+# (no X-App-Version header) so they cannot keep using the app.
+BLOCK_LEGACY_MOBILE_BUILDS = config("BLOCK_LEGACY_MOBILE_BUILDS", default=True, cast=bool)
+
 # Geodata
 GDAL_LIBRARY_PATH = config("GDAL_LIBRARY_PATH", default="")
 GEOS_LIBRARY_PATH = config("GEOS_LIBRARY_PATH", default="")

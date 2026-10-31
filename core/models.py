@@ -61,6 +61,26 @@ class AppVersionConfig(TimestampedModel):
     maintenance_message = models.TextField(blank=True)
     is_active = models.BooleanField(default=True)
 
+    # ── Automatic store sync (core.tasks.sync_store_versions) ──
+    auto_force_store_version = models.BooleanField(
+        default=True,
+        help_text="Automatically force-update users when a newer version is published on the store.",
+    )
+    store_app_id = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Play Store package name (android) or numeric App Store ID (ios).",
+    )
+    force_delay_minutes = models.PositiveIntegerField(
+        default=0,
+        help_text="Minimum version always tracks the latest store version. Optionally wait this "
+        "long after a new store version is detected before forcing it (0 = force immediately).",
+    )
+    store_version = models.CharField(max_length=20, blank=True, editable=False)
+    store_version_detected_at = models.DateTimeField(null=True, blank=True, editable=False)
+    last_store_check_at = models.DateTimeField(null=True, blank=True, editable=False)
+    last_store_check_error = models.TextField(blank=True, editable=False)
+
     class Meta:
         unique_together = ("app", "platform")
         verbose_name = "App Version Config"

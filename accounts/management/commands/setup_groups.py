@@ -136,6 +136,35 @@ class Command(BaseCommand):
                         "Successfully configured: Auto Stop Trips at 12 PM"
                     )
                 )
+
+                # 4. sync_store_versions every 15 minutes (mobile force update)
+                from django_celery_beat.models import IntervalSchedule
+
+                every_15_min, _ = IntervalSchedule.objects.get_or_create(
+                    every=15, period=IntervalSchedule.MINUTES
+                )
+                PeriodicTask.objects.update_or_create(
+                    task="core.tasks.sync_store_versions",
+                    defaults={
+                        "name": "Sync Mobile Store Versions",
+                        "interval": every_15_min,
+                        "crontab": None,
+                        "enabled": True,
+                    },
+                )
+                self.stdout.write(
+                    self.style.SUCCESS(
+                        "Successfully configured: Sync Mobile Store Versions (every 15 min)"
+                    )
+                )
+                try:
+                    from core.store_versions import sync_all
+
+                    self.stdout.write(f"Initial store version sync: {sync_all()}")
+                except Exception as e:
+                    self.stdout.write(
+                        self.style.WARNING(f"Initial store version sync failed (non-fatal): {e}")
+                    )
             else:
                 self.stdout.write("Skipping Celery Beat setup (not in public schema)")
         except Exception as e:

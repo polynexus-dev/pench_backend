@@ -253,24 +253,74 @@ class AppVersionEnforcementMiddleware:
     Safety net for force updates: if a mobile client sends X-App-Name,
     X-App-Platform and X-App-Version headers and its version is below the
     configured minimum, reject with HTTP 426 Upgrade Required (503 during
-    maintenance). Requests without these headers (web ERP, admin) are untouched.
+    maintenance).
+
+    With BLOCK_LEGACY_MOBILE_BUILDS, native mobile requests that lack these
+    headers (builds that predate the version check) are also rejected with 426
+    and a message the old app shows as its error text. Browser requests (web ERP,
+    admin) never match the native user agents and are untouched.
     """
 
-    EXEMPT_PREFIXES = ("/api/app-version/", "/admin/", "/static/", "/media/")
+    EXEMPT_PREFIXES = (
+        "/api/app-version/",
+        "/admin/",
+        "/static/",
+        "/media/",
+        "/privacy-policy/",
+        "/delete-account/",
+    )
+    # React Native networking: OkHttp on Android, CFNetwork/Darwin on iOS
+    NATIVE_UA_MARKERS = {"okhttp/": "android", "cfnetwork/": "ios", "darwin/": "ios"}
+    LEGACY_MESSAGE = (
+        "This version of Pench is no longer supported. Please update the app from "
+        "the {store} to continue."
+    )
 
     def __init__(self, get_response):
         self.get_response = get_response
 
-    def __call__(self, request):
+    def _legacy_platform(self, request):
+        ua = request.headers.get("User-Agent", "").lower()
+        if "mozilla/" in ua:
+            return None
+        for marker, platform in self.NATIVE_UA_MARKERS.items():
+            if marker in ua:
+                return platform
+        return None
+
+    def _legacy_response(self, platform):
         from core import app_version
+
+        try:
+            cfg = app_version.get_config("pench", platform)
+        except Exception:
+            cfg = None
+        store = "Play Store" if platform == "android" else "App Store"
+        payload = (
+            app_version.build_payload(cfg, app_version.FORCE_UPDATE)
+            if cfg
+            else {"status": app_version.FORCE_UPDATE, "force_update": True}
+        )
+        payload["detail"] = payload["message"] = self.LEGACY_MESSAGE.format(store=store)
+        return JsonResponse(payload, status=426)
+
+    def __call__(self, request):
+        from django.conf import settings
+        from core import app_version
+
+        if request.path.startswith(self.EXEMPT_PREFIXES):
+            return self.get_response(request)
 
         app = request.headers.get("X-App-Name")
         platform = request.headers.get("X-App-Platform")
         version = request.headers.get("X-App-Version")
 
-        if app and platform and version and not request.path.startswith(
-            self.EXEMPT_PREFIXES
-        ):
+        if not version and getattr(settings, "BLOCK_LEGACY_MOBILE_BUILDS", False):
+            legacy_platform = self._legacy_platform(request)
+            if legacy_platform:
+                return self._legacy_response(legacy_platform)
+
+        if app and platform and version:
             try:
                 cfg = app_version.get_config(app, platform)
             except Exception:
