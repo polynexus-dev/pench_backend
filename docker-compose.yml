@@ -32,7 +32,7 @@ services:
     # gives real OS-level parallelism across CPU cores (a single async process
     # still serializes CPU-bound work like password hashing on the GIL).
     # WEB_CONCURRENCY defaults to 4; tune to roughly (2 x CPU cores) + 1.
-    command: gunicorn config.asgi:application -k uvicorn_worker.UvicornWorker --workers ${WEB_CONCURRENCY:-4} --bind 0.0.0.0:8083 --timeout 60
+    command: gunicorn config.asgi:application -k uvicorn_worker.UvicornWorker --workers ${WEB_CONCURRENCY:-4} --bind 0.0.0.0:8083 --timeout 60 --access-logfile - --error-logfile -
     ports:
       - "8083:8083"
     environment:

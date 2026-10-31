@@ -326,6 +326,25 @@ APP_STORE_COUNTRY = config("APP_STORE_COUNTRY", default="in")
 # (no X-App-Version header) so they cannot keep using the app.
 BLOCK_LEGACY_MOBILE_BUILDS = config("BLOCK_LEGACY_MOBILE_BUILDS", default=True, cast=bool)
 
+# Logging -> stdout so app logs, warnings and 500 tracebacks show up in `docker compose logs`
+LOG_LEVEL = config("LOG_LEVEL", default="INFO")
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "standard": {"format": "[{asctime}] {levelname} {name}: {message}", "style": "{"},
+    },
+    "handlers": {
+        "console": {"class": "logging.StreamHandler", "formatter": "standard"},
+    },
+    "root": {"handlers": ["console"], "level": LOG_LEVEL},
+    "loggers": {
+        "django": {"handlers": ["console"], "level": "INFO", "propagate": False},
+        "django.request": {"handlers": ["console"], "level": "WARNING", "propagate": False},
+        "django.db.backends": {"level": "WARNING"},
+    },
+}
+
 # Geodata
 GDAL_LIBRARY_PATH = config("GDAL_LIBRARY_PATH", default="")
 GEOS_LIBRARY_PATH = config("GEOS_LIBRARY_PATH", default="")

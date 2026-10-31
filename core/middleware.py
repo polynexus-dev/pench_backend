@@ -246,6 +246,9 @@ class TokenExpiryMiddleware(MiddlewareMixin):
 
 
 from django.http import JsonResponse
+import logging
+
+version_logger = logging.getLogger("core.app_version")
 
 
 class AppVersionEnforcementMiddleware:
@@ -318,6 +321,11 @@ class AppVersionEnforcementMiddleware:
         if not version and getattr(settings, "BLOCK_LEGACY_MOBILE_BUILDS", False):
             legacy_platform = self._legacy_platform(request)
             if legacy_platform:
+                version_logger.info(
+                    "Blocked legacy %s build (no X-App-Version): %s %s UA=%s",
+                    legacy_platform, request.method, request.path,
+                    request.headers.get("User-Agent", ""),
+                )
                 return self._legacy_response(legacy_platform)
 
         if app and platform and version:
@@ -328,6 +336,11 @@ class AppVersionEnforcementMiddleware:
             if cfg is not None:
                 status = app_version.evaluate(cfg, version)
                 if status == app_version.FORCE_UPDATE:
+                    version_logger.info(
+                        "Force update: %s/%s v%s below min %s: %s %s",
+                        app, platform, version, cfg.min_supported_version,
+                        request.method, request.path,
+                    )
                     payload = app_version.build_payload(cfg, status)
                     payload["detail"] = "App update required."
                     return JsonResponse(payload, status=426)
