@@ -292,20 +292,12 @@ class AppVersionEnforcementMiddleware:
         return None
 
     def _legacy_response(self, platform):
-        from core import app_version
-
-        try:
-            cfg = app_version.get_config("pench", platform)
-        except Exception:
-            cfg = None
+        # Legacy builds join every string value of an error body into one message,
+        # so return only the human-readable text.
         store = "Play Store" if platform == "android" else "App Store"
-        payload = (
-            app_version.build_payload(cfg, app_version.FORCE_UPDATE)
-            if cfg
-            else {"status": app_version.FORCE_UPDATE, "force_update": True}
+        return JsonResponse(
+            {"detail": self.LEGACY_MESSAGE.format(store=store)}, status=426
         )
-        payload["detail"] = payload["message"] = self.LEGACY_MESSAGE.format(store=store)
-        return JsonResponse(payload, status=426)
 
     def __call__(self, request):
         from django.conf import settings
