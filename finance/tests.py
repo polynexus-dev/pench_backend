@@ -21,7 +21,7 @@ from finance.models import (
     OnlinePaymentStatus,
 )
 from inventory.models import Product
-from orders.models import Order, PaymentStatus
+from orders.models import Order, OrderStatus, PaymentStatus
 
 MEDIA_ROOT = tempfile.mkdtemp()
 HOST = "tenant.test.com"
@@ -140,14 +140,16 @@ class TestOnlinePayments(TenantTestCase):
         self.assertEqual(payment.amount, order.total)
         self.assertEqual(payment.status, OnlinePaymentStatus.PENDING)
         self.assertEqual(res.data["latest_payment"]["status"], "pending")
+        self.assertEqual(order.payment_status, PaymentStatus.VERIFICATION_PENDING)
 
-        # Admin verifies -> order marked paid
+        # Admin verifies -> order marked paid and accepted
         res = self.admin_client.post(
             f"/api/erp/finance/online-payments/{payment.id}/verify/", HTTP_HOST=HOST
         )
         self.assertEqual(res.status_code, 200, res.data)
         order.refresh_from_db()
         self.assertEqual(order.payment_status, PaymentStatus.PAID)
+        self.assertEqual(order.status, OrderStatus.CONFIRMED)
 
     def test_admin_order_does_not_need_screenshot(self):
         payload = self._order_payload(customer=str(self.customer.id))

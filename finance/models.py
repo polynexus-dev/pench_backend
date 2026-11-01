@@ -198,15 +198,19 @@ class OnlinePayment(BaseModel):
                 )
 
             if self.order_id:
-                from orders.models import PaymentMethod, PaymentStatus
+                from orders.models import OrderStatus, PaymentMethod, PaymentStatus
 
                 order = self.order
                 order.payment_status = PaymentStatus.PAID
                 order.payment_method = PaymentMethod.UPI
                 if self.transaction_id:
                     order.payment_transaction_id = self.transaction_id
+                # A verified payment accepts a pending order; later stages are left alone.
+                if order.status == OrderStatus.PENDING:
+                    order.status = OrderStatus.CONFIRMED
                 order.save(
                     update_fields=[
+                        "status",
                         "payment_status",
                         "payment_method",
                         "payment_transaction_id",

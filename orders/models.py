@@ -35,6 +35,7 @@ class PaymentMethod(models.TextChoices):
 
 class PaymentStatus(models.TextChoices):
     PENDING = "pending", "Pending"
+    VERIFICATION_PENDING = "verification_pending", "Verification Pending"
     PAID = "paid", "Paid"
     FAILED = "failed", "Failed"
 

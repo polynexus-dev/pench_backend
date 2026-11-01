@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from core.quantities import QUANTITY_MAX_DIGITS, QUANTITY_DECIMAL_PLACES, MIN_QUANTITY
-from .models import Order, OrderItem, Route, RouteStop
+from .models import Order, OrderItem, PaymentStatus, Route, RouteStop
 
 
 class OrderItemSerializer(serializers.ModelSerializer):
@@ -251,7 +251,12 @@ class OrderSerializer(serializers.ModelSerializer):
 
         # Update order total based on items
         order.total = total_amount
-        order.save(update_fields=["total"])
+        update_fields = ["total"]
+        if payment_screenshot:
+            # Submitted proof stays unconfirmed until an admin verifies it.
+            order.payment_status = PaymentStatus.VERIFICATION_PENDING
+            update_fields.append("payment_status")
+        order.save(update_fields=update_fields)
 
         if payment_screenshot:
             from finance.models import OnlinePayment, OnlinePaymentPurpose

@@ -553,7 +553,36 @@ class OnlinePaymentViewSet(viewsets.ModelViewSet):
         return super().create(request, *args, **kwargs)
 
     def perform_create(self, serializer):
-        serializer.save(submitted_by=self.request.user)
+        from django.db import transaction as db_transaction
+        from orders.models import PaymentStatus
+
+        with db_transaction.atomic():
+            payment = serializer.save(submitted_by=self.request.user)
+            # Flag the order as awaiting verification until an admin reviews it.
+            order = payment.order
+            if order and order.payment_status != PaymentStatus.PAID:
+                order.payment_status = PaymentStatus.VERIFICATION_PENDING
+                order.save(update_fields=["payment_status"])
+
+    def perform_destroy(self, instance):
+        from django.db import transaction as db_transaction
+        from orders.models import PaymentStatus
+
+        with db_transaction.atomic():
+            order = instance.order
+            was_pending = instance.status == OnlinePaymentStatus.PENDING
+            instance.delete()
+            # Drop the flag if no other submitted payment is still awaiting review.
+            if (
+                order
+                and was_pending
+                and order.payment_status == PaymentStatus.VERIFICATION_PENDING
+                and not order.online_payments.filter(
+                    status=OnlinePaymentStatus.PENDING
+                ).exists()
+            ):
+                order.payment_status = PaymentStatus.PENDING
+                order.save(update_fields=["payment_status"])
 
     @action(detail=True, methods=["post"], url_path="verify")
     def verify(self, request, pk=None):
