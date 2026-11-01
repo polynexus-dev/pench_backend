@@ -583,6 +583,23 @@ class OnlinePaymentViewSet(viewsets.ModelViewSet):
         payment.reject(request.user, reason)
         return Response(self.get_serializer(payment).data)
 
+    @action(detail=True, methods=["get"], url_path="screenshot")
+    def screenshot(self, request, pk=None):
+        payment = self.get_object()
+        if not payment.screenshot:
+            return Response(
+                {"detail": "No screenshot uploaded for this payment."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        try:
+            from django.http import FileResponse
+            return FileResponse(payment.screenshot.open("rb"))
+        except (FileNotFoundError, ValueError):
+            return Response(
+                {"detail": "Screenshot file could not be found on storage."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
     @action(detail=False, methods=["get"], url_path="summary")
     def summary(self, request):
         """

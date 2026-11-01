@@ -1,5 +1,6 @@
 from django.contrib import admin
-from django.urls import path, include
+from django.urls import path, include, re_path
+from django.views.static import serve
 from django.conf import settings
 from django.conf.urls.static import static
 from orders.views import DriverViewSet
@@ -60,4 +61,9 @@ urlpatterns = [
     # Firebase & In-App Notifications
     path("api/notifications/", include("notifications.urls")),
     path("api/v1/notifications/", include("notifications.urls")),
-] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+]
+
+# Ensure media files (payment proofs, invoices, avatars) are served even when DEBUG=False
+urlpatterns += [
+    re_path(r"^media/(?P<path>.*)$", serve, {"document_root": settings.MEDIA_ROOT}),
+]

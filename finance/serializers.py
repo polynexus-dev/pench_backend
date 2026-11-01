@@ -128,6 +128,16 @@ class OnlinePaymentSerializer(serializers.ModelSerializer):
             return obj.verified_by.get_full_name() or obj.verified_by.username
         return None
 
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        request = self.context.get("request")
+        screenshot = ret.get("screenshot")
+        if screenshot and isinstance(screenshot, str):
+            if request and (request.is_secure() or request.META.get("HTTP_X_FORWARDED_PROTO") == "https"):
+                if screenshot.startswith("http://"):
+                    ret["screenshot"] = "https://" + screenshot[7:]
+        return ret
+
     def validate_amount(self, value):
         if value <= 0:
             raise serializers.ValidationError("Amount must be greater than zero.")
