@@ -97,6 +97,12 @@ class Order(BaseModel):
 
     class Meta:
         ordering = ["-created_at"]
+        indexes = [
+            models.Index(
+                fields=["scheduled_delivery_date", "-created_at"],
+                name="order_sched_date_created_idx",
+            ),
+        ]
 
     def __str__(self):
         return f"Order #{self.id} — {self.customer.name}"

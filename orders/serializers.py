@@ -2,6 +2,12 @@ from rest_framework import serializers
 from core.quantities import QUANTITY_MAX_DIGITS, QUANTITY_DECIMAL_PLACES, MIN_QUANTITY
 from .models import Order, OrderItem, PaymentStatus, Route, RouteStop
 
+ORDER_LIST_SELECT_RELATED = (
+    "customer__zone__assigned_driver",
+    "customer__assigned_driver",
+    "route_stop__route__driver",
+)
+
 
 class OrderItemSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source="product.name", read_only=True)
@@ -31,11 +37,50 @@ class OrderItemSerializer(serializers.ModelSerializer):
         ]
 
 
+def resolve_driver_name(order):
+    """Name of the order's route driver, else the customer's dedicated or zone driver."""
+    driver = None
+
+    # 1. Try to get driver from route stop if assigned
+    try:
+        if hasattr(order, "route_stop"):
+            route_stop = order.route_stop
+            if route_stop and route_stop.route:
+                driver = route_stop.route.driver
+    except Exception:
+        # Catch django.core.exceptions.ObjectDoesNotExist for unassigned reverse OneToOne
+        pass
+
+    # 2. If no driver from route, fall back to the customer's dedicated or zone driver
+    if not driver:
+        try:
+            if order.customer:
+                driver = order.customer.effective_driver
+        except Exception:
+            pass
+
+    # 3. Format driver name if found
+    if driver:
+        try:
+            full_name = driver.get_full_name()
+            if full_name.strip():
+                return full_name
+            return driver.username
+        except Exception:
+            pass
+
+    return None
+
+
 class OrderListSerializer(serializers.ModelSerializer):
-    """Lightweight serializer for Order list views — no nested items, no method field queries."""
+    """
+    Lightweight serializer for Order list views. Querysets must select_related
+    ORDER_LIST_SELECT_RELATED so driver_name doesn't query once per order.
+    """
     customer_name = serializers.CharField(source="customer.name", read_only=True)
     status_display = serializers.CharField(source="get_status_display", read_only=True)
     zone_name = serializers.CharField(source="customer.zone.name", read_only=True, default=None)
+    driver_name = serializers.SerializerMethodField()
     is_new_customer = serializers.BooleanField(source="customer.is_new", read_only=True)
     item_count = serializers.IntegerField(read_only=True, default=0)
     items = OrderItemSerializer(many=True, read_only=True)
@@ -54,6 +99,7 @@ class OrderListSerializer(serializers.ModelSerializer):
             "items",
             "delivery_address",
             "zone_name",
+            "driver_name",
             "pod_image",
             "delivered_at",
             "is_special",
@@ -63,6 +109,9 @@ class OrderListSerializer(serializers.ModelSerializer):
             "is_new_customer",
             "item_count",
         ]
+
+    def get_driver_name(self, obj):
+        return resolve_driver_name(obj)
 
 
 class OrderSerializer(serializers.ModelSerializer):
@@ -153,37 +202,7 @@ class OrderSerializer(serializers.ModelSerializer):
         return attrs
 
     def get_driver_name(self, obj):
-        driver = None
-
-        # 1. Try to get driver from route stop if assigned
-        try:
-            if hasattr(obj, "route_stop"):
-                route_stop = obj.route_stop
-                if route_stop and route_stop.route:
-                    driver = route_stop.route.driver
-        except Exception:
-            # Catch django.core.exceptions.ObjectDoesNotExist for unassigned reverse OneToOne
-            pass
-
-        # 2. If no driver from route, fall back to the customer's dedicated or zone driver
-        if not driver:
-            try:
-                if obj.customer:
-                    driver = obj.customer.effective_driver
-            except Exception:
-                pass
-
-        # 3. Format driver name if found
-        if driver:
-            try:
-                full_name = driver.get_full_name()
-                if full_name.strip():
-                    return full_name
-                return driver.username
-            except Exception:
-                pass
-
-        return None
+        return resolve_driver_name(obj)
 
     def get_zone_name(self, obj):
         try:

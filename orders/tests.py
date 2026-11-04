@@ -1,5 +1,6 @@
 from django_tenants.test.cases import TenantTestCase
 from django.test import override_settings
+from django.test.utils import CaptureQueriesContext
 from rest_framework.test import APIClient
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
@@ -16,6 +17,155 @@ try:
 except ImportError:
     Point = None
 
+
+
+class TestOrderDateFilteringAndSummary(TenantTestCase):
+    @classmethod
+    def setup_tenant(cls, tenant):
+        tenant.name = "Test City"
+        tenant.state = "Test State"
+        tenant.code = "TST"
+        tenant.create_schema(sync_schema=True)
+
+    def setUp(self):
+        super().setUp()
+        connection.set_tenant(self.tenant)
+        self.admin = get_user_model().objects.create_user(
+            username="orders_admin",
+            email="orders_admin@example.com",
+            password="testpassword",
+            is_erp_user=True,
+            tenant_schema="test",
+        )
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.admin)
+        self.customer = Customer.objects.create(
+            name="Date Customer", email="date_cust@example.com", is_new=False
+        )
+        self.today = datetime.date.today()
+        self.yesterday = self.today - datetime.timedelta(days=1)
+        self.today_order = self._order(self.today, "pending", "100.00")
+        self.yesterday_order = self._order(self.yesterday, "delivered", "50.00")
+
+    def _order(self, date, status, total):
+        return Order.objects.create(
+            customer=self.customer,
+            scheduled_delivery_date=date,
+            status=status,
+            total=total,
+            delivery_address="Addr",
+        )
+
+    def _get(self, path, **params):
+        return self.client.get(path, params, HTTP_HOST="tenant.test.com")
+
+    def _ids(self, res):
+        return {row["id"] for row in res.data}
+
+    def test_list_filters_by_single_date(self):
+        res = self._get("/api/erp/orders/", scheduled_delivery_date=self.today.isoformat())
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(self._ids(res), {str(self.today_order.id)})
+
+    def test_list_filters_by_date_range_inclusive(self):
+        res = self._get(
+            "/api/erp/orders/",
+            start_date=self.yesterday.isoformat(),
+            end_date=self.yesterday.isoformat(),
+        )
+        self.assertEqual(self._ids(res), {str(self.yesterday_order.id)})
+
+    def test_list_without_date_returns_all_orders(self):
+        # Mobile clients call the list with no date and expect a plain array.
+        res = self._get("/api/erp/orders/")
+        self.assertEqual(
+            self._ids(res), {str(self.today_order.id), str(self.yesterday_order.id)}
+        )
+
+    def test_invalid_date_returns_400(self):
+        res = self._get("/api/erp/orders/", start_date="not-a-date")
+        self.assertEqual(res.status_code, 400)
+
+    def test_summary_totals_all_dates(self):
+        res = self._get("/api/erp/orders/summary/")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data["total_orders"], 2)
+        self.assertEqual(res.data["total_revenue"], 50.0)
+        self.assertEqual(res.data["status_counts"]["pending"]["count"], 1)
+        self.assertEqual(res.data["status_counts"]["delivered"]["count"], 1)
+
+    def test_summary_respects_date_filter(self):
+        res = self._get("/api/erp/orders/summary/", start_date=self.yesterday.isoformat(), end_date=self.yesterday.isoformat())
+        self.assertEqual(res.data["total_orders"], 1)
+        self.assertEqual(res.data["total_revenue"], 50.0)
+
+    def test_summary_revenue_counts_only_delivered_orders(self):
+        for status in ("cancelled", "undelivered", "confirmed"):
+            self._order(self.today, status, "1000.00")
+        res = self._get("/api/erp/orders/summary/")
+        self.assertEqual(res.data["total_orders"], 5)
+        self.assertEqual(res.data["total_revenue"], 50.0)
+
+    def test_list_includes_driver_name_without_extra_queries_per_order(self):
+        from routing.models import Zone
+
+        driver = get_user_model().objects.create_user(
+            username="zone_driver",
+            email="zone_driver@example.com",
+            password="testpassword",
+            first_name="Zone",
+            last_name="Driver",
+            is_driver=True,
+            tenant_schema="test",
+        )
+        self.customer.zone = Zone.objects.create(name="Driver Zone", assigned_driver=driver)
+        self.customer.save()
+
+        params = {"scheduled_delivery_date": self.today.isoformat()}
+        with CaptureQueriesContext(connection) as one_order:
+            res = self._get("/api/erp/orders/", **params)
+        self.assertEqual(res.data[0]["driver_name"], "Zone Driver")
+
+        for _ in range(5):
+            self._order(self.today, "pending", "10.00")
+        with CaptureQueriesContext(connection) as six_orders:
+            res = self._get("/api/erp/orders/", **params)
+        self.assertEqual(len(res.data), 6)
+        self.assertEqual(len(six_orders), len(one_order))
+
+    def test_summary_is_scoped_to_the_customer(self):
+        other = Customer.objects.create(
+            name="Other", email="other_cust@example.com", is_new=False
+        )
+        Order.objects.create(
+            customer=other,
+            scheduled_delivery_date=self.today,
+            total="999.00",
+            delivery_address="Addr",
+        )
+        user = get_user_model().objects.create_user(
+            username="date_cust_user",
+            email="date_cust_user@example.com",
+            password="testpassword",
+            tenant_schema="test",
+        )
+        self.customer.user = user
+        self.customer.save()
+        client = APIClient()
+        client.force_authenticate(user=user)
+        res = client.get("/api/erp/orders/summary/", HTTP_HOST="tenant.test.com")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data["total_orders"], 2)
+        self.assertEqual(res.data["total_revenue"], 50.0)
+
+    def test_sync_returns_only_the_synced_dates_orders(self):
+        group, _ = Group.objects.get_or_create(name="SuperAdmin")
+        self.admin.groups.add(group)
+        res = self.client.post("/api/erp/orders/sync/", {}, format="json", HTTP_HOST="tenant.test.com")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(
+            {row["id"] for row in res.data["orders"]}, {str(self.today_order.id)}
+        )
 
 
 class TestRouteManualControl(TenantTestCase):

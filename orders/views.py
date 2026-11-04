@@ -1,14 +1,22 @@
 import json
 
 from django.db import transaction
+from django.db.models import Count, Sum
 from django.http import QueryDict
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from core.permissions import IsERPUser, HasGroupPermission
 from .models import Order, OrderStatus, Route
-from .serializers import OrderSerializer, OrderListSerializer, RouteSerializer, RouteListSerializer
+from .serializers import (
+    ORDER_LIST_SELECT_RELATED,
+    OrderSerializer,
+    OrderListSerializer,
+    RouteSerializer,
+    RouteListSerializer,
+)
 from .services import create_optimized_route
 from crm.models import driver_customer_q
 from orders.services.route_generator import (
@@ -36,7 +44,7 @@ class OrderViewSet(viewsets.ModelViewSet):
         """
         ERP users can do everything. Customers can list, retrieve, create, update, and destroy their own orders.
         """
-        if self.action in ["list", "retrieve", "create", "partial_update", "update", "destroy", "special_orders"]:
+        if self.action in ["list", "retrieve", "create", "partial_update", "update", "destroy", "special_orders", "summary"]:
             return [IsAuthenticated()]
         if self.action == "special_summary":
             return [IsERPUser()]
@@ -52,7 +60,7 @@ class OrderViewSet(viewsets.ModelViewSet):
         if self.action == "list":
             from django.db.models import Count
             qs = (
-                Order.objects.select_related("customer__zone")
+                Order.objects.select_related(*ORDER_LIST_SELECT_RELATED)
                 .annotate(item_count=Count("items"))
                 .prefetch_related("items__product")
             )
@@ -88,6 +96,54 @@ class OrderViewSet(viewsets.ModelViewSet):
 
         # Fallback for other roles: no orders unless they are ERP users
         return qs.none()
+
+    def filter_queryset(self, queryset):
+        """Adds an inclusive start_date/end_date range on scheduled_delivery_date."""
+        queryset = super().filter_queryset(queryset)
+        for param, lookup in (("start_date", "gte"), ("end_date", "lte")):
+            value = self.request.query_params.get(param)
+            if not value:
+                continue
+            try:
+                parsed = datetime.date.fromisoformat(value)
+            except ValueError:
+                raise DRFValidationError({param: "Must be a date in YYYY-MM-DD format."})
+            queryset = queryset.filter(**{f"scheduled_delivery_date__{lookup}": parsed})
+        return queryset
+
+    @action(detail=False, methods=["get"], url_path="summary")
+    def summary(self, request):
+        """
+        Order counts and revenue computed in the database, so dashboards don't
+        have to download every order. Accepts the same filters as the list.
+        Revenue counts delivered orders only, matching what monthly bills charge.
+        """
+        rows = (
+            self.filter_queryset(self.get_queryset())
+            .select_related(None)
+            .prefetch_related(None)
+            .order_by()
+            .values("status")
+            .annotate(count=Count("id"), revenue=Sum("total"))
+        )
+        status_counts = {}
+        total_orders = 0
+        total_revenue = 0
+        for row in rows:
+            status_counts[row["status"]] = {
+                "label": OrderStatus(row["status"]).label,
+                "count": row["count"],
+            }
+            total_orders += row["count"]
+            if row["status"] == OrderStatus.DELIVERED:
+                total_revenue = row["revenue"] or 0
+        return Response(
+            {
+                "total_orders": total_orders,
+                "total_revenue": float(total_revenue),
+                "status_counts": status_counts,
+            }
+        )
 
     def create(self, request, *args, **kwargs):
         """
@@ -234,7 +290,7 @@ class OrderViewSet(viewsets.ModelViewSet):
         Master sync endpoint that:
         1. Auto-assigns zones to customers based on spatial location.
         2. Re-assigns pending/confirmed orders to zone drivers (creates optimized routes).
-        3. Returns the refreshed, serialized order list.
+        3. Returns the refreshed, serialized orders for the synced date.
         """
         import datetime as dt
         from routing.models import Zone
@@ -370,7 +426,7 @@ class OrderViewSet(viewsets.ModelViewSet):
                 route_errors.append({"zone": zone.name, "error": str(e)})
 
         # ---------- STEP 3: Return refreshed order list ----------
-        qs = self.get_queryset()
+        qs = self.get_queryset().filter(scheduled_delivery_date=date_str)
         serializer = self.get_serializer(qs, many=True)
 
         return Response(
@@ -454,7 +510,7 @@ class OrderViewSet(viewsets.ModelViewSet):
 
         recent = (
             qs.filter(status=OrderStatus.PENDING)
-            .select_related("customer__zone")
+            .select_related(*ORDER_LIST_SELECT_RELATED)
             .annotate(item_count=Count("items"))
             .prefetch_related("items__product")
             .order_by("-created_at")[:20]
