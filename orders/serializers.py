@@ -108,6 +108,7 @@ class OrderListSerializer(serializers.ModelSerializer):
             "payment_status",
             "is_new_customer",
             "item_count",
+            "created_at",
         ]
 
     def get_driver_name(self, obj):

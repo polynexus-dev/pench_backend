@@ -8,7 +8,7 @@ from django.db import connection
 from crm.models import Customer
 from subscriptions.models import Subscription, DeliveryFrequency, SubscriptionStatus
 from inventory.models import Product, Warehouse, Stock, RawMaterial, BottleType
-from orders.models import Order, Route, RouteStop
+from orders.models import Order, OrderItem, Route, RouteStop
 from tracking.models import HAS_GIS
 import datetime
 
@@ -105,6 +105,68 @@ class TestOrderDateFilteringAndSummary(TenantTestCase):
         res = self._get("/api/erp/orders/summary/")
         self.assertEqual(res.data["total_orders"], 5)
         self.assertEqual(res.data["total_revenue"], 50.0)
+
+    def _item(self, order, product, quantity):
+        return OrderItem.objects.create(
+            order=order, product=product, quantity=quantity, unit_price="10.00"
+        )
+
+    def test_overview_totals_quantities_and_recent_orders(self):
+        milk = Product.objects.create(name="Milk 1L", sku="OV-MILK", unit_price=60, is_active=True)
+        ghee = Product.objects.create(name="Ghee", sku="OV-GHEE", unit_price=500, is_active=True)
+        self._item(self.today_order, milk, 2)
+        self._item(self.today_order, ghee, 1)
+        self._item(self.yesterday_order, milk, 3)
+        newest = [self._order(self.today, "pending", "10.00") for _ in range(5)]
+
+        res = self._get("/api/erp/orders/overview/", start_date=self.today.isoformat())
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data["total_orders"], 6)
+        self.assertEqual(res.data["status_counts"]["pending"]["count"], 6)
+        # Yesterday's item is outside the range, and revenue is delivered-only
+        self.assertEqual(res.data["total_revenue"], 0.0)
+        self.assertEqual(
+            {row["product_name"]: row["quantity"] for row in res.data["product_quantities"]},
+            {"Milk 1L": 2.0, "Ghee": 1.0},
+        )
+        self.assertEqual(
+            [row["id"] for row in res.data["recent_orders"]],
+            [str(order.id) for order in reversed(newest)],
+        )
+
+    def test_overview_quantities_are_not_multiplied_by_totals(self):
+        milk = Product.objects.create(name="Milk 1L", sku="OV-MILK2", unit_price=60, is_active=True)
+        self._item(self.yesterday_order, milk, 4)
+        self._item(self.today_order, milk, 1)
+        res = self._get("/api/erp/orders/overview/")
+        self.assertEqual(res.data["total_orders"], 2)
+        self.assertEqual(res.data["total_revenue"], 50.0)
+        self.assertEqual(res.data["product_quantities"][0]["quantity"], 5.0)
+
+    def test_overview_is_scoped_to_the_customer(self):
+        other = Customer.objects.create(
+            name="Other", email="other_overview@example.com", is_new=False
+        )
+        hidden = self._order(self.today, "pending", "999.00")
+        hidden.customer = other
+        hidden.save()
+        milk = Product.objects.create(name="Milk 1L", sku="OV-MILK3", unit_price=60, is_active=True)
+        self._item(hidden, milk, 9)
+        user = get_user_model().objects.create_user(
+            username="overview_cust",
+            email="overview_cust@example.com",
+            password="testpassword",
+            tenant_schema="test",
+        )
+        self.customer.user = user
+        self.customer.save()
+        client = APIClient()
+        client.force_authenticate(user=user)
+        res = client.get("/api/erp/orders/overview/", HTTP_HOST="tenant.test.com")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data["total_orders"], 2)
+        self.assertEqual(res.data["product_quantities"], [])
+        self.assertNotIn(str(hidden.id), {row["id"] for row in res.data["recent_orders"]})
 
     def test_list_includes_driver_name_without_extra_queries_per_order(self):
         from routing.models import Zone

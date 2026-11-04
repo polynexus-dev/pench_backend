@@ -1,7 +1,8 @@
 import json
 
 from django.db import transaction
-from django.db.models import Count, Sum
+from django.db.models import Count, F, Sum
+from django.db.models.functions import Coalesce
 from django.http import QueryDict
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
@@ -9,7 +10,7 @@ from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from core.permissions import IsERPUser, HasGroupPermission
-from .models import Order, OrderStatus, Route
+from .models import Order, OrderItem, OrderStatus, Route
 from .serializers import (
     ORDER_LIST_SELECT_RELATED,
     OrderSerializer,
@@ -44,7 +45,7 @@ class OrderViewSet(viewsets.ModelViewSet):
         """
         ERP users can do everything. Customers can list, retrieve, create, update, and destroy their own orders.
         """
-        if self.action in ["list", "retrieve", "create", "partial_update", "update", "destroy", "special_orders", "summary"]:
+        if self.action in ["list", "retrieve", "create", "partial_update", "update", "destroy", "special_orders", "summary", "overview"]:
             return [IsAuthenticated()]
         if self.action == "special_summary":
             return [IsERPUser()]
@@ -118,6 +119,39 @@ class OrderViewSet(viewsets.ModelViewSet):
         have to download every order. Accepts the same filters as the list.
         Revenue counts delivered orders only, matching what monthly bills charge.
         """
+        return Response(self._order_totals())
+
+    @action(detail=False, methods=["get"], url_path="overview")
+    def overview(self, request):
+        """
+        Everything the home dashboard shows, computed in the database so its
+        cost barely grows with the number of orders in the date range: the
+        summary totals, quantity sold per product, and the 5 latest orders.
+        """
+        orders = self.filter_queryset(self.get_queryset())
+        product_quantities = (
+            OrderItem.objects.filter(order__in=orders.order_by().values("id"))
+            .order_by()
+            .values(product_name=F("product__name"))
+            .annotate(quantity=Sum("quantity"))
+        )
+        recent_orders = orders.annotate(
+            latest_activity=Coalesce("delivered_at", "created_at")
+        ).order_by("-latest_activity")[:5]
+        return Response(
+            {
+                **self._order_totals(),
+                "product_quantities": [
+                    {"product_name": row["product_name"], "quantity": float(row["quantity"])}
+                    for row in product_quantities
+                ],
+                "recent_orders": OrderListSerializer(
+                    recent_orders, many=True, context=self.get_serializer_context()
+                ).data,
+            }
+        )
+
+    def _order_totals(self):
         rows = (
             self.filter_queryset(self.get_queryset())
             .select_related(None)
@@ -137,13 +171,11 @@ class OrderViewSet(viewsets.ModelViewSet):
             total_orders += row["count"]
             if row["status"] == OrderStatus.DELIVERED:
                 total_revenue = row["revenue"] or 0
-        return Response(
-            {
-                "total_orders": total_orders,
-                "total_revenue": float(total_revenue),
-                "status_counts": status_counts,
-            }
-        )
+        return {
+            "total_orders": total_orders,
+            "total_revenue": float(total_revenue),
+            "status_counts": status_counts,
+        }
 
     def create(self, request, *args, **kwargs):
         """
