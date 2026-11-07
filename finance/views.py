@@ -1126,13 +1126,17 @@ class PayUInitiateView(APIView):
         return Response(
             {
                 "payment_id": str(payment.id),
+                "online_payment_id": str(payment.id),
                 "txnid": txnid,
                 "amount": amount_str,
                 "purpose": purpose,
                 "mode": cfg["mode"],
+                "payu_env": cfg["mode"],
                 "action_url": cfg["action_url"],
+                "payu_action_url": cfg["action_url"],
                 "user_credentials": user_credentials,
                 "params": params,
+                "form_fields": params,
                 "hashes": hashes,
             },
             status=status.HTTP_201_CREATED,
