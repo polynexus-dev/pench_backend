@@ -30,12 +30,14 @@ class OrderStatus(models.TextChoices):
 class PaymentMethod(models.TextChoices):
     CASH = "cash", "Cash"
     UPI = "upi", "UPI"
+    PAYU = "payu", "PayU"
     ON_ACCOUNT = "on_account", "On Account (Monthly Bill)"
 
 
 class PaymentStatus(models.TextChoices):
     PENDING = "pending", "Pending"
     VERIFICATION_PENDING = "verification_pending", "Verification Pending"
+    PARTIAL = "partial", "Partially Paid"
     PAID = "paid", "Paid"
     FAILED = "failed", "Failed"
 
@@ -57,6 +59,12 @@ class Order(BaseModel):
     )
     delivery_address = models.TextField()
     delivery_notes = models.TextField(blank=True)
+    handling_fee = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0.00,
+        help_text="Packing and handling charges applied based on order amount slab.",
+    )
     total = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     is_special = models.BooleanField(
         default=False,
@@ -106,6 +114,20 @@ class Order(BaseModel):
 
     def __str__(self):
         return f"Order #{self.id} — {self.customer.name}"
+
+    @property
+    def items_subtotal(self):
+        from decimal import Decimal
+
+        sub = Decimal(str(self.total or 0)) - Decimal(str(self.handling_fee or 0))
+        return sub if sub > Decimal("0.00") else Decimal("0.00")
+
+    @property
+    def remaining_amount(self):
+        from decimal import Decimal
+
+        rem = Decimal(str(self.total or 0)) - Decimal(str(self.amount_collected or 0))
+        return rem if rem > Decimal("0.00") else Decimal("0.00")
 
     def save(self, *args, **kwargs):
         if (

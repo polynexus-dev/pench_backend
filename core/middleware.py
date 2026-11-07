@@ -61,7 +61,11 @@ class TenantMiddleware:
 
     async def __call__(self, scope, receive, send):
         headers = dict(scope.get("headers", []))
-        host = headers.get(b"host", b"").decode().split(":")[0]
+        raw_host = headers.get(b"host", b"").decode().strip()
+        if "://" in raw_host:
+            raw_host = raw_host.split("://", 1)[1]
+        raw_host = raw_host.split("/", 1)[0]
+        host = raw_host.split(":")[0]
 
         # Extract tenant subdomain from query string if present
         query_string = scope.get("query_string", b"").decode()
@@ -71,13 +75,19 @@ class TenantMiddleware:
         x_tenant = query_params.get("tenant")
 
         if x_tenant:
+            if "://" in x_tenant:
+                x_tenant = x_tenant.split("://", 1)[1]
+            x_tenant = x_tenant.split("/", 1)[0].split(":")[0].split(".")[0]
             x_tenant_clean = x_tenant.replace("_", "-")
             host = f"{x_tenant_clean}.localhost"
             print(f"[WS Tenant Override] Spoofed Host to: {host}")
         else:
             # Fallback to x-tenant header if present
-            x_tenant_header = headers.get(b"x-tenant", b"").decode()
+            x_tenant_header = headers.get(b"x-tenant", b"").decode().strip()
             if x_tenant_header:
+                if "://" in x_tenant_header:
+                    x_tenant_header = x_tenant_header.split("://", 1)[1]
+                x_tenant_header = x_tenant_header.split("/", 1)[0].split(":")[0].split(".")[0]
                 x_tenant_header_clean = x_tenant_header.replace("_", "-")
                 host = f"{x_tenant_header_clean}.localhost"
                 print(f"[WS Tenant Header Override] Spoofed Host to: {host}")
@@ -122,15 +132,27 @@ class LocalDomainAutoRegisterMiddleware:
         from django.db import connection
         from django.conf import settings
 
+        # Normalize HTTP_HOST if the mobile app/client accidentally passed a scheme (e.g. 'http://nagpur.localhost:8000')
+        raw_http_host = (request.META.get("HTTP_HOST") or "").strip()
+        if "://" in raw_http_host:
+            raw_http_host = raw_http_host.split("://", 1)[1]
+        if "/" in raw_http_host:
+            raw_http_host = raw_http_host.split("/", 1)[0]
+        if raw_http_host:
+            request.META["HTTP_HOST"] = raw_http_host
+
         # Check for custom X-Tenant header to spoof the host for django-tenants
-        x_tenant = request.headers.get("X-Tenant")
+        x_tenant = (request.headers.get("X-Tenant") or "").strip()
         if x_tenant:
+            if "://" in x_tenant:
+                x_tenant = x_tenant.split("://", 1)[1]
+            x_tenant = x_tenant.split("/", 1)[0].split(":")[0].split(".")[0]
             # Replace underscores with hyphens to satisfy RFC 1034/1035 constraints (no underscores in domains)
             x_tenant_clean = x_tenant.replace("_", "-")
             port_suffix = ""
             host_header = request.META.get("HTTP_HOST", "")
             if ":" in host_header:
-                port_suffix = ":" + host_header.split(":")[1]
+                port_suffix = ":" + host_header.split(":")[-1]
             spoofed_host = f"{x_tenant_clean}.localhost{port_suffix}"
             request.META["HTTP_HOST"] = spoofed_host
             print(f"[X-Tenant Override] Spoofed HTTP_HOST to: {spoofed_host}")
@@ -266,6 +288,8 @@ class AppVersionEnforcementMiddleware:
 
     EXEMPT_PREFIXES = (
         "/api/app-version/",
+        "/api/payu/",
+        "/api/erp/finance/payu/",
         "/admin/",
         "/static/",
         "/media/",

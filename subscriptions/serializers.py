@@ -87,6 +87,8 @@ class SubscriptionSerializer(serializers.ModelSerializer):
             "id": str(payment.id),
             "amount": float(payment.amount),
             "status": payment.status,
+            "payment_gateway": payment.payment_gateway,
+            "gateway_txnid": payment.gateway_txnid,
             "screenshot": screenshot,
             "created_at": payment.created_at,
         }

@@ -403,3 +403,218 @@ class TestOnlinePayments(TenantTestCase):
         res = self.admin_client.get("/api/erp/subscriptions/", HTTP_HOST=HOST)
         results = res.data["results"] if isinstance(res.data, dict) else res.data
         self.assertEqual(len(results), 2)
+
+    # ── PayU Gateway Integration (Orders, Bills & Subscriptions) ──
+
+    @override_settings(
+        PAYU_MERCHANT_KEY="gtKFFx",
+        PAYU_MERCHANT_SALT="4R38IvwiV57FwVpsgOvTXBdLE4tHUXFW",
+        PAYU_MODE="TEST",
+    )
+    def test_payu_order_flow_end_to_end(self):
+        from finance.payu import calculate_response_hash
+        from orders.models import PaymentMethod
+
+        # 1. Customer places a special order with payment_method="payu" (no screenshot required)
+        res = self.customer_client.post(
+            "/api/erp/orders/",
+            self._order_payload(payment_method="payu"),
+            format="multipart",
+            HTTP_HOST=HOST,
+        )
+        self.assertEqual(res.status_code, 201, res.data)
+        order = Order.objects.get()
+        self.assertEqual(order.payment_method, PaymentMethod.PAYU)
+        self.assertEqual(order.payment_status, PaymentStatus.PENDING)
+        self.assertEqual(order.status, OrderStatus.PENDING)
+
+        # 2. Initiate PayU checkout for the order
+        init_res = self.customer_client.post(
+            "/api/erp/finance/payu/initiate/",
+            {
+                "order": str(order.id),
+                "frontend_redirect_url": "https://shop.penchfoods.com/payment-result",
+            },
+            format="json",
+            HTTP_HOST=HOST,
+        )
+        self.assertEqual(init_res.status_code, 201, init_res.data)
+        params = init_res.data["params"]
+        hashes = init_res.data["hashes"]
+        txnid = init_res.data["txnid"]
+        self.assertEqual(init_res.data["amount"], "100.00")
+        self.assertEqual(init_res.data["purpose"], "order")
+        self.assertEqual(init_res.data["user_credentials"], "gtKFFx:9999999999")
+        self.assertTrue(params["hash"])
+        # CoreSDK Seamless static hashes included in initiate response
+        self.assertEqual(hashes["paymentHash"], params["hash"])
+        self.assertEqual(len(hashes["VASForMobileSDKHash"]), 128)
+        self.assertEqual(len(hashes["paymentRelatedDetailsForMobileSDKHash"]), 128)
+        self.assertEqual(len(hashes["verifyPaymentHash"]), 128)
+
+        payment = OnlinePayment.objects.get(gateway_txnid=txnid)
+        self.assertEqual(payment.status, OnlinePaymentStatus.PENDING)
+        self.assertEqual(payment.payment_gateway, "payu")
+
+        # 3. Simulate PayU callback with valid reverse hash
+        callback_payload = {
+            "key": params["key"],
+            "txnid": txnid,
+            "amount": params["amount"],
+            "productinfo": params["productinfo"],
+            "firstname": params["firstname"],
+            "email": params["email"],
+            "udf1": params["udf1"],
+            "udf2": params["udf2"],
+            "udf3": params["udf3"],
+            "udf4": params["udf4"],
+            "udf5": params["udf5"],
+            "status": "success",
+            "mihpayid": "403993715527319822",
+            "mode": "UPI",
+            "bank_ref_num": "UPI987654321",
+        }
+        callback_payload["hash"] = calculate_response_hash(callback_payload)
+
+        anon_client = APIClient()
+        cb_res = anon_client.post(
+            "/api/erp/finance/payu/callback/",
+            callback_payload,
+            format="multipart",
+            HTTP_HOST=HOST,
+        )
+        self.assertEqual(cb_res.status_code, 302)
+        self.assertIn("https://shop.penchfoods.com/payment-result", cb_res["Location"])
+        self.assertIn("status=success", cb_res["Location"])
+
+        # Order and payment are now marked PAID / CONFIRMED / VERIFIED
+        order.refresh_from_db()
+        payment.refresh_from_db()
+        self.assertEqual(payment.status, OnlinePaymentStatus.VERIFIED)
+        self.assertEqual(payment.gateway_mihpayid, "403993715527319822")
+        self.assertEqual(payment.transaction_id, "UPI987654321")
+        self.assertEqual(order.payment_status, PaymentStatus.PAID)
+        self.assertEqual(order.payment_method, PaymentMethod.PAYU)
+        self.assertEqual(order.status, OrderStatus.CONFIRMED)
+        self.assertEqual(float(order.amount_collected), 100.0)
+
+        # 4. Status polling endpoint returns verified payment
+        status_res = self.customer_client.get(
+            f"/api/erp/finance/payu/status/{txnid}/", HTTP_HOST=HOST
+        )
+        self.assertEqual(status_res.status_code, 200)
+        self.assertEqual(status_res.data["status"], "verified")
+
+    @override_settings(
+        PAYU_MERCHANT_KEY="gtKFFx",
+        PAYU_MERCHANT_SALT="4R38IvwiV57FwVpsgOvTXBdLE4tHUXFW",
+        PAYU_MODE="TEST",
+    )
+    def test_payu_monthly_bill_and_subscription_flows(self):
+        from finance.payu import calculate_response_hash
+        from subscriptions.models import Subscription, SubscriptionItem
+
+        # A. Monthly Bill payment via PayU webhook
+        init_bill = self.customer_client.post(
+            "/api/erp/finance/payu/initiate/",
+            {"bill": str(self.bill.id)},
+            format="json",
+            HTTP_HOST=HOST,
+        )
+        self.assertEqual(init_bill.status_code, 201, init_bill.data)
+        bill_params = init_bill.data["params"]
+        self.assertEqual(init_bill.data["amount"], "1500.00")
+
+        webhook_payload = {
+            **{
+                k: bill_params[k]
+                for k in (
+                    "key",
+                    "txnid",
+                    "amount",
+                    "productinfo",
+                    "firstname",
+                    "email",
+                    "udf1",
+                    "udf2",
+                    "udf3",
+                    "udf4",
+                    "udf5",
+                )
+            },
+            "status": "success",
+            "mihpayid": "MIH-BILL-1",
+            "mode": "NB",
+            "bank_ref_num": "BANKREF-1",
+        }
+        webhook_payload["hash"] = calculate_response_hash(webhook_payload)
+
+        anon_client = APIClient()
+        wh_res = anon_client.post(
+            "/api/erp/finance/payu/webhook/",
+            webhook_payload,
+            format="json",
+            HTTP_HOST=HOST,
+        )
+        self.assertEqual(wh_res.status_code, 200, wh_res.data)
+        self.bill.refresh_from_db()
+        self.assertEqual(self.bill.status, BillStatus.PAID)
+        self.assertEqual(float(self.bill.amount_paid), 1500.0)
+
+        # B. Subscription payment via PayU (auto-estimated 30-day amount: 30 * 50 = 1500.00)
+        sub = Subscription.objects.create(
+            customer=self.customer,
+            frequency="daily",
+            start_date=datetime.date.today(),
+        )
+        SubscriptionItem.objects.create(subscription=sub, product=self.product, quantity=1)
+
+        init_sub = self.customer_client.post(
+            "/api/erp/finance/payu/initiate/",
+            {"subscription": str(sub.id)},
+            format="json",
+            HTTP_HOST=HOST,
+        )
+        self.assertEqual(init_sub.status_code, 201, init_sub.data)
+        self.assertEqual(init_sub.data["amount"], "1500.00")
+        self.assertEqual(init_sub.data["purpose"], "subscription")
+
+        # Tampered hash is rejected with 400
+        bad_payload = dict(webhook_payload, hash="deadbeef")
+        bad_res = anon_client.post(
+            "/api/erp/finance/payu/webhook/",
+            bad_payload,
+            format="json",
+            HTTP_HOST=HOST,
+        )
+        self.assertEqual(bad_res.status_code, 400)
+
+        # C. Mobile SDK dynamic & CoreSDK Seamless command hash endpoint
+        sdk_res = self.customer_client.post(
+            "/api/erp/finance/payu/mobile-hash/",
+            {
+                "hashName": "payment_source",
+                "hashString": "gtKFFx|PENCH-123|100.00|Order|Cust|cust@example.com|||||||||||",
+            },
+            format="json",
+            HTTP_HOST=HOST,
+        )
+        self.assertEqual(sdk_res.status_code, 200, sdk_res.data)
+        self.assertIn("payment_source", sdk_res.data)
+        self.assertEqual(len(sdk_res.data["payment_source"]), 128)
+
+        # CoreSDK Seamless command hash (e.g. validateVPA / vas_for_mobile_sdk)
+        vpa_res = self.customer_client.post(
+            "/api/erp/finance/payu/mobile-hash/",
+            {
+                "command": "validateVPA",
+                "var1": "9999999999@ybl",
+                "hashName": "validateVPAHash",
+            },
+            format="json",
+            HTTP_HOST=HOST,
+        )
+        self.assertEqual(vpa_res.status_code, 200, vpa_res.data)
+        self.assertIn("validateVPAHash", vpa_res.data)
+        self.assertEqual(len(vpa_res.data["validateVPAHash"]), 128)
+

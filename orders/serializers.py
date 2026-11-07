@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from core.quantities import QUANTITY_MAX_DIGITS, QUANTITY_DECIMAL_PLACES, MIN_QUANTITY
-from .models import Order, OrderItem, PaymentStatus, Route, RouteStop
+from .models import Order, OrderItem, OrderStatus, PaymentMethod, PaymentStatus, Route, RouteStop
 
 ORDER_LIST_SELECT_RELATED = (
     "customer__zone__assigned_driver",
@@ -84,6 +84,12 @@ class OrderListSerializer(serializers.ModelSerializer):
     is_new_customer = serializers.BooleanField(source="customer.is_new", read_only=True)
     item_count = serializers.IntegerField(read_only=True, default=0)
     items = OrderItemSerializer(many=True, read_only=True)
+    items_subtotal = serializers.DecimalField(
+        max_digits=10, decimal_places=2, read_only=True
+    )
+    remaining_amount = serializers.DecimalField(
+        max_digits=10, decimal_places=2, read_only=True
+    )
 
     class Meta:
         model = Order
@@ -95,7 +101,10 @@ class OrderListSerializer(serializers.ModelSerializer):
             "status",
             "status_display",
             "scheduled_delivery_date",
+            "items_subtotal",
+            "handling_fee",
             "total",
+            "remaining_amount",
             "items",
             "delivery_address",
             "zone_name",
@@ -131,6 +140,15 @@ class OrderSerializer(serializers.ModelSerializer):
     payment_amount = serializers.DecimalField(
         max_digits=12, decimal_places=2, write_only=True, required=False
     )
+    items_subtotal = serializers.DecimalField(
+        max_digits=10, decimal_places=2, read_only=True
+    )
+    handling_fee = serializers.DecimalField(
+        max_digits=10, decimal_places=2, read_only=True
+    )
+    remaining_amount = serializers.DecimalField(
+        max_digits=10, decimal_places=2, read_only=True
+    )
     latest_payment = serializers.SerializerMethodField()
 
     class Meta:
@@ -143,7 +161,10 @@ class OrderSerializer(serializers.ModelSerializer):
             "status",
             "status_display",
             "scheduled_delivery_date",
+            "items_subtotal",
+            "handling_fee",
             "total",
+            "remaining_amount",
             "items",
             "delivery_address",
             "latitude",
@@ -178,12 +199,20 @@ class OrderSerializer(serializers.ModelSerializer):
             "id": str(payment.id),
             "amount": float(payment.amount),
             "status": payment.status,
+            "payment_gateway": payment.payment_gateway,
+            "gateway_txnid": payment.gateway_txnid,
             "screenshot": screenshot,
             "created_at": payment.created_at,
         }
 
     def validate(self, attrs):
-        # Customers placing a manual (non-subscription) order must attach a payment screenshot.
+        # Customers placing a manual (non-subscription) order can:
+        # 1. Pay immediately via PayU gateway (payment_method="payu")
+        # 2. Add to Monthly Bill (payment_method="on_account") if they have an active subscription
+        # 3. Upload a manual UPI payment screenshot (payment_screenshot)
+        from .models import PaymentMethod
+        from subscriptions.models import Subscription, SubscriptionStatus
+
         request = self.context.get("request")
         user = getattr(request, "user", None)
         is_customer = (
@@ -197,9 +226,43 @@ class OrderSerializer(serializers.ModelSerializer):
             and not attrs.get("subscription")
             and not attrs.get("payment_screenshot")
         ):
-            raise serializers.ValidationError(
-                {"payment_screenshot": "A payment screenshot is required to place an order."}
-            )
+            raw_method = request.data.get("payment_method") if request and hasattr(request, "data") and isinstance(request.data, dict) else attrs.get("payment_method")
+            method = attrs.get("payment_method")
+
+            if method == PaymentMethod.PAYU:
+                pass
+            elif raw_method == PaymentMethod.ON_ACCOUNT or (
+                method == PaymentMethod.ON_ACCOUNT
+                and Subscription.objects.filter(
+                    customer=user.customer_profile,
+                    status=SubscriptionStatus.ACTIVE,
+                ).exists()
+            ):
+                has_active_sub = Subscription.objects.filter(
+                    customer=user.customer_profile,
+                    status=SubscriptionStatus.ACTIVE,
+                ).exists()
+                if not has_active_sub:
+                    raise serializers.ValidationError(
+                        {
+                            "payment_method": (
+                                "Only customers with an active monthly subscription can add extra orders "
+                                "to their monthly bill ('on_account'). Please pay now using PayU "
+                                "('payment_method': 'payu') or attach a payment screenshot."
+                            )
+                        }
+                    )
+                attrs["payment_method"] = PaymentMethod.ON_ACCOUNT
+            else:
+                raise serializers.ValidationError(
+                    {
+                        "payment_method": (
+                            "Please specify 'payment_method': 'payu' to pay now, "
+                            "'payment_method': 'on_account' to add to your monthly bill, "
+                            "or attach a 'payment_screenshot'."
+                        )
+                    }
+                )
         return attrs
 
     def get_driver_name(self, obj):
@@ -246,6 +309,12 @@ class OrderSerializer(serializers.ModelSerializer):
 
         if validated_data.get("subscription") is None:
             validated_data["is_special"] = True
+            if (
+                validated_data.get("payment_method") == PaymentMethod.ON_ACCOUNT
+                and not payment_screenshot
+            ):
+                validated_data["status"] = OrderStatus.CONFIRMED
+                validated_data["payment_status"] = PaymentStatus.PENDING
 
         order = Order.objects.create(**validated_data)
 
@@ -269,9 +338,26 @@ class OrderSerializer(serializers.ModelSerializer):
             item = OrderItem.objects.create(order=order, **item_data)
             total_amount += item.line_total
 
-        # Update order total based on items
-        order.total = total_amount
-        update_fields = ["total"]
+        # Update order total based on items + Packing & Handling slab fee
+        # - For single orders / mid-month extra orders paid at order time (payment_method != ON_ACCOUNT):
+        #   apply the slab handling fee directly to the order.
+        # - For subscription orders or extra orders added to monthly bill (payment_method == ON_ACCOUNT):
+        #   handling_fee is 0 on the individual order and applied once on the combined Monthly Bill.
+        from decimal import Decimal
+        from finance.services import calculate_packing_and_handling_fee
+
+        items_subtotal = Decimal(str(total_amount or 0))
+        if (
+            order.is_special
+            and order.payment_method != PaymentMethod.ON_ACCOUNT
+        ):
+            handling_fee = calculate_packing_and_handling_fee(items_subtotal)
+        else:
+            handling_fee = Decimal("0.00")
+
+        order.handling_fee = handling_fee
+        order.total = items_subtotal + handling_fee
+        update_fields = ["handling_fee", "total"]
         if payment_screenshot:
             # Submitted proof stays unconfirmed until an admin verifies it.
             order.payment_status = PaymentStatus.VERIFICATION_PENDING

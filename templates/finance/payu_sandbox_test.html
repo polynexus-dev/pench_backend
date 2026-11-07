@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pench Foods — Orders, Monthly Bills &amp; PayU Checkout</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --border: #334155;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --accent: #10b981;
+      --accent-hover: #059669;
+      --secondary: #3b82f6;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+    }
+    * { box-sizing: border-box; font-family: system-ui, -apple-system, sans-serif; }
+    body {
+      margin: 0;
+      padding: 32px 16px;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      justify-content: center;
+    }
+    .container { width: 100%; max-width: 920px; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+    h1 { margin: 0 0 6px; font-size: 22px; }
+    h2 { margin: 0 0 14px; font-size: 16px; color: #e2e8f0; }
+    p.sub { margin: 0 0 18px; color: var(--muted); font-size: 14px; }
+    label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; font-weight: 600; }
+    input, select {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #0b1120;
+      color: var(--text);
+      font-size: 14px;
+      margin-bottom: 14px;
+    }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+    .btn-row { display: flex; gap: 12px; }
+    button {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: 11px 18px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      width: 100%;
+    }
+    button:hover { background: var(--accent-hover); }
+    button.secondary { background: var(--secondary); }
+    button.secondary:hover { background: #2563eb; }
+    button.warning { background: var(--warning); color: #0f172a; }
+    button.warning:hover { background: #d97706; color: #fff; }
+    pre {
+      background: #0b1120;
+      border: 1px solid var(--border);
+      padding: 14px;
+      border-radius: 8px;
+      overflow-x: auto;
+      font-size: 12px;
+      color: #cbd5e1;
+      max-height: 360px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+    }
+    .fee-box {
+      background: #0b1120;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin-bottom: 14px;
+      font-size: 13px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .status-banner {
+      padding: 16px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      display: none;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .status-banner.success { display: block; background: rgba(16, 185, 129, 0.18); border: 1px solid #10b981; }
+    .status-banner.failure { display: block; background: rgba(239, 68, 68, 0.18); border: 1px solid #ef4444; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div id="resultBanner" class="status-banner"></div>
+
+    <!-- Step 1: Login -->
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <h1>Pench Foods — Orders, Monthly Bills &amp; PayU Checkout</h1>
+        <span class="badge">Mode: {{ payu_mode }} | Key: {{ payu_key }}</span>
+      </div>
+      <p class="sub">Place Mid-Month / Single Orders (Pay Now via PayU or Add to Monthly Bill), preview Packing &amp; Handling Charges, pay Partial/Full amounts, and download Monthly Bill Invoice PDFs.</p>
+
+      <h2>1. Authenticate (Login or Paste Bearer Token)</h2>
+      <div class="row">
+        <div>
+          <label for="loginPhone">Phone / Username</label>
+          <input id="loginPhone" type="text" placeholder="e.g. 9876543210 or customer1" />
+        </div>
+        <div>
+          <label for="loginPass">Password</label>
+          <input id="loginPass" type="password" placeholder="pass1234" />
+        </div>
+      </div>
+      <div class="btn-row" style="margin-bottom:14px;">
+        <button class="secondary" onclick="loginAndLoad()">Login &amp; Load Products / Orders / Bills / Subscriptions</button>
+      </div>
+
+      <label for="jwtToken">Active JWT Access Token</label>
+      <input id="jwtToken" type="text" placeholder="Automatically filled on login, or paste a Bearer token here" onchange="loadRecords()" />
+    </div>
+
+    <!-- Step 2: Place Mid-Month Extra Order or Single Order -->
+    <div class="card">
+      <h2>2. Place Additional / Single Order (Mid-Month Add-On or Instant PayU)</h2>
+      <div class="row-3">
+        <div>
+          <label for="orderProduct">Select Product</label>
+          <select id="orderProduct" onchange="updateOrderFeePreview()">
+            <option value="">-- Login to load products --</option>
+          </select>
+        </div>
+        <div>
+          <label for="orderQty">Quantity</label>
+          <input id="orderQty" type="number" min="1" step="1" value="1" oninput="updateOrderFeePreview()" />
+        </div>
+        <div>
+          <label for="orderDate">Delivery Date</label>
+          <input id="orderDate" type="date" />
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label for="orderPaymentChoice">Payment Choice</label>
+          <select id="orderPaymentChoice" onchange="updateOrderFeePreview()">
+            <option value="payu">Pay at Same Time via PayU (Adds Packing &amp; Handling Fee Now)</option>
+            <option value="on_account">Add to Monthly Bill (on_account — For Active Subscribers)</option>
+          </select>
+        </div>
+        <div>
+          <label>Live Packing &amp; Handling Fee Preview</label>
+          <div id="orderFeePreview" class="fee-box">
+            <span>Select a product to preview subtotal + handling fee</span>
+          </div>
+        </div>
+      </div>
+
+      <button onclick="createNewOrder()">Create Order (and Pay Now if PayU Selected)</button>
+    </div>
+
+    <!-- Step 3: Pay Existing Order / Monthly Bill / Subscription & Download Invoice PDF -->
+    <div class="card">
+      <h2>3. Pay Existing Order / Monthly Bill / Subscription (Full or Partial)</h2>
+      <div class="row">
+        <div>
+          <label for="targetType">Payment Purpose</label>
+          <select id="targetType" onchange="populateDropdown()">
+            <option value="order">Special / Extra Order</option>
+            <option value="bill">Monthly Bill</option>
+            <option value="subscription">Subscription</option>
+          </select>
+        </div>
+        <div>
+          <label for="quickSelect">Quick Select from Loaded Records</label>
+          <select id="quickSelect" onchange="onQuickSelect()">
+            <option value="">-- Login first or type UUID below --</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label for="targetId">Target UUID (Order / Bill / Subscription ID)</label>
+          <input id="targetId" type="text" placeholder="UUID of Order, Bill, or Subscription" />
+        </div>
+        <div>
+          <label for="amountInput">Amount to Pay Now (INR — Supports Partial Payment)</label>
+          <input id="amountInput" type="number" step="0.01" placeholder="Defaults to remaining_amount if left blank" />
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button id="payBtn" onclick="initiatePayU()">Pay via PayU Sandbox (https://test.payu.in)</button>
+        <button class="secondary" onclick="inspectBillOrDownloadPdf(false)">Inspect Selected Bill Breakdown JSON</button>
+        <button class="warning" onclick="inspectBillOrDownloadPdf(true)">Download Monthly Bill Invoice PDF</button>
+      </div>
+    </div>
+
+    <!-- Step 4: Inspector -->
+    <div class="card">
+      <label>Live API Response / Breakdown Inspector</label>
+      <pre id="responseBox">Login and select an action above...</pre>
+    </div>
+  </div>
+
+  <script>
+    const loadedData = { order: [], bill: [], subscription: [], product: [] };
+    document.getElementById("orderDate").value = new Date().toISOString().slice(0, 10);
+
+    const savedToken = sessionStorage.getItem("pench_payu_test_jwt");
+    if (savedToken) {
+      document.getElementById("jwtToken").value = savedToken;
+      loadRecords();
+    }
+
+    (function checkCallbackParams() {
+      const params = new URLSearchParams(window.location.search);
+      const status = params.get("status");
+      const txnid = params.get("txnid");
+      const mihpayid = params.get("mihpayid");
+      const paymentStatus = params.get("payment_status");
+      const purpose = params.get("purpose");
+      const banner = document.getElementById("resultBanner");
+      if (status) {
+        banner.className = "status-banner " + (status === "success" ? "success" : "failure");
+        banner.innerHTML =
+          `<strong>PayU Callback Result: ${status.toUpperCase()}</strong><br/>` +
+          `Purpose: <code>${purpose || "-"}</code> | TxnID: <code>${txnid || "-"}</code> | ` +
+          `PayU mihpayid: <code>${mihpayid || "-"}</code> | Reconciled DB Status: <code>${paymentStatus || "-"}</code>`;
+      }
+    })();
+
+    function getAuthHeaders() {
+      const token = document.getElementById("jwtToken").value.trim();
+      const headers = { "Content-Type": "application/json" };
+      if (token) {
+        headers["Authorization"] = token.startsWith("Bearer ") ? token : `Bearer ${token}`;
+      }
+      return headers;
+    }
+
+    async function loginAndLoad() {
+      const username = document.getElementById("loginPhone").value.trim();
+      const password = document.getElementById("loginPass").value;
+      const responseBox = document.getElementById("responseBox");
+      if (!username || !password) {
+        alert("Enter your phone/username and password.");
+        return;
+      }
+      try {
+        const res = await fetch("/api/accounts/login/", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username, password })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.access) {
+          responseBox.textContent = "Login failed:\n" + JSON.stringify(data, null, 2);
+          return;
+        }
+        document.getElementById("jwtToken").value = data.access;
+        sessionStorage.setItem("pench_payu_test_jwt", data.access);
+        await loadRecords();
+        responseBox.textContent = "Logged in and loaded records successfully.";
+      } catch (err) {
+        responseBox.textContent = "Login error: " + err.message;
+      }
+    }
+
+    async function loadRecords() {
+      const headers = getAuthHeaders();
+      const endpoints = [
+        { key: "order", url: "/api/erp/orders/" },
+        { key: "bill", url: "/api/erp/finance/bills/" },
+        { key: "subscription", url: "/api/erp/subscriptions/" },
+        { key: "product", url: "/api/erp/inventory/products/" }
+      ];
+      for (const ep of endpoints) {
+        try {
+          const res = await fetch(ep.url, { headers });
+          if (res.ok) {
+            const json = await res.json();
+            loadedData[ep.key] = Array.isArray(json) ? json : (json.results || []);
+          }
+        } catch (_) {}
+      }
+      populateDropdown();
+      populateProducts();
+    }
+
+    function populateProducts() {
+      const sel = document.getElementById("orderProduct");
+      const products = loadedData.product || [];
+      sel.innerHTML = `<option value="">-- Select Product (${products.length} available) --</option>`;
+      products.forEach(p => {
+        const opt = document.createElement("option");
+        opt.value = p.id;
+        opt.dataset.price = p.customer_price || p.unit_price || 0;
+        opt.textContent = `${p.name} — INR ${opt.dataset.price}`;
+        sel.appendChild(opt);
+      });
+      if (products.length > 0) {
+        sel.selectedIndex = 1;
+        updateOrderFeePreview();
+      }
+    }
+
+    async function updateOrderFeePreview() {
+      const sel = document.getElementById("orderProduct");
+      const opt = sel.options[sel.selectedIndex];
+      const qty = parseFloat(document.getElementById("orderQty").value || "1");
+      const method = document.getElementById("orderPaymentChoice").value;
+      const box = document.getElementById("orderFeePreview");
+
+      if (!opt || !opt.value) {
+        box.innerHTML = `<span>Select a product to preview subtotal + handling fee</span>`;
+        return;
+      }
+      const price = parseFloat(opt.dataset.price || "0");
+      const subtotal = (price * qty).toFixed(2);
+
+      try {
+        const res = await fetch(`/api/erp/finance/handling-fee-slabs/?amount=${subtotal}&payment_method=${method}`, {
+          headers: getAuthHeaders()
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const c = data.calculation;
+          if (method === "on_account") {
+            box.innerHTML = `<span>Items: <strong>INR ${c.items_subtotal.toFixed(2)}</strong> | Handling Now: <strong>INR 0.00</strong></span><span class="badge">Added to Bill: INR ${c.added_to_monthly_bill.toFixed(2)}</span>`;
+          } else {
+            box.innerHTML = `<span>Items: <strong>INR ${c.items_subtotal.toFixed(2)}</strong> + Handling: <strong>INR ${c.handling_fee.toFixed(2)}</strong></span><span class="badge">Pay Now: INR ${c.total_payable_now.toFixed(2)}</span>`;
+          }
+        }
+      } catch (_) {}
+    }
+
+    async function createNewOrder() {
+      const productId = document.getElementById("orderProduct").value;
+      const qty = parseFloat(document.getElementById("orderQty").value || "1");
+      const dateStr = document.getElementById("orderDate").value;
+      const paymentMethod = document.getElementById("orderPaymentChoice").value;
+      const responseBox = document.getElementById("responseBox");
+
+      if (!productId) {
+        alert("Select a product first.");
+        return;
+      }
+
+      const payload = {
+        scheduled_delivery_date: dateStr,
+        payment_method: paymentMethod,
+        items: [{ product: productId, quantity: qty }]
+      };
+
+      responseBox.textContent = "Creating order...";
+      try {
+        const res = await fetch("/api/erp/orders/", {
+          method: "POST",
+          headers: getAuthHeaders(),
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        responseBox.textContent = JSON.stringify(data, null, 2);
+        if (!res.ok) return;
+
+        await loadRecords();
+        document.getElementById("targetType").value = "order";
+        populateDropdown();
+        document.getElementById("targetId").value = data.id;
+        document.getElementById("amountInput").value = data.remaining_amount || data.total;
+
+        if (paymentMethod === "payu") {
+          await initiatePayU();
+        } else {
+          alert(`Order #${String(data.id).slice(0, 8)} added to Monthly Bill (on_account)! Status: ${data.status}`);
+        }
+      } catch (err) {
+        responseBox.textContent = "Order creation error: " + err.message;
+      }
+    }
+
+    function populateDropdown() {
+      const type = document.getElementById("targetType").value;
+      const select = document.getElementById("quickSelect");
+      const items = loadedData[type] || [];
+      select.innerHTML = `<option value="">-- Select a ${type} (${items.length} found) --</option>`;
+      items.forEach(item => {
+        const opt = document.createElement("option");
+        opt.value = item.id;
+        if (type === "order") {
+          const rem = item.remaining_amount !== undefined ? item.remaining_amount : item.total;
+          const fee = item.handling_fee || "0.00";
+          opt.dataset.rem = rem;
+          opt.textContent = `Order #${String(item.id).slice(0, 8)} — Rem: INR ${rem} / Total: INR ${item.total} (Fee: INR ${fee}, ${item.payment_method} / ${item.payment_status})`;
+        } else if (type === "bill") {
+          opt.dataset.rem = item.remaining_amount;
+          opt.textContent = `${item.invoice_number} — Rem: INR ${item.remaining_amount} / Total: INR ${item.total_amount} (Handling: INR ${item.handling_fee || '0.00'}, ${item.status})`;
+        } else {
+          opt.textContent = `Sub #${String(item.id).slice(0, 8)} — ${item.frequency_display || item.frequency} (${item.status})`;
+        }
+        select.appendChild(opt);
+      });
+    }
+
+    function onQuickSelect() {
+      const sel = document.getElementById("quickSelect");
+      const val = sel.value;
+      if (val) {
+        document.getElementById("targetId").value = val;
+        const opt = sel.options[sel.selectedIndex];
+        if (opt && opt.dataset.rem) {
+          document.getElementById("amountInput").value = opt.dataset.rem;
+        }
+      }
+    }
+
+    async function inspectBillOrDownloadPdf(downloadPdf) {
+      const type = document.getElementById("targetType").value;
+      let billId = document.getElementById("targetId").value.trim();
+      if (type !== "bill" && loadedData.bill.length > 0) {
+        billId = loadedData.bill[0].id;
+      }
+      if (!billId) {
+        alert("Select a Monthly Bill first.");
+        return;
+      }
+      const responseBox = document.getElementById("responseBox");
+      if (downloadPdf) {
+        const res = await fetch(`/api/erp/finance/bills/${billId}/download-pdf/`, {
+          headers: getAuthHeaders()
+        });
+        if (!res.ok) {
+          responseBox.textContent = "Failed to download PDF: " + (await res.text());
+          return;
+        }
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `Invoice_${billId.slice(0, 8)}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      } else {
+        const res = await fetch(`/api/erp/finance/bills/${billId}/`, {
+          headers: getAuthHeaders()
+        });
+        const data = await res.json();
+        responseBox.textContent = JSON.stringify(data, null, 2);
+      }
+    }
+
+    async function initiatePayU() {
+      const targetType = document.getElementById("targetType").value;
+      const targetId = document.getElementById("targetId").value.trim();
+      const amount = document.getElementById("amountInput").value.trim();
+      const responseBox = document.getElementById("responseBox");
+
+      if (!targetId) {
+        alert("Please select or enter the UUID of the Order, Monthly Bill, or Subscription.");
+        return;
+      }
+
+      const body = {
+        [targetType]: targetId,
+        frontend_redirect_url: window.location.origin + window.location.pathname
+      };
+      if (amount) body.amount = amount;
+
+      responseBox.textContent = "Initiating payment on backend...";
+      try {
+        const res = await fetch("/api/erp/finance/payu/initiate/", {
+          method: "POST",
+          headers: getAuthHeaders(),
+          body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        responseBox.textContent = JSON.stringify(data, null, 2);
+
+        if (!res.ok || !data.payu_action_url || !data.params) {
+          return;
+        }
+
+        const form = document.createElement("form");
+        form.method = "POST";
+        form.action = data.payu_action_url;
+        Object.entries(data.params).forEach(([k, v]) => {
+          const input = document.createElement("input");
+          input.type = "hidden";
+          input.name = k;
+          input.value = v ?? "";
+          form.appendChild(input);
+        });
+        document.body.appendChild(form);
+        form.submit();
+      } catch (err) {
+        responseBox.textContent = "Error: " + err.message;
+      }
+    }
+  </script>
+</body>
+</html>

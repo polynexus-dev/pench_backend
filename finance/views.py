@@ -21,18 +21,31 @@ class MonthlyBillViewSet(viewsets.ModelViewSet):
     required_groups = ["Accountants", "ERP_Admins"]
     filterset_fields = ["status", "customer"]
 
+    def get_permissions(self):
+        if self.action in ["list", "retrieve", "download_pdf"]:
+            return [IsAuthenticated()]
+        return [IsERPUser(), HasGroupPermission()]
+
     def get_serializer_class(self):
         if self.action == "list":
             return MonthlyBillListSerializer
         return MonthlyBillSerializer
 
+    def _scope_to_user(self, qs):
+        user = self.request.user
+        if IsERPUser().has_permission(self.request, self):
+            return qs
+        if hasattr(user, "customer_profile") and user.customer_profile is not None:
+            return qs.filter(customer=user.customer_profile)
+        return qs.none()
+
     def get_queryset(self):
         if self.action == "list":
-            return (
+            return self._scope_to_user(
                 MonthlyBill.objects.select_related("customer")
                 .annotate(transaction_count=Count("transactions"))
             )
-        return (
+        return self._scope_to_user(
             MonthlyBill.objects.all()
             .select_related("customer")
             .prefetch_related("transactions")
@@ -301,39 +314,40 @@ class MonthlyBillViewSet(viewsets.ModelViewSet):
 
         pdf.ln(8)
 
-        # 3. Delivered Orders breakdown
-        year = bill.billing_month.year
-        month = bill.billing_month.month
-        start_date = datetime.date(year, month, 1)
-        if month == 12:
-            end_date = datetime.date(year + 1, 1, 1)
-        else:
-            end_date = datetime.date(year, month + 1, 1)
+        # 3. Comprehensive Breakdown using build_monthly_bill_breakdown
+        from .services import build_monthly_bill_breakdown
 
-        orders = Order.objects.filter(
-            customer=customer,
-            status=OrderStatus.DELIVERED,
-            scheduled_delivery_date__gte=start_date,
-            scheduled_delivery_date__lt=end_date,
-        ).order_by("scheduled_delivery_date")
+        bd = build_monthly_bill_breakdown(bill)
+        sub_summary = bd["subscription_summary"]
+        extra_summary = bd["extra_orders_summary"]
+        ded_summary = bd["deductions_and_credits"]
+        calc = bd["final_calculation"]
 
-        pdf.set_font("helvetica", "B", 12)
+        # Section A: Weekly Subscription Deliveries Breakdown (Scheduled vs Skipped vs Delivered)
+        pdf.set_font("helvetica", "B", 11)
+        pdf.set_text_color(30, 41, 59)
         pdf.cell(
-            w=0, h=6, text="Delivered Orders Breakdown", new_x="LMARGIN", new_y="NEXT"
-        )
-        pdf.ln(2)
-
-        pdf.set_font("helvetica", "B", 9)
-        pdf.set_fill_color(248, 250, 252)
-        pdf.set_text_color(71, 85, 105)
-
-        pdf.cell(w=40, h=6, text="Order Date", border=1, fill=True)
-        pdf.cell(w=60, h=6, text="Order ID / Reference", border=1, fill=True)
-        pdf.cell(w=50, h=6, text="Status", border=1, fill=True)
-        pdf.cell(
-            w=40,
+            w=0,
             h=6,
-            text="Amount (INR)",
+            text="1. Subscription Weekly Delivery Breakdown (Charged Only for Delivered Days)",
+            new_x="LMARGIN",
+            new_y="NEXT",
+        )
+        pdf.ln(1)
+
+        pdf.set_font("helvetica", "B", 8)
+        pdf.set_fill_color(241, 245, 249)
+        pdf.set_text_color(71, 85, 105)
+        pdf.cell(w=22, h=6, text="Week", border=1, align="C", fill=True)
+        pdf.cell(w=42, h=6, text="Billing Period", border=1, align="C", fill=True)
+        pdf.cell(w=28, h=6, text="Scheduled Days", border=1, align="C", fill=True)
+        pdf.cell(w=28, h=6, text="Skipped / Missed", border=1, align="C", fill=True)
+        pdf.cell(w=28, h=6, text="Delivered Days", border=1, align="C", fill=True)
+        pdf.cell(w=18, h=6, text="Rate/Day", border=1, align="R", fill=True)
+        pdf.cell(
+            w=24,
+            h=6,
+            text="Charged (INR)",
             border=1,
             align="R",
             fill=True,
@@ -341,81 +355,95 @@ class MonthlyBillViewSet(viewsets.ModelViewSet):
             new_y="NEXT",
         )
 
-        pdf.set_font("helvetica", "", 9)
+        pdf.set_font("helvetica", "", 8)
         pdf.set_text_color(15, 23, 42)
-
-        if not orders.exists():
+        for w in sub_summary["weeks"]:
+            pdf.cell(w=22, h=6, text=f"Week {w['week_number']}", border=1, align="C")
+            pdf.cell(w=42, h=6, text=w["period"], border=1, align="C")
+            pdf.cell(w=28, h=6, text=f"{w['scheduled_days']} days", border=1, align="C")
             pdf.cell(
-                w=190,
+                w=28,
                 h=6,
-                text="No delivered orders logged for this billing period.",
+                text=f"{w['skipped_or_missed_days']} days",
                 border=1,
                 align="C",
+            )
+            pdf.cell(w=28, h=6, text=f"{w['delivered_days']} days", border=1, align="C")
+            pdf.cell(w=18, h=6, text=f"{w['rate_per_day']:.2f}", border=1, align="R")
+            pdf.cell(
+                w=24,
+                h=6,
+                text=f"{w['charged_amount']:.2f}",
+                border=1,
+                align="R",
                 new_x="LMARGIN",
                 new_y="NEXT",
             )
-        else:
-            for order in orders:
-                if pdf.get_y() > 250:
-                    pdf.add_page()
-                    pdf.set_font("helvetica", "B", 9)
-                    pdf.set_fill_color(248, 250, 252)
-                    pdf.set_text_color(71, 85, 105)
-                    pdf.cell(w=40, h=6, text="Order Date", border=1, fill=True)
-                    pdf.cell(
-                        w=60, h=6, text="Order ID / Reference", border=1, fill=True
-                    )
-                    pdf.cell(w=50, h=6, text="Status", border=1, fill=True)
-                    pdf.cell(
-                        w=40,
-                        h=6,
-                        text="Amount (INR)",
-                        border=1,
-                        align="R",
-                        fill=True,
-                        new_x="LMARGIN",
-                        new_y="NEXT",
-                    )
-                    pdf.set_font("helvetica", "", 9)
-                    pdf.set_text_color(15, 23, 42)
 
-                order_date = order.scheduled_delivery_date.strftime("%d %b %Y")
-                order_id = str(order.id)[:8].upper()
-                pdf.cell(w=40, h=6, text=order_date, border=1)
-                pdf.cell(w=60, h=6, text=f"ORD-{order_id}", border=1)
-                pdf.cell(w=50, h=6, text=order.status.capitalize(), border=1)
-                pdf.cell(
-                    w=40,
-                    h=6,
-                    text=f"{order.total:.2f}",
-                    border=1,
-                    align="R",
-                    new_x="LMARGIN",
-                    new_y="NEXT",
-                )
-
-        pdf.ln(8)
-
-        # 4. Payment Register
-        transactions = bill.transactions.all().order_by("payment_date")
-
-        pdf.set_font("helvetica", "B", 12)
-        pdf.cell(
-            w=0, h=6, text="Received Payments History", new_x="LMARGIN", new_y="NEXT"
-        )
-        pdf.ln(2)
-
-        pdf.set_font("helvetica", "B", 9)
+        pdf.set_font("helvetica", "B", 8)
         pdf.set_fill_color(248, 250, 252)
-        pdf.set_text_color(71, 85, 105)
-
-        pdf.cell(w=45, h=6, text="Payment Date", border=1, fill=True)
-        pdf.cell(w=45, h=6, text="Method", border=1, fill=True)
-        pdf.cell(w=60, h=6, text="Transaction ID", border=1, fill=True)
+        pdf.cell(w=64, h=6, text="Subscription Monthly Subtotal", border=1, fill=True)
         pdf.cell(
-            w=40,
+            w=28,
             h=6,
-            text="Amount (INR)",
+            text=f"{sub_summary['total_scheduled_days']} days",
+            border=1,
+            align="C",
+            fill=True,
+        )
+        pdf.cell(
+            w=28,
+            h=6,
+            text=f"{sub_summary['total_skipped_or_missed_days']} days",
+            border=1,
+            align="C",
+            fill=True,
+        )
+        pdf.cell(
+            w=28,
+            h=6,
+            text=f"{sub_summary['total_delivered_days']} days",
+            border=1,
+            align="C",
+            fill=True,
+        )
+        pdf.cell(w=18, h=6, text="-", border=1, align="C", fill=True)
+        pdf.cell(
+            w=24,
+            h=6,
+            text=f"{sub_summary['subscription_gross_total']:.2f}",
+            border=1,
+            align="R",
+            fill=True,
+            new_x="LMARGIN",
+            new_y="NEXT",
+        )
+        pdf.ln(5)
+
+        # Section B: Mid-Month Extra / Additional Orders
+        pdf.set_font("helvetica", "B", 11)
+        pdf.set_text_color(30, 41, 59)
+        pdf.cell(
+            w=0,
+            h=6,
+            text="2. Mid-Month Additional / Extra Orders",
+            new_x="LMARGIN",
+            new_y="NEXT",
+        )
+        pdf.ln(1)
+
+        pdf.set_font("helvetica", "B", 8)
+        pdf.set_fill_color(241, 245, 249)
+        pdf.set_text_color(71, 85, 105)
+        pdf.cell(w=24, h=6, text="Order Date", border=1, fill=True)
+        pdf.cell(w=26, h=6, text="Order Ref", border=1, fill=True)
+        pdf.cell(w=56, h=6, text="Items Ordered", border=1, fill=True)
+        pdf.cell(w=40, h=6, text="Payment Choice", border=1, fill=True)
+        pdf.cell(w=22, h=6, text="Order Amt", border=1, align="R", fill=True)
+        pdf.cell(
+            w=22,
+            h=6,
+            text="Paid at Order",
             border=1,
             align="R",
             fill=True,
@@ -423,55 +451,172 @@ class MonthlyBillViewSet(viewsets.ModelViewSet):
             new_y="NEXT",
         )
 
-        pdf.set_font("helvetica", "", 9)
+        pdf.set_font("helvetica", "", 8)
         pdf.set_text_color(15, 23, 42)
-
-        if not transactions.exists():
+        if not extra_summary["orders"]:
             pdf.cell(
                 w=190,
                 h=6,
-                text="No payments recorded against this invoice.",
+                text="No mid-month additional orders placed in this billing period.",
                 border=1,
                 align="C",
                 new_x="LMARGIN",
                 new_y="NEXT",
             )
         else:
-            for tx in transactions:
-                if pdf.get_y() > 250:
-                    pdf.add_page()
-                    pdf.set_font("helvetica", "B", 9)
-                    pdf.set_fill_color(248, 250, 252)
-                    pdf.set_text_color(71, 85, 105)
-                    pdf.cell(w=45, h=6, text="Payment Date", border=1, fill=True)
-                    pdf.cell(w=45, h=6, text="Method", border=1, fill=True)
-                    pdf.cell(w=60, h=6, text="Transaction ID", border=1, fill=True)
-                    pdf.cell(
-                        w=40,
-                        h=6,
-                        text="Amount (INR)",
-                        border=1,
-                        align="R",
-                        fill=True,
-                        new_x="LMARGIN",
-                        new_y="NEXT",
-                    )
-                    pdf.set_font("helvetica", "", 9)
-                    pdf.set_text_color(15, 23, 42)
-
-                tx_date = tx.payment_date.strftime("%d %b %Y %H:%M")
-                pdf.cell(w=45, h=6, text=tx_date, border=1)
-                pdf.cell(w=45, h=6, text=tx.payment_method.capitalize(), border=1)
-                pdf.cell(w=60, h=6, text=tx.transaction_id or "N/A", border=1)
+            for eo in extra_summary["orders"]:
+                items_txt = (
+                    eo["items_summary"][:32] + "..."
+                    if len(eo["items_summary"]) > 35
+                    else eo["items_summary"]
+                )
+                pdf.cell(w=24, h=6, text=eo["date"], border=1)
+                pdf.cell(w=26, h=6, text=eo["order_ref"], border=1)
+                pdf.cell(w=56, h=6, text=items_txt, border=1)
+                pdf.cell(w=40, h=6, text=eo["payment_tag"], border=1)
+                pdf.cell(w=22, h=6, text=f"{eo['total']:.2f}", border=1, align="R")
                 pdf.cell(
-                    w=40,
+                    w=22,
                     h=6,
-                    text=f"{tx.amount:.2f}",
+                    text=f"{eo['paid_at_order']:.2f}",
                     border=1,
                     align="R",
                     new_x="LMARGIN",
                     new_y="NEXT",
                 )
+        pdf.ln(5)
+
+        # Section C: Deductions / Prepaid Credits & Payments
+        pdf.set_font("helvetica", "B", 11)
+        pdf.set_text_color(30, 41, 59)
+        pdf.cell(
+            w=0,
+            h=6,
+            text="3. Less: Deductions & Payments Already Received",
+            new_x="LMARGIN",
+            new_y="NEXT",
+        )
+        pdf.ln(1)
+
+        pdf.set_font("helvetica", "B", 8)
+        pdf.set_fill_color(241, 245, 249)
+        pdf.set_text_color(71, 85, 105)
+        pdf.cell(w=32, h=6, text="Date", border=1, fill=True)
+        pdf.cell(w=64, h=6, text="Deduction / Credit Type", border=1, fill=True)
+        pdf.cell(w=60, h=6, text="Reference / Transaction ID", border=1, fill=True)
+        pdf.cell(
+            w=34,
+            h=6,
+            text="Deducted (INR)",
+            border=1,
+            align="R",
+            fill=True,
+            new_x="LMARGIN",
+            new_y="NEXT",
+        )
+
+        pdf.set_font("helvetica", "", 8)
+        pdf.set_text_color(15, 23, 42)
+        if not ded_summary["items"]:
+            pdf.cell(
+                w=190,
+                h=6,
+                text="No upfront order payments or bill credits recorded yet.",
+                border=1,
+                align="C",
+                new_x="LMARGIN",
+                new_y="NEXT",
+            )
+        else:
+            for d_item in ded_summary["items"]:
+                pdf.cell(w=32, h=6, text=d_item["date"], border=1)
+                pdf.cell(w=64, h=6, text=d_item["type"], border=1)
+                pdf.cell(w=60, h=6, text=d_item["reference"], border=1)
+                pdf.set_text_color(22, 163, 74)
+                pdf.cell(
+                    w=34,
+                    h=6,
+                    text=f"- {d_item['amount']:.2f}",
+                    border=1,
+                    align="R",
+                    new_x="LMARGIN",
+                    new_y="NEXT",
+                )
+                pdf.set_text_color(15, 23, 42)
+        pdf.ln(5)
+
+        # Section D: Final Bill Calculation Box
+        pdf.set_font("helvetica", "B", 11)
+        pdf.set_text_color(30, 41, 59)
+        pdf.cell(
+            w=0,
+            h=6,
+            text="4. Final Monthly Bill Calculation",
+            new_x="LMARGIN",
+            new_y="NEXT",
+        )
+        pdf.ln(1)
+
+        orders_value = calc["subscription_charges"] + calc["mid_month_extra_orders"]
+        unpaid_subtotal = max(0.0, orders_value - calc["less_deductions_and_payments"])
+        calc_rows = [
+            (
+                f"(+) Subscription Charges ({sub_summary['total_delivered_days']}/{sub_summary['total_scheduled_days']} Delivered Days)",
+                f"INR {calc['subscription_charges']:,.2f}",
+                False,
+            ),
+            (
+                f"(+) Mid-Month Additional Orders ({extra_summary['count']} Extra Orders)",
+                f"INR {calc['mid_month_extra_orders']:,.2f}",
+                False,
+            ),
+            (
+                "(=) Total Monthly Orders Value",
+                f"INR {orders_value:,.2f}",
+                True,
+            ),
+            (
+                "(-) Less: Already Paid (Prepaid Extra Orders / Subscription Credits)",
+                f"- INR {calc['less_deductions_and_payments']:,.2f}",
+                False,
+            ),
+            (
+                "(=) Unpaid Bill Subtotal",
+                f"INR {unpaid_subtotal:,.2f}",
+                True,
+            ),
+            (
+                "(+) Packing & Handling Charges",
+                f"INR {calc['packing_and_handling_charges']:,.2f}",
+                False,
+            ),
+            (
+                "(=) NET PAYABLE BALANCE (Remaining Amount)",
+                f"INR {calc['net_payable_balance']:,.2f}",
+                True,
+            ),
+        ]
+        for label_txt, val_txt, is_bold in calc_rows:
+            pdf.set_font("helvetica", "B" if is_bold else "", 9)
+            if "NET PAYABLE" in label_txt:
+                pdf.set_fill_color(239, 246, 255)
+                fill = True
+            elif is_bold:
+                pdf.set_fill_color(248, 250, 252)
+                fill = True
+            else:
+                fill = False
+            pdf.cell(w=145, h=7, text=label_txt, border=1, fill=fill)
+            pdf.cell(
+                w=45,
+                h=7,
+                text=val_txt,
+                border=1,
+                align="R",
+                fill=fill,
+                new_x="LMARGIN",
+                new_y="NEXT",
+            )
 
         pdf_content = pdf.output()
         response = HttpResponse(bytes(pdf_content), content_type="application/pdf")
@@ -678,3 +823,632 @@ class OnlinePaymentViewSet(viewsets.ModelViewSet):
                 "pending_by_purpose": by_purpose,
             }
         )
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# PayU Payment Gateway Views (Orders, Monthly Bills & Subscriptions)
+# ──────────────────────────────────────────────────────────────────────────────
+
+from decimal import Decimal, InvalidOperation
+from urllib.parse import urlencode, urlparse, urlunparse, parse_qsl
+from django.db import connection, transaction as db_transaction
+from django.http import HttpResponse
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
+from rest_framework.permissions import AllowAny
+from rest_framework.views import APIView
+
+from .models import OnlinePaymentPurpose
+from .payu import (
+    build_user_credentials,
+    calculate_command_hash,
+    calculate_request_hash,
+    estimate_subscription_amount,
+    fetch_payu_verify_payment,
+    format_payu_amount,
+    generate_mobile_sdk_hash,
+    generate_seamless_sdk_hashes,
+    generate_txnid,
+    get_payu_config,
+    reconcile_payu_callback,
+    verify_response_hash,
+)
+
+
+def _append_query_params(url: str, params: dict) -> str:
+    parsed = urlparse(url)
+    query = dict(parse_qsl(parsed.query))
+    query.update({k: str(v) for k, v in params.items() if v is not None})
+    return urlunparse(parsed._replace(query=urlencode(query)))
+
+
+class PayUInitiateView(APIView):
+    """
+    POST /api/erp/finance/payu/initiate/
+    Initiates a PayU checkout session for:
+      - Special / Extra Order: {"order": "<order_uuid>"}
+      - Monthly Bill:          {"bill": "<bill_uuid>", "amount": "<optional_partial_amount>"}
+      - Subscription:          {"subscription": "<subscription_uuid>", "amount": "<optional_amount>"}
+    Computes the authoritative amount on the server, creates a PENDING OnlinePayment record
+    tagged with `payment_gateway="payu"`, and returns the signed PayU parameters and hash.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def _is_admin(self, request):
+        return IsERPUser().has_permission(request, self)
+
+    def _customer_profile(self, request):
+        user = request.user
+        if hasattr(user, "customer_profile") and user.customer_profile is not None:
+            return user.customer_profile
+        return None
+
+    def post(self, request):
+        cfg = get_payu_config()
+        if not cfg["key"] or not cfg["salt"]:
+            return Response(
+                {"detail": "PayU gateway credentials are not configured on the server."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        order_id = request.data.get("order") or request.data.get("order_id")
+        bill_id = request.data.get("bill") or request.data.get("bill_id")
+        subscription_id = (
+            request.data.get("subscription") or request.data.get("subscription_id")
+        )
+        raw_amount = request.data.get("amount")
+
+        targets = [bool(order_id), bool(bill_id), bool(subscription_id)]
+        if sum(targets) != 1:
+            return Response(
+                {
+                    "detail": "Specify exactly one payment target: 'order', 'bill', or 'subscription'."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        is_admin = self._is_admin(request)
+        customer_profile = self._customer_profile(request)
+        if not is_admin and not customer_profile:
+            return Response(
+                {"detail": "Only customers or admins can initiate payments."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        order = None
+        bill = None
+        subscription = None
+        customer = None
+        amount = None
+        purpose = OnlinePaymentPurpose.GENERAL
+        productinfo = "Pench Foods Payment"
+        target_uuid = ""
+
+        # 1. Special / Extra Order (or any Order)
+        if order_id:
+            from orders.models import Order, PaymentStatus
+
+            try:
+                order = Order.objects.select_related("customer").get(id=order_id)
+            except (Order.DoesNotExist, ValueError):
+                return Response(
+                    {"detail": "Order not found."}, status=status.HTTP_404_NOT_FOUND
+                )
+
+            if not is_admin and order.customer_id != customer_profile.id:
+                return Response(
+                    {"detail": "Order does not belong to you."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+            remaining = Decimal(str(order.remaining_amount))
+            if order.payment_status == PaymentStatus.PAID or remaining <= 0:
+                return Response(
+                    {"detail": "This order has already been fully paid."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            if raw_amount is not None and str(raw_amount).strip() != "":
+                try:
+                    amount = Decimal(str(raw_amount))
+                except (InvalidOperation, ValueError):
+                    return Response(
+                        {"amount": "Invalid payment amount."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                if amount <= 0 or amount > remaining:
+                    return Response(
+                        {
+                            "amount": f"Amount must be between 0.01 and {remaining:.2f}."
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+            else:
+                amount = remaining
+
+            customer = order.customer
+            purpose = OnlinePaymentPurpose.ORDER
+            productinfo = f"Order #{str(order.id)[:8].upper()}"
+            target_uuid = str(order.id)
+
+        # 2. Monthly Bill
+        elif bill_id:
+            try:
+                bill = MonthlyBill.objects.select_related("customer").get(id=bill_id)
+            except (MonthlyBill.DoesNotExist, ValueError):
+                return Response(
+                    {"detail": "Monthly bill not found."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            if not is_admin and bill.customer_id != customer_profile.id:
+                return Response(
+                    {"detail": "Monthly bill does not belong to you."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+            remaining = Decimal(str(bill.remaining_amount))
+            if bill.status == BillStatus.PAID or remaining <= 0:
+                return Response(
+                    {"detail": "This monthly bill is already fully paid."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            if raw_amount is not None and str(raw_amount).strip() != "":
+                try:
+                    amount = Decimal(str(raw_amount))
+                except (InvalidOperation, ValueError):
+                    return Response(
+                        {"amount": "Invalid payment amount."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                if amount <= 0 or amount > remaining:
+                    return Response(
+                        {
+                            "amount": f"Amount must be between 0.01 and {remaining:.2f}."
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+            else:
+                amount = remaining
+
+            customer = bill.customer
+            purpose = OnlinePaymentPurpose.BILL
+            productinfo = f"Monthly Bill {bill.invoice_number}"
+            target_uuid = str(bill.id)
+
+        # 3. Subscription
+        elif subscription_id:
+            from subscriptions.models import Subscription
+
+            try:
+                subscription = (
+                    Subscription.objects.select_related("customer")
+                    .prefetch_related("items__product")
+                    .get(id=subscription_id)
+                )
+            except (Subscription.DoesNotExist, ValueError):
+                return Response(
+                    {"detail": "Subscription not found."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            if not is_admin and subscription.customer_id != customer_profile.id:
+                return Response(
+                    {"detail": "Subscription does not belong to you."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+            if raw_amount is not None and str(raw_amount).strip() != "":
+                try:
+                    amount = Decimal(str(raw_amount))
+                except (InvalidOperation, ValueError):
+                    return Response(
+                        {"amount": "Invalid payment amount."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+            else:
+                amount = estimate_subscription_amount(subscription)
+
+            if amount <= 0:
+                return Response(
+                    {"amount": "Subscription payment amount must be greater than zero."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            customer = subscription.customer
+            purpose = OnlinePaymentPurpose.SUBSCRIPTION
+            productinfo = f"Subscription #{str(subscription.id)[:8].upper()}"
+            target_uuid = str(subscription.id)
+
+        amount_str = format_payu_amount(amount)
+        txnid = generate_txnid()
+
+        with db_transaction.atomic():
+            payment = OnlinePayment.objects.create(
+                customer=customer,
+                amount=Decimal(amount_str),
+                purpose=purpose,
+                order=order,
+                bill=bill,
+                subscription=subscription,
+                payment_gateway="payu",
+                gateway_txnid=txnid,
+                status=OnlinePaymentStatus.PENDING,
+                submitted_by=request.user,
+            )
+
+        callback_url = request.build_absolute_uri("/api/erp/finance/payu/callback/")
+        if request.is_secure() or request.META.get("HTTP_X_FORWARDED_PROTO") == "https":
+            if callback_url.startswith("http://"):
+                callback_url = "https://" + callback_url[7:]
+
+        surl = request.data.get("surl") or callback_url
+        furl = request.data.get("furl") or callback_url
+        frontend_redirect = str(request.data.get("frontend_redirect_url") or "")
+
+        firstname = (customer.name or "Customer").strip().split(" ")[0][:60]
+        email = (customer.email or getattr(request.user, "email", "") or "customer@penchfoods.com").strip()
+        phone = (customer.phone or getattr(request.user, "phone", "") or "").strip()
+        schema_name = getattr(connection, "schema_name", "") or ""
+        user_identifier = phone or email or str(customer.id)
+        user_credentials = (
+            str(request.data.get("user_credentials") or "").strip()
+            or build_user_credentials(cfg["key"], user_identifier)
+        )
+
+        params = {
+            "key": cfg["key"],
+            "txnid": txnid,
+            "amount": amount_str,
+            "productinfo": productinfo,
+            "firstname": firstname,
+            "email": email,
+            "phone": phone,
+            "surl": surl,
+            "furl": furl,
+            "udf1": schema_name,
+            "udf2": str(payment.id),
+            "udf3": frontend_redirect,
+            "udf4": purpose,
+            "udf5": target_uuid,
+            "user_credentials": user_credentials,
+        }
+        hashes = generate_seamless_sdk_hashes(
+            params=params,
+            user_credentials=user_credentials,
+            key=cfg["key"],
+            salt=cfg["salt"],
+        )
+        params["hash"] = hashes["payment_hash"]
+
+        return Response(
+            {
+                "payment_id": str(payment.id),
+                "txnid": txnid,
+                "amount": amount_str,
+                "purpose": purpose,
+                "mode": cfg["mode"],
+                "action_url": cfg["action_url"],
+                "user_credentials": user_credentials,
+                "params": params,
+                "hashes": hashes,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+class PayUCallbackView(APIView):
+    """
+    POST /api/erp/finance/payu/callback/  (and /api/payu/callback/)
+    Handles browser redirects (surl / furl) from PayU after checkout completion.
+    Verifies the reverse SHA-512 hash, reconciles the OnlinePayment (and linked Order,
+    MonthlyBill, or Subscription), and either redirects to the frontend/mobile deep-link
+    or returns JSON.
+    """
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        payload = {k: request.data.get(k) for k in request.data.keys()}
+        if not verify_response_hash(payload):
+            return Response(
+                {"detail": "Invalid PayU signature hash."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        payment, outcome = reconcile_payu_callback(payload)
+        if outcome == "not_found" or payment is None:
+            return Response(
+                {"detail": "Payment transaction not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        cfg = get_payu_config()
+        payu_status = str(payload.get("status", "") or "").strip().lower()
+        is_success = payu_status == "success"
+
+        redirect_base = (
+            str(payload.get("udf3", "") or "").strip()
+            or (cfg["success_redirect_url"] if is_success else cfg["failure_redirect_url"])
+        )
+
+        result_params = {
+            "status": "success" if is_success else "failure",
+            "outcome": outcome,
+            "txnid": payment.gateway_txnid,
+            "mihpayid": payment.gateway_mihpayid,
+            "payment_id": str(payment.id),
+            "payment_status": payment.status,
+            "purpose": payment.purpose,
+        }
+
+        if redirect_base:
+            target_url = _append_query_params(redirect_base, result_params)
+            res = HttpResponse(status=status.HTTP_302_FOUND)
+            res["Location"] = target_url
+            return res
+
+        return Response(result_params, status=status.HTTP_200_OK)
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+class PayUWebhookView(APIView):
+    """
+    POST /api/erp/finance/payu/webhook/  (and /api/payu/webhook/)
+    Server-to-server webhook endpoint for PayU asynchronous notifications.
+    """
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        payload = {k: request.data.get(k) for k in request.data.keys()}
+        if not verify_response_hash(payload):
+            return Response(
+                {"detail": "Invalid PayU signature hash."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        payment, outcome = reconcile_payu_callback(payload)
+        if outcome == "not_found" or payment is None:
+            return Response(
+                {"detail": "Payment transaction not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        return Response(
+            {
+                "status": "success" if payment.status == OnlinePaymentStatus.VERIFIED else "failure",
+                "outcome": outcome,
+                "txnid": payment.gateway_txnid,
+                "mihpayid": payment.gateway_mihpayid,
+                "payment_id": str(payment.id),
+                "payment_status": payment.status,
+                "purpose": payment.purpose,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class PayUMobileHashView(APIView):
+    """
+    POST /api/erp/finance/payu/mobile-hash/
+    Supports both:
+      1. PayU CoreSDK Seamless Integration command hashes (`sha512(key|command|var1|salt)`):
+         {"command": "validateVPA" | "vas_for_mobile_sdk" | "payment_related_details_for_mobile_sdk" | "check_is_domestic" | ..., "var1": "...", "hashName": "..."}
+      2. PayU CheckoutPro / CoreSDK dynamic hashString callback (`sha512(hashString + salt)`):
+         {"hashName": "...", "hashString": "...", "postSalt": "..."}
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        cfg = get_payu_config()
+        if not cfg["key"] or not cfg["salt"]:
+            return Response(
+                {"detail": "PayU gateway credentials are not configured on the server."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        command = request.data.get("command")
+        var1 = request.data.get("var1", "default")
+        hash_string = request.data.get("hashString")
+        hash_name = request.data.get("hashName") or command or "hash"
+        post_salt = request.data.get("postSalt")
+
+        if command:
+            computed = calculate_command_hash(
+                command=str(command).strip(),
+                var1=str(var1) if var1 is not None else "default",
+                key=cfg["key"],
+                salt=cfg["salt"],
+            )
+        elif hash_string:
+            computed = generate_mobile_sdk_hash(
+                hash_string=str(hash_string),
+                post_salt=str(post_salt) if post_salt else None,
+                salt=cfg["salt"],
+            )
+        else:
+            return Response(
+                {"detail": "Provide either 'command' (and optional 'var1') or 'hashString'."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            {
+                "hashName": hash_name,
+                hash_name: computed,
+                "hash": computed,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class PayUPaymentStatusView(APIView):
+    """
+    GET /api/erp/finance/payu/status/<txnid>/?verify=1
+    POST /api/erp/finance/payu/status/<txnid>/
+    Allows Web and Mobile (CoreSDK Seamless) clients to check the status of a PayU
+    transaction by `txnid` or `OnlinePayment.id`.
+    If `?verify=1` (or POST) is used while the payment is still PENDING, queries
+    PayU's `verify_payment` WebService API directly to reconcile on demand.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def _get_payment(self, request, txnid):
+        qs = OnlinePayment.objects.select_related("customer", "bill", "order", "subscription")
+        if not IsERPUser().has_permission(request, self):
+            customer = getattr(request.user, "customer_profile", None)
+            if not customer:
+                return None, Response(status=status.HTTP_403_FORBIDDEN)
+            qs = qs.filter(customer=customer)
+
+        payment = qs.filter(gateway_txnid=txnid).first()
+        if not payment:
+            try:
+                payment = qs.filter(id=txnid).first()
+            except ValueError:
+                payment = None
+
+        if not payment:
+            return None, Response(
+                {"detail": "Payment not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        return payment, None
+
+    def _sync_with_payu_if_pending(self, payment):
+        if payment.status != OnlinePaymentStatus.PENDING or not payment.gateway_txnid:
+            return payment
+        try:
+            res = fetch_payu_verify_payment(payment.gateway_txnid)
+            txn_details = (res.get("transaction_details") or {}).get(
+                payment.gateway_txnid
+            )
+            if isinstance(txn_details, dict) and txn_details.get("status"):
+                reconciled, _ = reconcile_payu_callback(txn_details)
+                if reconciled:
+                    return reconciled
+        except Exception:
+            pass
+        payment.refresh_from_db()
+        return payment
+
+    def get(self, request, txnid):
+        payment, err_response = self._get_payment(request, txnid)
+        if err_response:
+            return err_response
+
+        if str(request.query_params.get("verify", "")).lower() in ("1", "true", "yes"):
+            payment = self._sync_with_payu_if_pending(payment)
+
+        return Response(
+            OnlinePaymentSerializer(payment, context={"request": request}).data,
+            status=status.HTTP_200_OK,
+        )
+
+    def post(self, request, txnid):
+        payment, err_response = self._get_payment(request, txnid)
+        if err_response:
+            return err_response
+
+        payment = self._sync_with_payu_if_pending(payment)
+        return Response(
+            OnlinePaymentSerializer(payment, context={"request": request}).data,
+            status=status.HTTP_200_OK,
+        )
+
+
+class PayUSandboxTestPageView(APIView):
+    """
+    GET /api/erp/finance/payu/sandbox-test/
+    Renders a self-contained HTML test harness for testing PayU Sandbox payments
+    (Orders, Monthly Bills, and Subscriptions) end-to-end in the browser.
+    """
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        from django.shortcuts import render
+
+        cfg = get_payu_config()
+        return render(
+            request,
+            "finance/payu_sandbox_test.html",
+            {"payu_mode": cfg["mode"], "payu_key": cfg["key"]},
+        )
+
+
+class HandlingFeeSlabsView(APIView):
+    """
+    GET /api/erp/finance/handling-fee-slabs/?amount=200&payment_method=payu
+    Returns the configured Packing & Handling fee slabs and calculates the exact
+    fee for a given cart/order/bill amount so the frontend/mobile app can preview it.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from decimal import Decimal, InvalidOperation
+        from .services import PACKING_AND_HANDLING_SLABS, get_packing_and_handling_slab
+
+        slabs_out = [
+            {
+                "min_amount": float(s["min_amount"]),
+                "max_amount": float(s["max_amount"]) if s["max_amount"] is not None else None,
+                "handling_fee": float(s["fee"]),
+                "label": s["label"],
+            }
+            for s in PACKING_AND_HANDLING_SLABS
+        ]
+
+        raw_amount = request.query_params.get("amount")
+        payment_method = (request.query_params.get("payment_method") or "payu").lower()
+        calculation = None
+
+        if raw_amount is not None:
+            try:
+                base_amt = Decimal(str(raw_amount))
+            except (InvalidOperation, ValueError):
+                return Response(
+                    {"amount": "Must be a valid number."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            if payment_method == "on_account":
+                calculation = {
+                    "items_subtotal": float(base_amt),
+                    "payment_method": "on_account",
+                    "handling_fee": 0.0,
+                    "slab_label": "Added to Monthly Bill (Handling fee applied once on Monthly Bill)",
+                    "total_payable_now": 0.0,
+                    "added_to_monthly_bill": float(base_amt),
+                }
+            else:
+                slab = get_packing_and_handling_slab(base_amt)
+                fee = slab["fee"]
+                calculation = {
+                    "items_subtotal": float(base_amt),
+                    "payment_method": payment_method,
+                    "handling_fee": float(fee),
+                    "slab_label": slab["label"],
+                    "total_payable_now": float(base_amt + fee),
+                }
+
+        return Response(
+            {
+                "slabs": slabs_out,
+                "calculation": calculation,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+

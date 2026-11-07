@@ -29,6 +29,7 @@ class MonthlyBillSerializer(serializers.ModelSerializer):
     remaining_amount = serializers.DecimalField(
         max_digits=12, decimal_places=2, read_only=True
     )
+    orders_breakdown = serializers.SerializerMethodField()
 
     class Meta:
         model = MonthlyBill
@@ -37,6 +38,7 @@ class MonthlyBillSerializer(serializers.ModelSerializer):
             "customer",
             "customer_name",
             "billing_month",
+            "handling_fee",
             "total_amount",
             "amount_paid",
             "remaining_amount",
@@ -45,7 +47,13 @@ class MonthlyBillSerializer(serializers.ModelSerializer):
             "due_date",
             "invoice_number",
             "transactions",
+            "orders_breakdown",
         ]
+
+    def get_orders_breakdown(self, obj):
+        from .services import build_monthly_bill_breakdown
+
+        return build_monthly_bill_breakdown(obj)
 
 
 class MonthlyBillListSerializer(serializers.ModelSerializer):
@@ -64,6 +72,7 @@ class MonthlyBillListSerializer(serializers.ModelSerializer):
             "customer",
             "customer_name",
             "billing_month",
+            "handling_fee",
             "total_amount",
             "amount_paid",
             "remaining_amount",
@@ -96,6 +105,10 @@ class OnlinePaymentSerializer(serializers.ModelSerializer):
             "amount",
             "screenshot",
             "transaction_id",
+            "payment_gateway",
+            "gateway_txnid",
+            "gateway_mihpayid",
+            "gateway_mode",
             "purpose",
             "purpose_display",
             "subscription",
@@ -114,6 +127,10 @@ class OnlinePaymentSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             "id",
+            "payment_gateway",
+            "gateway_txnid",
+            "gateway_mihpayid",
+            "gateway_mode",
             "purpose",
             "status",
             "verified_by",
@@ -144,6 +161,10 @@ class OnlinePaymentSerializer(serializers.ModelSerializer):
         return value
 
     def validate(self, attrs):
+        if self.instance is None and not attrs.get("screenshot") and not attrs.get("payment_gateway"):
+            raise serializers.ValidationError(
+                {"screenshot": "A payment screenshot is required for manual online payments."}
+            )
         # Linked subscription/order/bill must belong to the paying customer.
         customer = attrs.get("customer")
         for field in ("subscription", "order", "bill"):

@@ -42,11 +42,24 @@ class OnlinePaymentAdmin(admin.ModelAdmin):
         "customer",
         "amount",
         "purpose",
+        "payment_gateway",
         "status",
+        "gateway_txnid",
         "transaction_id",
         "created_at",
         "verified_by",
     )
-    list_filter = ("status", "purpose", "created_at")
-    search_fields = ("transaction_id", "customer__name", "customer__phone")
-    readonly_fields = ("bill_transaction", "verified_by", "verified_at")
+    list_filter = ("status", "purpose", "payment_gateway", "created_at")
+    search_fields = (
+        "transaction_id",
+        "gateway_txnid",
+        "gateway_mihpayid",
+        "customer__name",
+        "customer__phone",
+    )
+    readonly_fields = (
+        "bill_transaction",
+        "verified_by",
+        "verified_at",
+        "gateway_raw_response",
+    )

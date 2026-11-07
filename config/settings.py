@@ -356,6 +356,15 @@ RAZORPAY_KEY_SECRET = config("RAZORPAY_KEY_SECRET", default="")
 PAYTM_MERCHANT_ID = config("PAYTM_MERCHANT_ID", default="")
 PAYTM_MERCHANT_KEY = config("PAYTM_MERCHANT_KEY", default="")
 
+# PayU Payment Gateway
+PAYU_MERCHANT_KEY = config("PAYU_MERCHANT_KEY", default="")
+PAYU_MERCHANT_SALT = config("PAYU_MERCHANT_SALT", default="")
+PAYU_CLIENT_ID = config("PAYU_CLIENT_ID", default="")
+PAYU_CLIENT_SECRET = config("PAYU_CLIENT_SECRET", default="")
+PAYU_MODE = config("PAYU_MODE", default="TEST")  # "TEST" or "LIVE"
+PAYU_SUCCESS_REDIRECT_URL = config("PAYU_SUCCESS_REDIRECT_URL", default="")
+PAYU_FAILURE_REDIRECT_URL = config("PAYU_FAILURE_REDIRECT_URL", default="")
+
 # CORS Settings
 CORS_ALLOW_ALL_ORIGINS = config("CORS_ALLOW_ALL_ORIGINS", default=DEBUG, cast=bool)
 CORS_ALLOW_CREDENTIALS = True

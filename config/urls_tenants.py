@@ -5,12 +5,16 @@ from django.conf import settings
 from django.conf.urls.static import static
 from orders.views import DriverViewSet
 from core.views import AppVersionCheckView
+from finance.views import PayUCallbackView, PayUWebhookView
 
 urlpatterns = [
     # City Admin
     path("admin/", admin.site.urls),
     # Mobile app force/soft update check
     path("api/app-version/", AppVersionCheckView.as_view(), name="app-version-check"),
+    # Top-level PayU callback & webhook aliases
+    path("api/payu/callback/", PayUCallbackView.as_view(), name="tenant-payu-callback"),
+    path("api/payu/webhook/", PayUWebhookView.as_view(), name="tenant-payu-webhook"),
     # Dedicated Driver URL paths
     path(
         "api/drivers/my-route/",
