@@ -237,6 +237,29 @@ class SubscriptionViewSet(viewsets.ModelViewSet):
         except Exception as e:
             print(f"[Subscription Pause Push Notification Error] {e}")
 
+        # Broadcast to Admin Dashboard via WebSocket
+        try:
+            from channels.layers import get_channel_layer
+            from asgiref.sync import async_to_sync
+            from django.utils import timezone
+            channel_layer = get_channel_layer()
+            if channel_layer:
+                c_name = subscription.customer.name if subscription.customer else "Customer"
+                async_to_sync(channel_layer.group_send)(
+                    "admins",
+                    {
+                        "type": "broadcast_location",
+                        "notification_type": "delivery_paused",
+                        "title": "Delivery Paused ⏸️",
+                        "message": f"{c_name} paused delivery from {pause_start} to {pause_end}.",
+                        "subscription_id": str(subscription.id),
+                        "customer_name": c_name,
+                        "timestamp": timezone.now().isoformat(),
+                    },
+                )
+        except Exception:
+            pass
+
         return Response(SubscriptionSerializer(subscription).data)
 
     @action(detail=True, methods=["post"], url_path="vacation")
@@ -268,6 +291,29 @@ class SubscriptionViewSet(viewsets.ModelViewSet):
                 )
         except Exception as e:
             print(f"[Subscription Resume Push Notification Error] {e}")
+
+        # Broadcast to Admin Dashboard via WebSocket
+        try:
+            from channels.layers import get_channel_layer
+            from asgiref.sync import async_to_sync
+            from django.utils import timezone
+            channel_layer = get_channel_layer()
+            if channel_layer:
+                c_name = subscription.customer.name if subscription.customer else "Customer"
+                async_to_sync(channel_layer.group_send)(
+                    "admins",
+                    {
+                        "type": "broadcast_location",
+                        "notification_type": "delivery_resumed",
+                        "title": "Delivery Resumed ▶️",
+                        "message": f"{c_name} resumed delivery.",
+                        "subscription_id": str(subscription.id),
+                        "customer_name": c_name,
+                        "timestamp": timezone.now().isoformat(),
+                    },
+                )
+        except Exception:
+            pass
 
         return Response(SubscriptionSerializer(subscription).data)
 

@@ -258,6 +258,31 @@ class OrderViewSet(viewsets.ModelViewSet):
                 logger = logging.getLogger(__name__)
                 logger.error(f"Failed calling add_order_to_active_route_if_pending: {str(e)}")
 
+        # Broadcast to Admin Dashboard via WebSocket
+        try:
+            from channels.layers import get_channel_layer
+            from asgiref.sync import async_to_sync
+            from django.utils import timezone
+            channel_layer = get_channel_layer()
+            if channel_layer:
+                for order in orders:
+                    c_name = order.customer.name if order.customer else "Customer"
+                    order_type = "Extra Milk / Additional Order 🥛" if order.is_special else "New Order Placed 📦"
+                    async_to_sync(channel_layer.group_send)(
+                        "admins",
+                        {
+                            "type": "broadcast_location",
+                            "notification_type": "extra_milk_ordered" if order.is_special else "new_order_placed",
+                            "title": order_type,
+                            "message": f"{c_name} placed an order for {order.scheduled_delivery_date}.",
+                            "order_id": str(order.id),
+                            "customer_name": c_name,
+                            "timestamp": timezone.now().isoformat(),
+                        },
+                    )
+        except Exception:
+            pass
+
     def update(self, request, *args, **kwargs):
         user = request.user
         is_customer = hasattr(user, "customer_profile") and user.customer_profile is not None
@@ -551,6 +576,226 @@ class OrderViewSet(viewsets.ModelViewSet):
             recent, many=True, context={"request": request}
         ).data
         return Response(counts)
+
+
+    @action(detail=False, methods=["get"], url_path="customer-changes-today")
+    def customer_changes_today(self, request):
+        """
+        Consolidated current-day changes made by or affecting customers:
+        1. Subscriptions paused for today (vacation mode / hard pause / skip dates)
+        2. Extra milk / special orders scheduled for today
+        3. Subscriptions created, paused, resumed or modified today
+        4. New orders placed today
+        """
+        import datetime
+        from django.db.models import Q
+        from django.utils import timezone
+        from subscriptions.models import Subscription, SubscriptionStatus, SubscriptionSkipDate
+
+        today = datetime.date.today()
+        now = timezone.now()
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+        # 1. Paused deliveries for today
+        paused_subs = (
+            Subscription.objects.filter(
+                status__in=[SubscriptionStatus.ACTIVE, SubscriptionStatus.PAUSED]
+            )
+            .filter(
+                Q(pause_start__lte=today, pause_end__gte=today)
+                | Q(is_paused=True, pause_start__isnull=True)
+                | Q(is_paused=True, pause_start__lte=today, pause_end__isnull=True)
+            )
+            .select_related("customer")
+            .prefetch_related("items__product")
+        )
+
+        paused_deliveries_list = []
+        seen_customers = set()
+
+        for sub in paused_subs:
+            seen_customers.add(sub.customer_id)
+            items_desc = ", ".join(
+                f"{item.quantity:g}x {item.product.name}" for item in sub.items.all() if item.product
+            )
+            pause_info = "Indefinite pause"
+            if sub.pause_start and sub.pause_end:
+                pause_info = f"{sub.pause_start.strftime('%d %b')} to {sub.pause_end.strftime('%d %b')}"
+            elif sub.pause_start:
+                pause_info = f"From {sub.pause_start.strftime('%d %b')}"
+
+            paused_deliveries_list.append({
+                "subscription_id": str(sub.id),
+                "customer_id": str(sub.customer.id),
+                "customer_name": sub.customer.name,
+                "customer_phone": sub.customer.phone or "",
+                "delivery_address": sub.customer.address or sub.delivery_address or "",
+                "pause_start": sub.pause_start.isoformat() if sub.pause_start else None,
+                "pause_end": sub.pause_end.isoformat() if sub.pause_end else None,
+                "pause_display": pause_info,
+                "items_summary": items_desc or "Subscription delivery",
+                "type": "vacation",
+            })
+
+        # Skip dates for today
+        skip_dates = (
+            SubscriptionSkipDate.objects.filter(skip_date=today)
+            .select_related("subscription__customer")
+            .prefetch_related("subscription__items__product")
+        )
+        for skip in skip_dates:
+            sub = skip.subscription
+            if sub.customer_id in seen_customers:
+                continue
+            seen_customers.add(sub.customer_id)
+            items_desc = ", ".join(
+                f"{item.quantity:g}x {item.product.name}" for item in sub.items.all() if item.product
+            )
+            paused_deliveries_list.append({
+                "subscription_id": str(sub.id),
+                "customer_id": str(sub.customer.id),
+                "customer_name": sub.customer.name,
+                "customer_phone": sub.customer.phone or "",
+                "delivery_address": sub.customer.address or sub.delivery_address or "",
+                "pause_start": today.isoformat(),
+                "pause_end": today.isoformat(),
+                "pause_display": f"Skipped today ({today.strftime('%d %b')})",
+                "items_summary": items_desc or "Subscription delivery",
+                "type": "skip_date",
+                "reason": skip.reason or "Single day skip requested",
+            })
+
+        # 2. Extra milk / special orders scheduled for today
+        extra_orders = (
+            Order.objects.filter(
+                is_special=True,
+                scheduled_delivery_date=today,
+            )
+            .exclude(status=OrderStatus.CANCELLED)
+            .select_related("customer")
+            .prefetch_related("items__product")
+            .order_by("-created_at")
+        )
+
+        extra_orders_list = []
+        total_extra_litres = 0.0
+
+        for o in extra_orders:
+            items_desc_list = []
+            order_litres = 0.0
+            for it in o.items.all():
+                pname = it.product.name if it.product else "Item"
+                qty = float(it.quantity)
+                items_desc_list.append(f"{it.quantity:g}x {pname}")
+                pname_lower = pname.lower()
+                if "milk" in pname_lower or "cream" in pname_lower:
+                    mult = 1.0
+                    if "500ml" in pname_lower or "500 ml" in pname_lower:
+                        mult = 0.5
+                    elif "250g" in pname_lower or "250 ml" in pname_lower:
+                        mult = 0.25
+                    order_litres += qty * mult
+
+            total_extra_litres += order_litres
+            extra_orders_list.append({
+                "order_id": str(o.id),
+                "customer_id": str(o.customer.id),
+                "customer_name": o.customer.name,
+                "customer_phone": o.customer.phone or "",
+                "status": o.status,
+                "payment_status": o.payment_status,
+                "total": float(o.total or 0),
+                "items_summary": ", ".join(items_desc_list) or "Extra order",
+                "milk_litres": round(order_litres, 2),
+                "created_at": o.created_at.isoformat(),
+            })
+
+        # 3. Subscriptions created, paused, resumed or modified today
+        subs_changed_today = (
+            Subscription.objects.filter(
+                Q(created_at__gte=today_start) | Q(updated_at__gte=today_start)
+            )
+            .select_related("customer")
+            .prefetch_related("items__product")
+            .order_by("-updated_at")[:50]
+        )
+
+        subs_changes_list = []
+        for sub in subs_changed_today:
+            items_desc = ", ".join(
+                f"{item.quantity:g}x {item.product.name}" for item in sub.items.all() if item.product
+            )
+            change_label = "Updated"
+            if sub.created_at >= today_start:
+                change_label = "New Subscription"
+            elif sub.is_paused and sub.pause_start and sub.pause_start <= today:
+                change_label = "Paused (Vacation)"
+            elif sub.status == SubscriptionStatus.ACTIVE and not sub.is_paused:
+                change_label = "Active / Resumed"
+
+            subs_changes_list.append({
+                "subscription_id": str(sub.id),
+                "customer_id": str(sub.customer.id),
+                "customer_name": sub.customer.name,
+                "customer_phone": sub.customer.phone or "",
+                "change_type": change_label,
+                "status": sub.status,
+                "frequency": sub.frequency,
+                "items_summary": items_desc or "Subscription delivery",
+                "updated_at": sub.updated_at.isoformat(),
+            })
+
+        # 4. New orders placed today
+        new_orders_today = (
+            Order.objects.filter(created_at__gte=today_start)
+            .exclude(status=OrderStatus.CANCELLED)
+            .select_related("customer")
+            .prefetch_related("items__product")
+            .order_by("-created_at")[:50]
+        )
+        new_orders_list = []
+        for o in new_orders_today:
+            items_desc = ", ".join(
+                f"{it.quantity:g}x {it.product.name}" for it in o.items.all() if it.product
+            )
+            new_orders_list.append({
+                "order_id": str(o.id),
+                "customer_name": o.customer.name,
+                "customer_phone": o.customer.phone or "",
+                "scheduled_date": o.scheduled_delivery_date.isoformat(),
+                "is_special": o.is_special,
+                "total": float(o.total or 0),
+                "items_summary": items_desc or "Order",
+                "created_at": o.created_at.isoformat(),
+            })
+
+        total_changes = (
+            len(paused_deliveries_list)
+            + len(extra_orders_list)
+            + len(subs_changes_list)
+        )
+
+        return Response({
+            "date": today.isoformat(),
+            "total_today_changes": total_changes,
+            "paused_deliveries": {
+                "count": len(paused_deliveries_list),
+                "items": paused_deliveries_list,
+            },
+            "extra_milk_orders": {
+                "count": len(extra_orders_list),
+                "total_litres": round(total_extra_litres, 2),
+                "items": extra_orders_list,
+            },
+            "subscription_changes": {
+                "count": len(subs_changes_list),
+                "items": subs_changes_list,
+            },
+            "new_orders_today": {
+                "count": len(new_orders_list),
+                "items": new_orders_list,
+            },
+        })
 
     @action(detail=True, methods=["post"], url_path="mark-delivered")
     def mark_delivered(self, request, pk=None):
