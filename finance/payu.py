@@ -252,24 +252,48 @@ def verify_response_hash(payload: dict, salt: str | None = None) -> bool:
 
 
 def generate_mobile_sdk_hash(
-    hash_string: str, post_salt: str | None = None, salt: str | None = None
+    hash_string: str,
+    post_salt: str | None = None,
+    salt: str | None = None,
+    hash_type: str | None = None,
 ) -> str:
     """
-    Generates dynamic hash required by PayU Mobile SDK (`generateHash` callback).
-    Handles `hashString` whether or not it already ends with a trailing pipe `|`.
+    Generates dynamic hash required by PayU CheckoutPro / CoreSDK (`generateHash` callback).
+    - For V2 hashes (`hashType == "V2"`): computes HMAC-SHA256 with `merchant_salt` as key
+      and returns Base64-encoded digest per PayU CheckoutPro V2 specification.
+    - For standard V1 hashes: appends `merchant_salt` (and optional `post_salt`) and returns
+      lowercase SHA-512 hex digest.
     """
+    import base64
+
     cfg = get_payu_config()
-    merchant_salt = salt if salt is not None else cfg["salt"]
-    base = str(hash_string)
-    if not base.endswith("|"):
-        base = f"{base}|"
-    full_string = f"{base}{merchant_salt}"
+    merchant_salt = str(salt if salt is not None else cfg["salt"])
+    base = str(hash_string or "")
+
+    if str(hash_type or "").strip().upper() == "V2":
+        msg = f"{base}{post_salt}" if post_salt else base
+        digest = hmac.new(
+            merchant_salt.encode("utf-8"),
+            msg.encode("utf-8"),
+            hashlib.sha256,
+        ).digest()
+        return base64.b64encode(digest).decode("utf-8")
+
+    # Standard V1 SHA-512 hash:
+    # PayU CheckoutPro SDK passes `hashString` with a trailing `|` already included.
+    # Only insert `|` if the caller passed a pipe-delimited string without a trailing `|`.
+    if "|" in base and not base.endswith("|"):
+        full_string = f"{base}|{merchant_salt}"
+    else:
+        full_string = f"{base}{merchant_salt}"
+
     if post_salt:
-        full_string = (
-            f"{full_string}|{post_salt}"
-            if not full_string.endswith("|")
-            else f"{full_string}{post_salt}"
-        )
+        clean_post = str(post_salt)
+        if clean_post.startswith("|") or full_string.endswith("|"):
+            full_string = f"{full_string}{clean_post}"
+        else:
+            full_string = f"{full_string}|{clean_post}"
+
     return hashlib.sha512(full_string.encode("utf-8")).hexdigest().lower()
 
 
@@ -296,10 +320,14 @@ def fetch_payu_verify_payment(txnid: str) -> dict:
     req = urllib.request.Request(
         cfg["webservice_url"],
         data=form_data,
-        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        headers={
+            "Content-Type": "application/x-www-form-urlencoded",
+            "User-Agent": "Mozilla/5.0 (compatible; PenchFoodsERP/1.0)",
+            "Accept": "application/json",
+        },
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=15) as resp:
+    with urllib.request.urlopen(req, timeout=5) as resp:
         raw = resp.read().decode("utf-8")
         return json.loads(raw)
 

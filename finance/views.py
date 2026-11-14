@@ -969,7 +969,7 @@ class PayUInitiateView(APIView):
 
             customer = order.customer
             purpose = OnlinePaymentPurpose.ORDER
-            productinfo = f"Order #{str(order.id)[:8].upper()}"
+            productinfo = f"Order {str(order.id)[:8].upper()}"
             target_uuid = str(order.id)
 
         # 2. Monthly Bill
@@ -1059,7 +1059,7 @@ class PayUInitiateView(APIView):
 
             customer = subscription.customer
             purpose = OnlinePaymentPurpose.SUBSCRIPTION
-            productinfo = f"Subscription #{str(subscription.id)[:8].upper()}"
+            productinfo = f"Subscription {str(subscription.id)[:8].upper()}"
             target_uuid = str(subscription.id)
 
         amount_str = format_payu_amount(amount)
@@ -1088,17 +1088,21 @@ class PayUInitiateView(APIView):
         furl = request.data.get("furl") or callback_url
         frontend_redirect = str(request.data.get("frontend_redirect_url") or "")
 
-        firstname = (customer.name or "Customer").strip().split(" ")[0][:60]
+        raw_firstname = (customer.name or "Customer").strip().split(" ")[0]
+        firstname = "".join(ch for ch in raw_firstname if ch.isalnum())[:60] or "Customer"
         email = (customer.email or getattr(request.user, "email", "") or "customer@penchfoods.com").strip()
-        phone = (customer.phone or getattr(request.user, "phone", "") or "").strip()
+        raw_phone = (customer.phone or getattr(request.user, "phone", "") or "").strip()
+        digits_phone = "".join(ch for ch in raw_phone if ch.isdigit())
+        phone = digits_phone[-10:] if len(digits_phone) >= 10 else (digits_phone or "9999999999")
         schema_name = getattr(connection, "schema_name", "") or ""
         user_identifier = phone or email or str(customer.id)
         user_credentials = (
             str(request.data.get("user_credentials") or "").strip()
             or build_user_credentials(cfg["key"], user_identifier)
         )
+        sdk_environment = "1" if cfg["mode"] == "TEST" else "0"
 
-        params = {
+        form_fields = {
             "key": cfg["key"],
             "txnid": txnid,
             "amount": amount_str,
@@ -1113,15 +1117,20 @@ class PayUInitiateView(APIView):
             "udf3": frontend_redirect,
             "udf4": purpose,
             "udf5": target_uuid,
-            "user_credentials": user_credentials,
         }
         hashes = generate_seamless_sdk_hashes(
-            params=params,
+            params=form_fields,
             user_credentials=user_credentials,
             key=cfg["key"],
             salt=cfg["salt"],
         )
-        params["hash"] = hashes["payment_hash"]
+        form_fields["hash"] = hashes["payment_hash"]
+
+        params = {
+            **form_fields,
+            "user_credentials": user_credentials,
+            "environment": sdk_environment,
+        }
 
         return Response(
             {
@@ -1132,11 +1141,13 @@ class PayUInitiateView(APIView):
                 "purpose": purpose,
                 "mode": cfg["mode"],
                 "payu_env": cfg["mode"],
+                "environment": sdk_environment,
+                "is_production": cfg["mode"] == "LIVE",
                 "action_url": cfg["action_url"],
                 "payu_action_url": cfg["action_url"],
                 "user_credentials": user_credentials,
                 "params": params,
-                "form_fields": params,
+                "form_fields": form_fields,
                 "hashes": hashes,
             },
             status=status.HTTP_201_CREATED,
@@ -1260,9 +1271,10 @@ class PayUMobileHashView(APIView):
 
         command = request.data.get("command")
         var1 = request.data.get("var1", "default")
-        hash_string = request.data.get("hashString")
-        hash_name = request.data.get("hashName") or command or "hash"
-        post_salt = request.data.get("postSalt")
+        hash_string = request.data.get("hashString") or request.data.get("hash_string")
+        hash_name = request.data.get("hashName") or request.data.get("hash_name") or command or "hash"
+        post_salt = request.data.get("postSalt") or request.data.get("post_salt")
+        hash_type = request.data.get("hashType") or request.data.get("hash_type")
 
         if command:
             computed = calculate_command_hash(
@@ -1276,6 +1288,7 @@ class PayUMobileHashView(APIView):
                 hash_string=str(hash_string),
                 post_salt=str(post_salt) if post_salt else None,
                 salt=cfg["salt"],
+                hash_type=str(hash_type) if hash_type else None,
             )
         else:
             return Response(
@@ -1335,10 +1348,13 @@ class PayUPaymentStatusView(APIView):
             txn_details = (res.get("transaction_details") or {}).get(
                 payment.gateway_txnid
             )
-            if isinstance(txn_details, dict) and txn_details.get("status"):
-                reconciled, _ = reconcile_payu_callback(txn_details)
-                if reconciled:
-                    return reconciled
+            if isinstance(txn_details, dict):
+                payu_st = str(txn_details.get("status") or "").strip().lower()
+                if payu_st in ("success", "failure", "failed"):
+                    txn_details.setdefault("txnid", payment.gateway_txnid)
+                    reconciled, _ = reconcile_payu_callback(txn_details)
+                    if reconciled:
+                        return reconciled
         except Exception:
             pass
         payment.refresh_from_db()
