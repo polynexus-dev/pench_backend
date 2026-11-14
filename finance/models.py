@@ -272,7 +272,8 @@ class OnlinePayment(BaseModel):
                 if tx_ref:
                     order.payment_transaction_id = tx_ref
                 # A verified payment accepts a pending order; later stages are left alone.
-                if order.status == OrderStatus.PENDING:
+                was_pending = order.status == OrderStatus.PENDING
+                if was_pending:
                     order.status = OrderStatus.CONFIRMED
                 order.save(
                     update_fields=[
@@ -283,6 +284,32 @@ class OnlinePayment(BaseModel):
                         "payment_transaction_id",
                     ]
                 )
+                if was_pending:
+                    import threading
+                    from django.db import connection
+                    order_id_for_route = order.id
+                    schema_name = getattr(connection, "schema_name", None)
+
+                    def _add_confirmed_order_to_route():
+                        try:
+                            from django_tenants.utils import schema_context
+                            ctx = schema_context(schema_name) if schema_name else transaction.atomic()
+                        except Exception:
+                            from contextlib import nullcontext
+                            ctx = nullcontext()
+                        with ctx:
+                            try:
+                                from orders.models import Order
+                                from orders.services.route_generator import add_order_to_active_route_if_pending
+                                confirmed_order = Order.objects.select_related("customer").filter(id=order_id_for_route).first()
+                                if confirmed_order:
+                                    add_order_to_active_route_if_pending(confirmed_order)
+                            except Exception:
+                                pass
+
+                    transaction.on_commit(
+                        lambda: threading.Thread(target=_add_confirmed_order_to_route, daemon=True).start()
+                    )
 
             self.status = OnlinePaymentStatus.VERIFIED
             if user is not None:

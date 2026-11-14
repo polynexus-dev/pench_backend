@@ -244,44 +244,71 @@ class OrderViewSet(viewsets.ModelViewSet):
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     def perform_create(self, serializer):
+        import threading
+        from django.db import connection, transaction as db_tx
+
         serializer.save()
         orders = serializer.instance
         if not isinstance(orders, list):
             orders = [orders]
 
-        from orders.services.route_generator import add_order_to_active_route_if_pending
-        for order in orders:
-            try:
-                add_order_to_active_route_if_pending(order)
-            except Exception as e:
-                import logging
-                logger = logging.getLogger(__name__)
-                logger.error(f"Failed calling add_order_to_active_route_if_pending: {str(e)}")
+        order_ids = [order.id for order in orders]
+        schema_name = getattr(connection, "schema_name", None)
 
-        # Broadcast to Admin Dashboard via WebSocket
-        try:
-            from channels.layers import get_channel_layer
-            from asgiref.sync import async_to_sync
-            from django.utils import timezone
-            channel_layer = get_channel_layer()
-            if channel_layer:
-                for order in orders:
-                    c_name = order.customer.name if order.customer else "Customer"
-                    order_type = "Extra Milk / Additional Order 🥛" if order.is_special else "New Order Placed 📦"
-                    async_to_sync(channel_layer.group_send)(
-                        "admins",
-                        {
-                            "type": "broadcast_location",
-                            "notification_type": "extra_milk_ordered" if order.is_special else "new_order_placed",
-                            "title": order_type,
-                            "message": f"{c_name} placed an order for {order.scheduled_delivery_date}.",
-                            "order_id": str(order.id),
-                            "customer_name": c_name,
-                            "timestamp": timezone.now().isoformat(),
-                        },
-                    )
-        except Exception:
-            pass
+        def _post_create_background():
+            try:
+                from django_tenants.utils import schema_context
+                ctx = schema_context(schema_name) if schema_name else db_tx.atomic()
+            except Exception:
+                from contextlib import nullcontext
+                ctx = nullcontext()
+
+            with ctx:
+                from orders.models import Order
+                from orders.services.route_generator import add_order_to_active_route_if_pending
+
+                created_orders = list(
+                    Order.objects.select_related("customer").filter(id__in=order_ids)
+                )
+                for order in created_orders:
+                    # Unpaid PayU orders will be added to the route once payment is verified
+                    if order.payment_method == "payu" and order.payment_status == "pending":
+                        continue
+                    try:
+                        add_order_to_active_route_if_pending(order)
+                    except Exception as e:
+                        import logging
+                        logger = logging.getLogger(__name__)
+                        logger.error(f"Failed calling add_order_to_active_route_if_pending: {str(e)}")
+
+                # Broadcast to Admin Dashboard via WebSocket
+                try:
+                    from channels.layers import get_channel_layer
+                    from asgiref.sync import async_to_sync
+                    from django.utils import timezone
+                    channel_layer = get_channel_layer()
+                    if channel_layer:
+                        for order in created_orders:
+                            c_name = order.customer.name if order.customer else "Customer"
+                            order_type = "Extra Milk / Additional Order 🥛" if order.is_special else "New Order Placed 📦"
+                            async_to_sync(channel_layer.group_send)(
+                                "admins",
+                                {
+                                    "type": "broadcast_location",
+                                    "notification_type": "extra_milk_ordered" if order.is_special else "new_order_placed",
+                                    "title": order_type,
+                                    "message": f"{c_name} placed an order for {order.scheduled_delivery_date}.",
+                                    "order_id": str(order.id),
+                                    "customer_name": c_name,
+                                    "timestamp": timezone.now().isoformat(),
+                                },
+                            )
+                except Exception:
+                    pass
+
+        db_tx.on_commit(
+            lambda: threading.Thread(target=_post_create_background, daemon=True).start()
+        )
 
     def update(self, request, *args, **kwargs):
         user = request.user

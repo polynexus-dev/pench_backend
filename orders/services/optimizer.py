@@ -38,7 +38,7 @@ def get_osrm_distance_matrix(locations):
 
     url = f"{settings.OSRM_BASE_URL}/table/v1/driving/{coords}?annotations=distance"
     try:
-        response = requests.get(url, timeout=10)
+        response = requests.get(url, timeout=3)
         if response.status_code == 200:
             return response.json().get("distances")
     except Exception as e:
@@ -62,7 +62,7 @@ def get_osrm_route_geometry(locations):
 
     url = f"{settings.OSRM_BASE_URL}/route/v1/driving/{coords}?geometries=geojson&overview=full&continue_straight=false"
     try:
-        response = requests.get(url, timeout=10)
+        response = requests.get(url, timeout=3)
         if response.status_code == 200:
             data = response.json()
             if "routes" in data and len(data["routes"]) > 0:

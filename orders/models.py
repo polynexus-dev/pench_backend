@@ -263,21 +263,35 @@ from django.dispatch import receiver
 
 @receiver([post_save, post_delete], sender=RouteStop)
 def notify_route_stop_change(sender, instance, **kwargs):
-    if instance.route and instance.route.driver:
-        try:
-            from channels.layers import get_channel_layer
-            from asgiref.sync import async_to_sync
-            channel_layer = get_channel_layer()
-            if channel_layer:
-                async_to_sync(channel_layer.group_send)(
-                    f"driver_{instance.route.driver.id}",
-                    {
-                        "type": "route_updated",
-                        "route_id": str(instance.route.id)
-                    }
-                )
-        except Exception:
-            pass
+    if getattr(instance, "_suppress_ws_signal", False):
+        return
+    try:
+        route = instance.route
+        if not route or getattr(route, "_suppress_stop_signals", False) or not route.driver_id:
+            return
+        driver_id = str(route.driver_id)
+        route_id = str(route.id)
+
+        def _send():
+            try:
+                from channels.layers import get_channel_layer
+                from asgiref.sync import async_to_sync
+                channel_layer = get_channel_layer()
+                if channel_layer:
+                    async_to_sync(channel_layer.group_send)(
+                        f"driver_{driver_id}",
+                        {
+                            "type": "route_updated",
+                            "route_id": route_id,
+                        },
+                    )
+            except Exception:
+                pass
+
+        import threading
+        threading.Thread(target=_send, daemon=True).start()
+    except Exception:
+        pass
 
 
 @receiver(post_save, sender=Order)

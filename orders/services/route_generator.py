@@ -311,6 +311,14 @@ def add_order_to_active_route_if_pending(order):
     if not delivery_date:
         return
 
+    # Do not add unpaid PayU orders to active routes until payment is verified
+    if (
+        getattr(order, "payment_method", None) == "payu"
+        and getattr(order, "payment_status", None) == "pending"
+        and getattr(order, "status", None) == "pending"
+    ):
+        return
+
     customer = getattr(order, "customer", None)
     if not customer:
         return
